@@ -15,7 +15,7 @@ namespace Altus.Suffusion.Routing
 
         protected ServiceRoute()
         {
-            _capacity = () => new CapacityResponse() { Minimum = 0, Maximum = 100, Current = 0, Score = 1.0d };
+            _capacity = () => new CapacityResponse() { Minimum = 0, Maximum = 100, Current = 0, Score = 0.0d };
             _delay = (response) => TimeSpan.FromMilliseconds((1d - response.Score) * 2000);
         }
 

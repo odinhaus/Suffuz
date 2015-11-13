@@ -2,6 +2,7 @@
 using Altus.Suffusion.Protocols;
 using Altus.Suffusion.Protocols.Udp;
 using Altus.Suffusion.Routing;
+using Altus.Suffusion.Serialization.Binary;
 using Altus.Suffusion.Test;
 using System;
 using System.Collections.Generic;
@@ -38,61 +39,97 @@ namespace Altus.Suffusion
         private static void ConfigureRoutes()
         {
             var router = App.Resolve<IServiceRouter>();
+
             router.Route<Handler, TestRequest, TestResponse>(CHANNEL, (handler, request) => handler.Handle(request))
+                  .Capacity(() => new CapacityResponse()
+                                    {
+                                        Minimum = 0,
+                                        Maximum = 100,
+                                        Current = 25,
+                                        Score = CostFunctions.CapacityCost(25d, 0d, 100d)
+                                    })
+                  .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
+
+            router.Route<Handler, TestResponse>(CHANNEL, (handler) => handler.Handle())
                   .Capacity(() => new CapacityResponse() { Minimum = 0, Maximum = 100, Current = 25, Score = CostFunctions.CapacityCost(25d, 0d, 100d) })
-                  .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * capacity.Score));
+                  .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
+
+            router.Route<Handler>(CHANNEL, (handler) => handler.HandleNoArgs());
         }
 
-        static async void DoIt()
+        static void DoIt()
         {
             //// executes the request directly and returns the first result provided from any respondant
-            //var result = await new Op<TestRequest, TestResponse>("Chan1", new TestRequest())
+            //var result = await new Op<TestRequest, TestResponse>(CHANNEL, new TestRequest())
             //                        .ExecuteAsync();
 
             //// executes the request directly and aggregates N enumerated responses
-            //var enumerableResult1 = await new Op<TestRequest, TestResponse>("Chan1", new TestRequest())
+            //var enumerableResult1 = await new Op<TestRequest, TestResponse>(CHANNEL, new TestRequest())
             //                        .Aggregate(responses => responses.Where(r => r.Size > 2))
             //                        .ExecuteAsync();
 
             //// executes the request on respondants whose capacity exceeds an arbitrary threshold
             //// for simple predicate expressions without closures, the expression will be evaluated within the respondants' process
-            //var enumerableResult2 = await new Op<TestRequest, TestResponse>("Chan1", new TestRequest())
+            //var enumerableResult2 = await new Op<TestRequest, TestResponse>(CHANNEL, new TestRequest())
             //                        .Delegate(responses => responses.Where(r => r.Score > 0.2))
             //                        .ExecuteAsync();
 
             //// executes the request on respondants whose capacity exceeds an arbitrary threshold
             //// results are aggregated
-            //var enumerableResult3 = await new Op<TestRequest, TestResponse>("Chan1", new TestRequest())
+            //var enumerableResult3 = await new Op<TestRequest, TestResponse>(CHANNEL, new TestRequest())
             //                        .Delegate(responses => responses.Where(r => r.Score > 0.2))
             //                        .Aggregate(responses => responses.Where(r => r.Size > 2))
             //                        .ExecuteAsync();
 
             // executes the request respondants whose capacity exceeds an arbitrary threshold
             // returns the result from the first matching respondant
-            var scalarResult2 = await new Op<TestRequest, TestResponse>("Chan1", new TestRequest())
-                                    .Delegate(response => response.Score > TestResponse.SomeNumber() 
-                                                          && response.Current < response.Maximum)
-                                    .ExecuteAsync();
+
+            var scalarResult2 = new Op<TestRequest, TestResponse>(CHANNEL, new TestRequest())
+                                      .Delegate(response => response.Score > TestResponse.SomeNumber())
+                                      .Execute();
+
+            var scalarResult3 = new Op<TestRequest, TestResponse>(CHANNEL, new TestRequest()).Execute();
+
+            var scalarResult4 = Op<TestResponse>.New(CHANNEL, new TestRequest()).Execute();
+
+            Op.New(CHANNEL).Execute();
+
+
+            Console.Read();
         }
     }
 
-    class TestRequest
+    public class TestRequest
     {
 
     }
 
-    class TestResponse
+    public class TestResponse
     {
+        [BinarySerializable(0)]
         public int Size { get; set; }
 
-        public static int SomeNumber() { return 2; }
+        public static double SomeNumber()
+        {
+            return 0.8d;
+        }
     }
 
     class Handler
     {
         public TestResponse Handle(TestRequest request)
         {
-            return new TestResponse() { Size = 3 };
+            return new TestResponse() { Size = Environment.TickCount };
+        }
+
+        public TestResponse Handle()
+        {
+            return new TestResponse() { Size = 4 };
+        }
+
+        public void HandleNoArgs()
+        {
+
         }
     }
 }

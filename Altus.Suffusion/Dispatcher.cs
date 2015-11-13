@@ -25,40 +25,40 @@ namespace Altus.Suffusion
                 return recipients;
         }
 
-        public async static Task<TResponse> DispatchAsync<TResponse>(string uri, params string[] recipients)
+        public static TResponse Dispatch<TResponse>(string uri, params string[] recipients)
         {
             var channel = ChannelService.Create(uri);
-            return await channel.CallAsync<TResponse>(
+            return channel.Call<TResponse>(
                 new ChannelRequest(uri)
                 {
                     Recipients = CheckRecipients(recipients)
                 });
         }
 
-        public async static Task<TResponse> DispatchAsync<TResponse>(string uri, TimeSpan timeout, params string[] recipients)
+        public static TResponse DispatchAsync<TResponse>(string uri, TimeSpan timeout, params string[] recipients)
         {
             var channel = ChannelService.Create(uri);
-            return await channel.CallAsync<TResponse>(
+            return channel.Call<TResponse>(
                 new ChannelRequest(uri, timeout)
                 {
                     Recipients = CheckRecipients(recipients)
                 });
         }
 
-        public async static Task<TResponse> DispatchAsync<TRequest, TResponse>(string uri, TRequest payload, params string[] recipients)
+        public static TResponse DispatchAsync<TRequest, TResponse>(string uri, TRequest payload, params string[] recipients)
         {
             var channel = ChannelService.Create(uri);
-            return await channel.CallAsync<TRequest, TResponse>(
+            return channel.Call<TRequest, TResponse>(
                 new ChannelRequest<TRequest>(uri, TimeSpan.FromSeconds(30), payload)
                 {
                     Recipients = CheckRecipients(recipients)
                 });
         }
 
-        public async static Task DispatchAsync<TRequest>(string uri, TRequest payload, params string[] recipients)
+        public static void DispatchAsync<TRequest>(string uri, TRequest payload, params string[] recipients)
         {
             var channel = ChannelService.Create(uri);
-            await channel.CallAsync<TRequest>(
+            channel.Call<TRequest>(
                 new ChannelRequest<TRequest>(uri, TimeSpan.FromSeconds(0), payload)
                 {
                     Recipients = CheckRecipients(recipients),
@@ -66,20 +66,20 @@ namespace Altus.Suffusion
                 });
         }
 
-        public async static Task<TResponse> DispatchAsync<TRequest, TResponse>(string uri, TRequest payload, TimeSpan timeout, params string[] recipients)
+        public static TResponse DispatchAsync<TRequest, TResponse>(string uri, TRequest payload, TimeSpan timeout, params string[] recipients)
         {
             var channel = ChannelService.Create(uri);
-            return await channel.CallAsync<TRequest, TResponse>(
+            return channel.Call<TRequest, TResponse>(
                 new ChannelRequest<TRequest>(uri, timeout, payload)
                 {
                     Recipients = CheckRecipients(recipients)
                 });
         }
 
-        public async static Task DispatchAsync<TRequest, TResponse>(string uri, TRequest payload, Func<TResponse, bool> handler, params string[] recipients)
+        public static void DispatchAsync<TRequest, TResponse>(string uri, TRequest payload, Func<TResponse, bool> handler, params string[] recipients)
         {
             var channel = ChannelService.Create(uri);
-            await channel.CallAsync<TRequest, TResponse>(
+            channel.Call<TRequest, TResponse>(
                 new ChannelRequest<TRequest>(uri, TimeSpan.FromSeconds(30), payload)
                 {
                     Recipients = CheckRecipients(recipients),
@@ -87,10 +87,10 @@ namespace Altus.Suffusion
                 }, handler);
         }
 
-        public async static Task DispatchAsync<TRequest, TResponse>(string uri, TRequest payload, TimeSpan timeout, Func<TResponse, bool> handler, params string[] recipients)
+        public static void DispatchAsync<TRequest, TResponse>(string uri, TRequest payload, TimeSpan timeout, Func<TResponse, bool> handler, params string[] recipients)
         {
             var channel = ChannelService.Create(uri);
-            await channel.CallAsync<TRequest, TResponse>(
+            channel.Call<TRequest, TResponse>(
                 new ChannelRequest<TRequest>(uri, timeout, payload)
                 {
                     Recipients = CheckRecipients(recipients),

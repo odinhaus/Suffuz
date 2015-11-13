@@ -12,6 +12,8 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using Altus.Suffusion.Messages;
+using System.Xml.Linq;
 
 namespace Altus.Suffusion.Protocols.Udp
 {
@@ -262,57 +264,51 @@ namespace Altus.Suffusion.Protocols.Udp
             return async.GetResponse();
         }
 
-        public async Task CallAsync<TRequest>(ChannelRequest<TRequest> request)
+        public void Call<TRequest>(ChannelRequest<TRequest> request)
         {
-            await Task.Run(() =>
+            var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
             {
-                var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
-                {
-                    Payload = request.Payload,
-                    Recipients = request.Recipients
-                };
-                Call(message, request.Timeout);
-            });
+                Payload = request.Payload,
+                Recipients = request.Recipients
+            };
+            Call(message, request.Timeout);
         }
 
-        public async Task<TResponse> CallAsync<TResponse>(ChannelRequest request)
+        public TResponse Call<TResponse>(ChannelRequest request)
         {
-            return await CallAsync<NoArgs, TResponse>((ChannelRequest<NoArgs>)request);
+            return Call<NoArgs, TResponse>((ChannelRequest<NoArgs>)request);
         }
 
-        public async Task<TResponse> CallAsync<TRequest, TResponse>(ChannelRequest<TRequest> request)
+        public TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest> request)
         {
-            return await Task.Run<TResponse>(() =>
+            var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
             {
-                var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
-                {
-                    Payload = request.Payload,
-                    Recipients = request.Recipients
-                };
+                Payload = request.Payload,
+                Recipients = request.Recipients
+            };
 
-                var response = Call(message, request.Timeout);
-                
-                return (TResponse)response.Payload;
-            });
+            var cancel = new CancellationTokenSource();
+            cancel.CancelAfter(request.Timeout);
+
+            var response = Call(message, request.Timeout);
+
+            return (TResponse)response.Payload;
         }
 
-        public async Task CallAsync<TResponse>(ChannelRequest request, Func<TResponse, bool> handler)
+        public void Call<TResponse>(ChannelRequest request, Func<TResponse, bool> handler)
         {
-            await CallAsync<NoArgs, TResponse>((ChannelRequest<NoArgs>)request, handler);
+            Call<NoArgs, TResponse>((ChannelRequest<NoArgs>)request, handler);
         }
 
-        public async Task CallAsync<TRequest, TResponse>(ChannelRequest<TRequest> request, Func<TResponse, bool> handler)
+        public void Call<TRequest, TResponse>(ChannelRequest<TRequest> request, Func<TResponse, bool> handler)
         {
-            await Task.Run(() =>
+            var message = new Message(Format, request.Uri, ServiceType.Broadcast, App.InstanceName)
             {
-                var message = new Message(Format, request.Uri, ServiceType.Broadcast, App.InstanceName)
-                {
-                    Payload = request.Payload,
-                    Recipients = request.Recipients
-                };
+                Payload = request.Payload,
+                Recipients = request.Recipients
+            };
 
-                Call<TResponse>(message, request.Timeout, handler);
-            });
+            Call<TResponse>(message, request.Timeout, handler);
         }
 
         public void Call<U>(Message message, TimeSpan timeout, Func<U, bool> handler)
@@ -573,7 +569,6 @@ namespace Altus.Suffusion.Protocols.Udp
 
         private void ProcessInboundMessage(Message message)
         {
-            //Console.WriteLine("Received {0} From {1}", message.Payload.GetType().Name, message.Sender);
             MessageReceivedHandler callback;
             bool hasCallback = false;
             lock(_receivers)
@@ -582,22 +577,7 @@ namespace Altus.Suffusion.Protocols.Udp
             }
             if (hasCallback)
             {
-                try
-                {
-                    callback(this, message);
-                }
-                catch { }
-                finally
-                {
-                    if (message.ServiceType == ServiceType.RequestResponse)
-                    {
-                        lock(_receivers)
-                        {
-                            // we only care about one response, so remove the callback
-                            _receivers.Remove(message.CorrelationId);
-                        }
-                    }
-                }
+                HandleCallback(callback, message);
             }
             else if (string.IsNullOrEmpty(message.CorrelationId))
             {
@@ -607,31 +587,100 @@ namespace Altus.Suffusion.Protocols.Udp
                 if (!message.Recipients.Any(r => r.Equals("*") || r.Equals(App.InstanceName)))
                     return;
 
-                var payloadType = TypeHelper.GetType(message.PayloadType);
-                var route = _router.GetRoute(message.ServiceUri, payloadType);
-                if (route != null)
+                HandleNewMessage(message);
+            }
+        }
+
+        private void HandleNewMessage(Message message)
+        {
+            var payloadType = TypeHelper.GetType(message.PayloadType);
+            var requestType = payloadType;
+            object payload = message.Payload;
+            Func<CapacityResponse, bool> capacityPredicate = null;
+
+            if (IsDelegatedRequest(message, payloadType, out requestType))
+            {
+                capacityPredicate = new Serialization.Expressions.ExpressionSerializer()
+                    .Deserialize<Func<CapacityResponse, bool>>(XElement.Parse(((DelegatedExecutionRequest)payload).Delegator))
+                    .Compile();
+                payload = ((DelegatedExecutionRequest)payload).Request;
+            }
+
+            var route = _router.GetRoute(message.ServiceUri, requestType);
+            if (route != null)
+            {
+                if (capacityPredicate != null)
                 {
-                    var result = route.HasParameters 
-                        ? route.Handler.DynamicInvoke(message.Payload) 
-                        : route.Handler.DynamicInvoke();
-                    if ((message.ServiceType == ServiceType.RequestResponse || message.ServiceType == ServiceType.Broadcast)
-                        && route.Handler.Method.ReturnType != typeof(void))
+                    // we need to evaluate whether the route should be executed
+                    var capacity = route.Capacity();
+                    if (capacityPredicate(capacity))
                     {
-                        var response = new Message(Format, message.ServiceUri, message.ServiceType, App.InstanceName)
+                        var delay = route.Delay(capacity);
+                        if (delay.TotalMilliseconds > 0)
                         {
-                            Payload = result,
-                            CorrelationId = message.Id,
-                            DeliveryGuaranteed = message.DeliveryGuaranteed,
-                            Recipients = new string[] { message.Sender },
-                            Timestamp = CurrentTime.Now,
-                            IsReponse = true
-                        };
-                        this.Send(response);
-                        //Console.WriteLine("Sent {0} To {1}", result.GetType().Name, message.Sender);
+                            Thread.Sleep(delay);
+                        }
+                    }
+                    else return; // we didn't pass the test, so don't process the request
+                }
+
+                var result = route.HasParameters
+                    ? route.Handler.DynamicInvoke(payload)
+                    : route.Handler.DynamicInvoke();
+                if ((message.ServiceType == ServiceType.RequestResponse || message.ServiceType == ServiceType.Broadcast)
+                    && route.Handler.Method.ReturnType != typeof(void))
+                {
+                    var response = new Message(Format, message.ServiceUri, message.ServiceType, App.InstanceName)
+                    {
+                        Payload = result,
+                        CorrelationId = message.Id,
+                        DeliveryGuaranteed = message.DeliveryGuaranteed,
+                        Recipients = new string[] { message.Sender },
+                        Timestamp = CurrentTime.Now,
+                        IsReponse = true
+                    };
+                    this.Send(response);
+                    //Console.WriteLine("Sent {0} To {1}", result.GetType().Name, message.Sender);
+                }
+            }
+            // for multicast listeners, the absence of a matched route doesn't mean there's a problem, as the listener may see many
+            // messages on the group that simply aren't relevant, so we don't throw an exception here - we just ignore
+        }
+
+        protected bool IsDelegatedRequest(Message message, Type payloadType, out Type requestType)
+        {
+            requestType = payloadType;
+
+            if (requestType.Equals(typeof(DelegatedExecutionRequest)))
+            {
+                requestType = ((DelegatedExecutionRequest)message.Payload).Request.GetType();
+                if (requestType.Implements(typeof(ISerializer<>)))
+                {
+                    requestType = requestType.BaseType;
+                }
+                return true;
+            }
+
+            return false;
+        }
+
+        protected void HandleCallback(MessageReceivedHandler callback, Message message)
+        {
+            try
+            {
+                callback(this, message);
+            }
+            catch { }
+            finally
+            {
+                if (message.ServiceType == ServiceType.RequestResponse)
+                {
+                    lock (_receivers)
+                    {
+                        // we only care about one response, so remove the callback
+                        _receivers.Remove(message.CorrelationId);
                     }
                 }
-                // for multicast listeners, the absence of a matched route doesn't mean there's a problem, as the listener may see many
-                // messages on the group that simply aren't relevant, so we don't throw an exception here - we just ignore
             }
         }
 

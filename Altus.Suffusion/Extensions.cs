@@ -1,5 +1,6 @@
 ﻿using Altus.Suffusion.Messages;
 using Altus.Suffusion.Protocols;
+using Altus.Suffusion.Routing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,64 +12,71 @@ namespace Altus.Suffusion
 {
     public static class Extensions
     {
-        //public async static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this TRequest request, int timeout = -1)
+        //public  static Task<TResponse> Execute<TRequest, TResponse>(this TRequest request, int timeout = -1)
         //{
         //    throw new NotImplementedException();
         //}
 
-        //public async static Task ExecuteAsync<TRequest, TResponse>(this TRequest request, Action<IEnumerable<TResponse>> aggregator, int timeout = -1)
+        //public  static Task Execute<TRequest, TResponse>(this TRequest request, Action<IEnumerable<TResponse>> aggregator, int timeout = -1)
         //{
         //    throw new NotImplementedException();
         //}
 
-        //public async static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this TRequest request, Func<CapacityResponse<TRequest>, bool> capacityPredicate, int timeout = -1)
+        //public  static Task<TResponse> Execute<TRequest, TResponse>(this TRequest request, Func<CapacityResponse<TRequest>, bool> capacityPredicate, int timeout = -1)
         //{
         //    throw new NotImplementedException();
         //}
 
-        public async static Task<TResponse> ExecuteAsync<TResponse>(this Op<TResponse> request, int timeout = -1)
+        public static TResponse Execute<TResponse>(this Op<NoArgs,TResponse> request, int timeout = -1)
         {
-            return await ExecuteAsync((Op<NoArgs, TResponse>)request, timeout);
+            return Execute(request, timeout);
         }
 
-        public async static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this Op<TRequest, TResponse> request, int timeout = -1)
+        public static TResponse Execute<TRequest, TResponse>(this Op<TRequest, TResponse> request, int timeout = -1)
+        {
+            var channelService = App.Resolve<IChannelService>();
+            var channel = channelService.Create(request.ChannelName);
+            return channel.Call<TRequest, TResponse>(
+                new ChannelRequest<TRequest>(request.ChannelName)
+                {
+                    Timeout = timeout > 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(30000),
+                    Payload = request.Request
+                });
+        }
+
+        public static Task<IEnumerable<TResponse>> Execute<TResponse>(this Op<NoArgs, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, int timeout = -1)
+        {
+            return Execute(request, aggregator, timeout);
+        }
+
+        public static Task<IEnumerable<TResponse>> Execute<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, int timeout = -1)
         {
             throw new NotImplementedException();
         }
 
-        public async static Task<IEnumerable<TResponse>> ExecuteAsync<TResponse>(this Op<TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, int timeout = -1)
+        public static Task<TResponse> Execute<TResponse>(this Op<NoArgs, TResponse> request, Func<CapacityResponse, bool> capacityPredicate, int timeout = -1)
         {
-            return await ExecuteAsync((Op<NoArgs, TResponse>)request, aggregator, timeout);
+            return Execute(request, capacityPredicate, timeout);
         }
 
-        public async static Task<IEnumerable<TResponse>> ExecuteAsync<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, int timeout = -1)
+        public static Task<TResponse> Execute<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<CapacityResponse, bool> capacityPredicate, int timeout = -1)
         {
             throw new NotImplementedException();
         }
 
-        public async static Task<TResponse> ExecuteAsync<TResponse>(this Op<TResponse> request, Func<CapacityResponse, bool> capacityPredicate, int timeout = -1)
+        public static Task<TResponse> Execute<TResponse>(this Op<NoArgs, TResponse> request, Func<IEnumerable<CapacityResponse>, bool> capacityPredicate, int timeout = -1)
         {
-            return await ExecuteAsync((Op<NoArgs, TResponse>)request, capacityPredicate, timeout);
+            return Execute(request, capacityPredicate, timeout);
         }
 
-        public async static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<CapacityResponse, bool> capacityPredicate, int timeout = -1)
+        public static Task<TResponse> Execute<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<CapacityResponse>, bool> capacityPredicate, int timeout = -1)
         {
             throw new NotImplementedException();
         }
 
-        public async static Task<TResponse> ExecuteAsync<TResponse>(this Op<TResponse> request, Func<IEnumerable<CapacityResponse>, bool> capacityPredicate, int timeout = -1)
+        public static AggregateExecutor<NoArgs, TResponse> Aggregate<TResponse>(this Op<NoArgs, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
         {
-            return await ExecuteAsync((Op<NoArgs, TResponse>)request, capacityPredicate, timeout);
-        }
-
-        public async static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<CapacityResponse>, bool> capacityPredicate, int timeout = -1)
-        {
-            throw new NotImplementedException();
-        }
-
-        public static AggregateExecutor<NoArgs, TResponse> Aggregate<TResponse>(this Op<TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
-        {
-            return Aggregate((Op<NoArgs, TResponse>)request, aggregator);
+            return Aggregate(request, aggregator);
         }
 
         public static AggregateExecutor<TRequest, TResponse> Aggregate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
@@ -76,9 +84,9 @@ namespace Altus.Suffusion
             return new Extensions.AggregateExecutor<TRequest, TResponse>(request, aggregator);
         }
 
-        public static EnumerableDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<TResponse> request, Expression<Func<IEnumerable<CapacityResponse>, IEnumerable<CapacityResponse>>> delegator)
+        public static EnumerableDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<NoArgs, TResponse> request, Expression<Func<IEnumerable<CapacityResponse>, IEnumerable<CapacityResponse>>> delegator)
         {
-            return Delegate((Op<NoArgs, TResponse>)request, delegator);
+            return Delegate(request, delegator);
         }
 
         public static EnumerableDelegateExecutor<TRequest, TResponse> Delegate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<IEnumerable<CapacityResponse>, IEnumerable<CapacityResponse>>> delegator)
@@ -86,9 +94,9 @@ namespace Altus.Suffusion
             return new Extensions.EnumerableDelegateExecutor<TRequest, TResponse>(request, delegator);
         }
 
-        public static ScalarDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
+        public static ScalarDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<NoArgs, TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
         {
-            return Delegate((Op<NoArgs, TResponse>)request, delegator);
+            return Delegate(request, delegator);
         }
 
         public static ScalarDelegateExecutor<TRequest, TResponse> Delegate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
@@ -107,7 +115,7 @@ namespace Altus.Suffusion
                 this._request = request;
             }
 
-            public async Task<IEnumerable<TResponse>> ExecuteAsync(int timeout = -1)
+            public  Task<IEnumerable<TResponse>> Execute(int timeout = -1)
             {
                 throw new NotImplementedException();
             }
@@ -129,7 +137,7 @@ namespace Altus.Suffusion
                 return new AggregateExecutor<TRequest, TResponse>(_request, aggregator);
             }
 
-            public async Task<IEnumerable<TResponse>> ExecuteAsync(int timeout = -1)
+            public  Task<IEnumerable<TResponse>> Execute(int timeout = -1)
             {
                 throw new NotImplementedException();
             }
@@ -144,17 +152,22 @@ namespace Altus.Suffusion
             {
                 this._delegator = delegator;
                 this._request = request;
-                var serializer = new Serialization.Expressions.ExpressionSerializer();
-                var expressionXml = serializer.Serialize(delegator);
-                Console.Write(expressionXml.ToString());
-                var expression = serializer.Deserialize(expressionXml);
-                Console.WriteLine();
-                Console.Write(expression.ToString());
             }
 
-            public async Task<TResponse> ExecuteAsync(int timeout = -1)
+            public TResponse Execute(int timeout = -1)
             {
-                throw new NotImplementedException();
+                var channelService = App.Resolve<IChannelService>();
+                var channel = channelService.Create(_request.ChannelName);
+                return channel.Call<DelegatedExecutionRequest, TResponse>(
+                new ChannelRequest<DelegatedExecutionRequest>(_request.ChannelName)
+                {
+                    Timeout = timeout > 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(30000),
+                    Payload = new DelegatedExecutionRequest()
+                    {
+                        Request = _request.Request,
+                        Delegator = new Serialization.Expressions.ExpressionSerializer().Serialize(_delegator).ToString()
+                    }
+                });
             }
         }
     }

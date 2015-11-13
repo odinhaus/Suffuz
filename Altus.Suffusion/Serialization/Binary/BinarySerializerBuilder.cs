@@ -133,7 +133,7 @@ namespace Altus.Suffusion.Serialization.Binary
             BinarySerializableAttribute yA = ((BinarySerializableAttribute[])y.GetCustomAttributes(typeof(BinarySerializableAttribute), true))[0];
             return xA.SortOrder.CompareTo(yA.SortOrder);
         }
-
+        static ulong _count;
         private Type CompileSerializer(string template, Type baseType)
         {
             string directoryName = Path.GetDirectoryName(System.Reflection.Assembly.GetEntryAssembly().Location);
@@ -145,8 +145,9 @@ namespace Altus.Suffusion.Serialization.Binary
             compilerParams.GenerateExecutable = false;
 
 
-            directoryName = Path.Combine(directoryName, ConfigurationManager.AppSettings["tempDir"], Guid.NewGuid().ToString());
-            string path = Path.Combine(directoryName, baseType.FullName + ".serializer.dll");
+            directoryName = Path.Combine(directoryName, ConfigurationManager.AppSettings["tempDir"], Environment.TickCount.ToString());
+            //string path = Path.Combine(directoryName, baseType.FullName + ".serializer.dll");
+            string path = Path.Combine(directoryName, "s" + _count++ + ".dll");
 
             Directory.CreateDirectory(directoryName);
 

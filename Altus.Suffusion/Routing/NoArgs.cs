@@ -8,5 +8,6 @@ namespace Altus.Suffusion.Routing
 {
     public sealed class NoArgs
     {
+        public static readonly NoArgs Empty = new NoArgs();
     }
 }

@@ -19,11 +19,11 @@ namespace Altus.Suffusion.Protocols
         string Format { get; }
         Dictionary<string, object> ConnectionAspects { get; }
 
-        Task<TResponse> CallAsync<TResponse>(ChannelRequest request);
-        Task CallAsync<TResponse>(ChannelRequest request, Func<TResponse, bool> handler);
-        Task CallAsync<TRequest>(ChannelRequest<TRequest> request);
-        Task<TResponse> CallAsync<TRequest, TResponse>(ChannelRequest<TRequest> request);
-        Task CallAsync<TRequest, TResponse>(ChannelRequest<TRequest> request, Func<TResponse, bool> handler);
+        TResponse Call<TResponse>(ChannelRequest request);
+        void Call<TResponse>(ChannelRequest request, Func<TResponse, bool> handler);
+        void Call<TRequest>(ChannelRequest<TRequest> request);
+        TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest> request);
+        void Call<TRequest, TResponse>(ChannelRequest<TRequest> request, Func<TResponse, bool> handler);
 
         void SendError(Message message, Exception ex);
         void ResetProperties();
