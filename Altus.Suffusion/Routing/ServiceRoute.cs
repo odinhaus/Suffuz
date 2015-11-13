@@ -1,5 +1,6 @@
 ﻿using Altus.Suffusion.Messages;
 using System;
+using System.Linq.Expressions;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -7,33 +8,49 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffusion.Routing
 {
-    public class ServiceRoute
+    public abstract class ServiceRoute
     {
+        protected Func<CapacityResponse> _capacity;
+        protected Func<CapacityResponse, TimeSpan> _delay;
+
+        protected ServiceRoute()
+        {
+            _capacity = () => new CapacityResponse() { Minimum = 0, Maximum = 100, Current = 0, Score = 1.0d };
+            _delay = (response) => TimeSpan.FromMilliseconds((1d - response.Score) * 2000);
+        }
+
         public Delegate Handler { get; internal set; }
         public bool HasParameters { get; internal set; }
+
+        internal CapacityResponse Capacity()
+        {
+            return _capacity();
+        }
+
+        internal TimeSpan Delay(CapacityResponse capacity)
+        {
+            return _delay(capacity);
+        }
+        
     }
 
-    public class ServiceRoute<THandler, TRequest, TResponse> : ServiceRoute
+    public class ServiceRoute<TRequest, TResponse> : ServiceRoute
     {
-        public void Selector(Func<TResponse, bool> selector)
+        public ServiceRoute()
         {
-            Select = selector;
+            
         }
 
-        public Func<TResponse, bool> Select { get; private set; }
-
-        public void Aggregator(Func<Aggregate<TResponse>, bool> aggregator)
+        public ServiceRoute<TRequest, TResponse> Capacity(Expression<Func<CapacityResponse>> capacity)
         {
-            Aggregate = aggregator;
+            _capacity = capacity.Compile();
+            return this;
         }
 
-        public Func<Aggregate<TResponse>, bool> Aggregate { get; private set; }
-
-        public void Capacitor(Func<TRequest, CapacityResponse<TRequest>> capacitor)
+        public ServiceRoute<TRequest, TResponse> Delay(Expression<Func<CapacityResponse, TimeSpan>> delay)
         {
-            Capacity = capacitor;
+            _delay = delay.Compile();
+            return this;
         }
-
-        public Func<TRequest, CapacityResponse<TRequest>> Capacity { get; private set; }
     }
 }

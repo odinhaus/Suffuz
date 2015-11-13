@@ -1,4 +1,4 @@
-﻿using StructureMap;
+﻿using Altus.Suffusion.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +9,7 @@ namespace Altus.Suffusion
 {
     public interface IBootstrapper
     {
-        IContainer Initialize();
+        IResolveTypes Initialize();
         string InstanceName { get; }
         ulong InstanceId { get; }
         byte[] InstanceCryptoKey { get; }

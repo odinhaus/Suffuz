@@ -9,9 +9,10 @@ namespace Altus.Suffusion.Routing
 {
     public interface IServiceRouter
     {
-        ServiceRoute Route<THandler, TPayload, TResult>(string uri, Expression<Func<THandler, TPayload, TResult>> handler);
-        ServiceRoute Route<THandler, TResult>(string uri, Expression<Func<THandler, TResult>> handler);
-        ServiceRoute Route<THandler, TMessage>(string uri, Expression<Action<THandler, TMessage>> handler);
+        ServiceRoute<TRequest, TResult> Route<THandler, TRequest, TResult>(string channelId, Expression<Func<THandler, TRequest, TResult>> handler);
+        ServiceRoute<NoArgs, TResult> Route<THandler, TResult>(string channelId, Expression<Func<THandler, TResult>> handler);
+        ServiceRoute<TMessage, NoReturn> Route<THandler, TMessage>(string channelId, Expression<Action<THandler, TMessage>> handler);
+        ServiceRoute<NoArgs, NoReturn> Route<THandler>(string channelId, Expression<Action<THandler>> handler);
 
         ServiceRoute GetRoute(string uri, Type requestType);
         ServiceRoute GetRoute<TRequest>(string uri);

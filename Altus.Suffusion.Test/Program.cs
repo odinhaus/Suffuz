@@ -1,4 +1,9 @@
-﻿using System;
+﻿using Altus.Suffusion.Messages;
+using Altus.Suffusion.Protocols;
+using Altus.Suffusion.Protocols.Udp;
+using Altus.Suffusion.Routing;
+using Altus.Suffusion.Test;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,9 +13,34 @@ namespace Altus.Suffusion
 {
     class Program
     {
+        public const string CHANNEL = "channel1";
+        private static IChannelService _channelService;
+
         static void Main(string[] args)
         {
+            ConfigureApp();
+            ConfigureRoutes();
+            OpenChannels();
             DoIt();
+        }
+
+        private static void ConfigureApp()
+        {
+            App<TypeRegistry>.Initialize();
+        }
+
+        private static void OpenChannels()
+        {
+            _channelService = App.Resolve<IChannelService>();
+            _channelService.Create(CHANNEL);
+        }
+
+        private static void ConfigureRoutes()
+        {
+            var router = App.Resolve<IServiceRouter>();
+            router.Route<Handler, TestRequest, TestResponse>(CHANNEL, (handler, request) => handler.Handle(request))
+                  .Capacity(() => new CapacityResponse() { Minimum = 0, Maximum = 100, Current = 25, Score = CostFunctions.CapacityCost(25d, 0d, 100d) })
+                  .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * capacity.Score));
         }
 
         static async void DoIt()
@@ -40,7 +70,8 @@ namespace Altus.Suffusion
             // executes the request respondants whose capacity exceeds an arbitrary threshold
             // returns the result from the first matching respondant
             var scalarResult2 = await new Op<TestRequest, TestResponse>("Chan1", new TestRequest())
-                                    .Delegate(response => response.Score > TestResponse.SomeNumber() && response.Current < response.Maximum)
+                                    .Delegate(response => response.Score > TestResponse.SomeNumber() 
+                                                          && response.Current < response.Maximum)
                                     .ExecuteAsync();
         }
     }
@@ -55,5 +86,13 @@ namespace Altus.Suffusion
         public int Size { get; set; }
 
         public static int SomeNumber() { return 2; }
+    }
+
+    class Handler
+    {
+        public TestResponse Handle(TestRequest request)
+        {
+            return new TestResponse() { Size = 3 };
+        }
     }
 }

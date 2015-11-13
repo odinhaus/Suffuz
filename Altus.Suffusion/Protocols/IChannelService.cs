@@ -8,6 +8,6 @@ namespace Altus.Suffusion.Protocols
 {
     public interface IChannelService
     {
-        IChannel Create(string uri);
+        IChannel Create(string channelName);
     }
 }

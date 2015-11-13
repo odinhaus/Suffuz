@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffusion.Messages
 {
-    public class CapacityRequest<TRequest>
+    public class CapacityRequest<TRequest, TResponse>
     {
     }
 }

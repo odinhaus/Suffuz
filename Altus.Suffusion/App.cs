@@ -1,5 +1,5 @@
 ﻿
-using StructureMap;
+using Altus.Suffusion.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,10 +17,8 @@ namespace Altus.Suffusion
             var init = new T();
             Container = init.Initialize();
             var id = Environment.TickCount;
-            //InstanceName = init.InstanceName;
-            //InstanceId = init.InstanceId;
-            InstanceId = (ulong)id;
-            InstanceName = id.ToString();
+            InstanceName = init.InstanceName;
+            InstanceId = init.InstanceId;
             InstanceCryptoKey = init.InstanceCryptoKey;
         }
     }
@@ -28,13 +26,20 @@ namespace Altus.Suffusion
     public class App
     {
         protected App() { }
-        public static IContainer Container { get; protected set; }
+
+        protected static IResolveTypes Container { get; set; }
         public static string InstanceName { get; protected set; }
         public static ulong InstanceId { get; protected set; }
         public static byte[] InstanceCryptoKey { get; protected set; }
+
         public static X Resolve<X>()
         {
-            return Container.GetInstance<X>();
+            return Container.Resolve<X>();
+        }
+
+        public static IEnumerable<X> ResolveAll<X>()
+        {
+            return Container.ResolveAll<X>();
         }
     }
 }

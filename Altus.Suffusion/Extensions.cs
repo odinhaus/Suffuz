@@ -46,22 +46,22 @@ namespace Altus.Suffusion
             throw new NotImplementedException();
         }
 
-        public async static Task<TResponse> ExecuteAsync<TResponse>(this Op<TResponse> request, Func<CapacityResponse<NoArgs>, bool> capacityPredicate, int timeout = -1)
+        public async static Task<TResponse> ExecuteAsync<TResponse>(this Op<TResponse> request, Func<CapacityResponse, bool> capacityPredicate, int timeout = -1)
         {
             return await ExecuteAsync((Op<NoArgs, TResponse>)request, capacityPredicate, timeout);
         }
 
-        public async static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<CapacityResponse<NoArgs>, bool> capacityPredicate, int timeout = -1)
+        public async static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<CapacityResponse, bool> capacityPredicate, int timeout = -1)
         {
             throw new NotImplementedException();
         }
 
-        public async static Task<TResponse> ExecuteAsync<TResponse>(this Op<TResponse> request, Func<IEnumerable<CapacityResponse<NoArgs>>, bool> capacityPredicate, int timeout = -1)
+        public async static Task<TResponse> ExecuteAsync<TResponse>(this Op<TResponse> request, Func<IEnumerable<CapacityResponse>, bool> capacityPredicate, int timeout = -1)
         {
             return await ExecuteAsync((Op<NoArgs, TResponse>)request, capacityPredicate, timeout);
         }
 
-        public async static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<CapacityResponse<NoArgs>>, bool> capacityPredicate, int timeout = -1)
+        public async static Task<TResponse> ExecuteAsync<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<CapacityResponse>, bool> capacityPredicate, int timeout = -1)
         {
             throw new NotImplementedException();
         }
@@ -76,22 +76,22 @@ namespace Altus.Suffusion
             return new Extensions.AggregateExecutor<TRequest, TResponse>(request, aggregator);
         }
 
-        public static EnumerableDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<TResponse> request, Expression<Func<IEnumerable<CapacityResponse<TResponse>>, IEnumerable<CapacityResponse<TResponse>>>> delegator)
+        public static EnumerableDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<TResponse> request, Expression<Func<IEnumerable<CapacityResponse>, IEnumerable<CapacityResponse>>> delegator)
         {
             return Delegate((Op<NoArgs, TResponse>)request, delegator);
         }
 
-        public static EnumerableDelegateExecutor<TRequest, TResponse> Delegate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<IEnumerable<CapacityResponse<TResponse>>, IEnumerable<CapacityResponse<TResponse>>>> delegator)
+        public static EnumerableDelegateExecutor<TRequest, TResponse> Delegate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<IEnumerable<CapacityResponse>, IEnumerable<CapacityResponse>>> delegator)
         {
             return new Extensions.EnumerableDelegateExecutor<TRequest, TResponse>(request, delegator);
         }
 
-        public static ScalarDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<TResponse> request, Expression<Func<CapacityResponse<TResponse>, bool>> delegator)
+        public static ScalarDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
         {
             return Delegate((Op<NoArgs, TResponse>)request, delegator);
         }
 
-        public static ScalarDelegateExecutor<TRequest, TResponse> Delegate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<CapacityResponse<TResponse>, bool>> delegator)
+        public static ScalarDelegateExecutor<TRequest, TResponse> Delegate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
         {
             return new Extensions.ScalarDelegateExecutor<TRequest, TResponse>(request, delegator);
         }
@@ -115,10 +115,10 @@ namespace Altus.Suffusion
 
         public class EnumerableDelegateExecutor<TRequest, TResponse>
         {
-            private Expression<Func<IEnumerable<CapacityResponse<TResponse>>, IEnumerable<CapacityResponse<TResponse>>>> _delegator;
+            private Expression<Func<IEnumerable<CapacityResponse>, IEnumerable<CapacityResponse>>> _delegator;
             private Op<TRequest, TResponse> _request;
 
-            public EnumerableDelegateExecutor(Op<TRequest, TResponse> request, Expression<Func<IEnumerable<CapacityResponse<TResponse>>, IEnumerable<CapacityResponse<TResponse>>>> delegator)
+            public EnumerableDelegateExecutor(Op<TRequest, TResponse> request, Expression<Func<IEnumerable<CapacityResponse>, IEnumerable<CapacityResponse>>> delegator)
             {
                 this._delegator = delegator;
                 this._request = request;
@@ -137,10 +137,10 @@ namespace Altus.Suffusion
 
         public class ScalarDelegateExecutor<TRequest, TResponse>
         {
-            private Expression<Func<CapacityResponse<TResponse>, bool>> _delegator;
+            private Expression<Func<CapacityResponse, bool>> _delegator;
             private Op<TRequest, TResponse> _request;
 
-            public ScalarDelegateExecutor(Op<TRequest, TResponse> request, Expression<Func<CapacityResponse<TResponse>, bool>> delegator)
+            public ScalarDelegateExecutor(Op<TRequest, TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
             {
                 this._delegator = delegator;
                 this._request = request;
