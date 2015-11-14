@@ -264,51 +264,44 @@ namespace Altus.Suffusion.Protocols.Udp
             return async.GetResponse();
         }
 
-        public void Call<TRequest>(ChannelRequest<TRequest> request)
+
+        public TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request)
         {
-            var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
+            if (typeof(TResponse) == typeof(NoReturn))
             {
-                Payload = request.Payload,
-                Recipients = request.Recipients
-            };
-            Call(message, request.Timeout);
-        }
+                var message = new Message(Format, request.Uri, ServiceType.Broadcast, App.InstanceName)
+                {
+                    Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
+                    Recipients = request.Recipients
+                };
 
-        public TResponse Call<TResponse>(ChannelRequest request)
-        {
-            return Call<NoArgs, TResponse>((ChannelRequest<NoArgs>)request);
-        }
-
-        public TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest> request)
-        {
-            var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
+                Call(message, TimeSpan.FromMilliseconds(0));
+                return default(TResponse);
+            }
+            else
             {
-                Payload = request.Payload,
-                Recipients = request.Recipients
-            };
+                var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
+                {
+                    Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
+                    Recipients = request.Recipients
+                };
 
-            var cancel = new CancellationTokenSource();
-            cancel.CancelAfter(request.Timeout);
+                var response = Call(message, request.Timeout);
 
-            var response = Call(message, request.Timeout);
-
-            return (TResponse)response.Payload;
+                return (TResponse)response.Payload;
+            }
         }
 
-        public void Call<TResponse>(ChannelRequest request, Func<TResponse, bool> handler)
-        {
-            Call<NoArgs, TResponse>((ChannelRequest<NoArgs>)request, handler);
-        }
 
-        public void Call<TRequest, TResponse>(ChannelRequest<TRequest> request, Func<TResponse, bool> handler)
+        public void Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request, Func<TResponse, bool> handler)
         {
             var message = new Message(Format, request.Uri, ServiceType.Broadcast, App.InstanceName)
             {
-                Payload = request.Payload,
+                Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
                 Recipients = request.Recipients
             };
 
-            Call<TResponse>(message, request.Timeout, handler);
+            Call<TResponse>(message, typeof(TResponse) == typeof(NoReturn) ? TimeSpan.FromMilliseconds(0) : request.Timeout, handler);
         }
 
         public void Call<U>(Message message, TimeSpan timeout, Func<U, bool> handler)
@@ -595,10 +588,18 @@ namespace Altus.Suffusion.Protocols.Udp
         {
             var payloadType = TypeHelper.GetType(message.PayloadType);
             var requestType = payloadType;
+            var responseType = typeof(NoReturn);
             object payload = message.Payload;
             Func<CapacityResponse, bool> capacityPredicate = null;
 
-            if (IsDelegatedRequest(message, payloadType, out requestType))
+            if (payloadType == typeof(RoutablePayload))
+            {
+                payloadType = TypeHelper.GetType(((RoutablePayload)payload).PayloadType);
+                responseType = TypeHelper.GetType(((RoutablePayload)payload).ReturnType);
+                payload = ((RoutablePayload)payload).Payload;
+            }
+
+            if (IsDelegatedRequest(payload, payloadType, out requestType))
             {
                 capacityPredicate = new Serialization.Expressions.ExpressionSerializer()
                     .Deserialize<Func<CapacityResponse, bool>>(XElement.Parse(((DelegatedExecutionRequest)payload).Delegator))
@@ -606,7 +607,7 @@ namespace Altus.Suffusion.Protocols.Udp
                 payload = ((DelegatedExecutionRequest)payload).Request;
             }
 
-            var route = _router.GetRoute(message.ServiceUri, requestType);
+            var route = _router.GetRoute(message.ServiceUri, requestType, responseType);
             if (route != null)
             {
                 if (capacityPredicate != null)
@@ -647,13 +648,13 @@ namespace Altus.Suffusion.Protocols.Udp
             // messages on the group that simply aren't relevant, so we don't throw an exception here - we just ignore
         }
 
-        protected bool IsDelegatedRequest(Message message, Type payloadType, out Type requestType)
+        protected bool IsDelegatedRequest(object payload, Type payloadType, out Type requestType)
         {
             requestType = payloadType;
 
             if (requestType.Equals(typeof(DelegatedExecutionRequest)))
             {
-                requestType = ((DelegatedExecutionRequest)message.Payload).Request.GetType();
+                requestType = ((DelegatedExecutionRequest)payload).Request.GetType();
                 if (requestType.Implements(typeof(ISerializer<>)))
                 {
                     requestType = requestType.BaseType;

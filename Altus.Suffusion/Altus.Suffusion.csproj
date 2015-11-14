@@ -53,7 +53,6 @@
     <Compile Include="Diagnostics\PerformanceCounter.cs" />
     <Compile Include="Diagnostics\PerformanceCounterInstallAttribute.cs" />
     <Compile Include="Diagnostics\PerformanceCounterNames.cs" />
-    <Compile Include="Dispatcher.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="IBootstrapper.cs" />
     <Compile Include="IO\StreamHelper.cs" />
@@ -72,6 +71,7 @@
     <Compile Include="Protocols\Message.cs" />
     <Compile Include="Protocols\MessageSegment.cs" />
     <Compile Include="Protocols\Protocol.cs" />
+    <Compile Include="Protocols\RoutablePayload.cs" />
     <Compile Include="Protocols\SegmentType.cs" />
     <Compile Include="Protocols\ServiceType.cs" />
     <Compile Include="Protocols\SocketException.cs" />

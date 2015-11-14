@@ -14,7 +14,7 @@ namespace Altus.Suffusion.Routing
         ServiceRoute<TMessage, NoReturn> Route<THandler, TMessage>(string channelId, Expression<Action<THandler, TMessage>> handler);
         ServiceRoute<NoArgs, NoReturn> Route<THandler>(string channelId, Expression<Action<THandler>> handler);
 
-        ServiceRoute GetRoute(string uri, Type requestType);
-        ServiceRoute GetRoute<TRequest>(string uri);
+        ServiceRoute GetRoute(string uri, Type requestType, Type responseType);
+        ServiceRoute GetRoute<TRequest, TResponse>(string uri);
     }
 }

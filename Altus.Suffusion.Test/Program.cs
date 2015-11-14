@@ -1,4 +1,5 @@
-﻿using Altus.Suffusion.Messages;
+﻿using Altus.Suffusion.Diagnostics;
+using Altus.Suffusion.Messages;
 using Altus.Suffusion.Protocols;
 using Altus.Suffusion.Protocols.Udp;
 using Altus.Suffusion.Routing;
@@ -84,13 +85,15 @@ namespace Altus.Suffusion
             // executes the request respondants whose capacity exceeds an arbitrary threshold
             // returns the result from the first matching respondant
 
-            var scalarResult2 = new Op<TestRequest, TestResponse>(CHANNEL, new TestRequest())
-                                      .Delegate(response => response.Score > TestResponse.SomeNumber())
-                                      .Execute();
+            var scalarResult2 = Op<TestResponse>.New(CHANNEL, new TestRequest())
+                                        .Delegate(response => response.Score > TestResponse.SomeNumber())
+                                        .Execute();
 
-            var scalarResult3 = new Op<TestRequest, TestResponse>(CHANNEL, new TestRequest()).Execute();
+            var scalarResult3 = Op<TestResponse>.New(CHANNEL, new TestRequest())
+                                        .Execute();
 
-            var scalarResult4 = Op<TestResponse>.New(CHANNEL, new TestRequest()).Execute();
+            var scalarResult4 = Op<TestResponse>.New(CHANNEL, new TestRequest())
+                                        .Execute();
 
             Op.New(CHANNEL).Execute();
 
@@ -129,7 +132,7 @@ namespace Altus.Suffusion
 
         public void HandleNoArgs()
         {
-
+            Logger.LogInfo("No Args Handled");
         }
     }
 }

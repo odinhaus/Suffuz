@@ -10,20 +10,16 @@ namespace Altus.Suffusion
 {
     public class Op<TRequest, TResponse>
     {
-        public Op(string channelName, TRequest request)
+        internal Op(string channelName, TRequest request)
         {
             ChannelName = channelName;
             Request = request;
         }
         public string ChannelName { get; set; }
         public TRequest Request { get; set; }
+        public bool HasArgs { get { return typeof(TRequest) != typeof(NoArgs); } }
+        public bool HasReturn { get { return typeof(TRequest) != typeof(NoReturn); } }
     }
-
-
-    //public class Op<TResponse> : Op<NoArgs, TResponse>
-    //{
-    //    public Op(string channelName) : base(channelName, new NoArgs()) { }
-    //}
 
     public static class Op<TResponse>
     {

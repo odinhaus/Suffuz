@@ -7,7 +7,7 @@ using Altus.Suffusion.Routing;
 
 namespace Altus.Suffusion.Protocols
 {
-    public class ChannelRequest : ChannelRequest<NoArgs>
+    public class ChannelRequest : ChannelRequest<NoArgs, NoReturn>
     {
         public ChannelRequest(string uri) : this(uri, TimeSpan.FromSeconds(30))
         { }
@@ -22,7 +22,8 @@ namespace Altus.Suffusion.Protocols
         }
     }
 
-    public class ChannelRequest<TRequest>
+
+    public class ChannelRequest<TRequest, TResponse>
     {
         public ChannelRequest(string uri) : this(uri, TimeSpan.FromSeconds(30))
         { }
@@ -51,15 +52,6 @@ namespace Altus.Suffusion.Protocols
         public TRequest Payload { get; set; }
         public TimeSpan Timeout { get; set; }
         public ServiceType ServiceType { get; set; }
-
-        public static implicit operator ChannelRequest<TRequest>(string uri)
-        {
-            return new ChannelRequest<TRequest>(uri);
-        }
-
-        public static implicit operator string(ChannelRequest<TRequest> request)
-        {
-            return request.Uri;
-        }
+        public Type ResponseType { get { return typeof(TResponse); } }
     }
 }

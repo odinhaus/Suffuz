@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Altus.Suffusion.Routing;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -19,11 +20,8 @@ namespace Altus.Suffusion.Protocols
         string Format { get; }
         Dictionary<string, object> ConnectionAspects { get; }
 
-        TResponse Call<TResponse>(ChannelRequest request);
-        void Call<TResponse>(ChannelRequest request, Func<TResponse, bool> handler);
-        void Call<TRequest>(ChannelRequest<TRequest> request);
-        TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest> request);
-        void Call<TRequest, TResponse>(ChannelRequest<TRequest> request, Func<TResponse, bool> handler);
+        TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request);
+        void Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request, Func<TResponse, bool> handler);
 
         void SendError(Message message, Exception ex);
         void ResetProperties();

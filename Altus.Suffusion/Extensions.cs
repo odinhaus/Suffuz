@@ -12,41 +12,16 @@ namespace Altus.Suffusion
 {
     public static class Extensions
     {
-        //public  static Task<TResponse> Execute<TRequest, TResponse>(this TRequest request, int timeout = -1)
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //public  static Task Execute<TRequest, TResponse>(this TRequest request, Action<IEnumerable<TResponse>> aggregator, int timeout = -1)
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        //public  static Task<TResponse> Execute<TRequest, TResponse>(this TRequest request, Func<CapacityResponse<TRequest>, bool> capacityPredicate, int timeout = -1)
-        //{
-        //    throw new NotImplementedException();
-        //}
-
-        public static TResponse Execute<TResponse>(this Op<NoArgs,TResponse> request, int timeout = -1)
-        {
-            return Execute(request, timeout);
-        }
-
         public static TResponse Execute<TRequest, TResponse>(this Op<TRequest, TResponse> request, int timeout = -1)
         {
             var channelService = App.Resolve<IChannelService>();
             var channel = channelService.Create(request.ChannelName);
             return channel.Call<TRequest, TResponse>(
-                new ChannelRequest<TRequest>(request.ChannelName)
+                new ChannelRequest<TRequest, TResponse>(request.ChannelName)
                 {
                     Timeout = timeout > 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(30000),
                     Payload = request.Request
                 });
-        }
-
-        public static Task<IEnumerable<TResponse>> Execute<TResponse>(this Op<NoArgs, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, int timeout = -1)
-        {
-            return Execute(request, aggregator, timeout);
         }
 
         public static Task<IEnumerable<TResponse>> Execute<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, int timeout = -1)
@@ -54,19 +29,9 @@ namespace Altus.Suffusion
             throw new NotImplementedException();
         }
 
-        public static Task<TResponse> Execute<TResponse>(this Op<NoArgs, TResponse> request, Func<CapacityResponse, bool> capacityPredicate, int timeout = -1)
-        {
-            return Execute(request, capacityPredicate, timeout);
-        }
-
         public static Task<TResponse> Execute<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<CapacityResponse, bool> capacityPredicate, int timeout = -1)
         {
             throw new NotImplementedException();
-        }
-
-        public static Task<TResponse> Execute<TResponse>(this Op<NoArgs, TResponse> request, Func<IEnumerable<CapacityResponse>, bool> capacityPredicate, int timeout = -1)
-        {
-            return Execute(request, capacityPredicate, timeout);
         }
 
         public static Task<TResponse> Execute<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<CapacityResponse>, bool> capacityPredicate, int timeout = -1)
@@ -74,29 +39,14 @@ namespace Altus.Suffusion
             throw new NotImplementedException();
         }
 
-        public static AggregateExecutor<NoArgs, TResponse> Aggregate<TResponse>(this Op<NoArgs, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
-        {
-            return Aggregate(request, aggregator);
-        }
-
         public static AggregateExecutor<TRequest, TResponse> Aggregate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
         {
             return new Extensions.AggregateExecutor<TRequest, TResponse>(request, aggregator);
         }
 
-        public static EnumerableDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<NoArgs, TResponse> request, Expression<Func<IEnumerable<CapacityResponse>, IEnumerable<CapacityResponse>>> delegator)
-        {
-            return Delegate(request, delegator);
-        }
-
         public static EnumerableDelegateExecutor<TRequest, TResponse> Delegate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<IEnumerable<CapacityResponse>, IEnumerable<CapacityResponse>>> delegator)
         {
             return new Extensions.EnumerableDelegateExecutor<TRequest, TResponse>(request, delegator);
-        }
-
-        public static ScalarDelegateExecutor<NoArgs, TResponse> Delegate<TResponse>(this Op<NoArgs, TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
-        {
-            return Delegate(request, delegator);
         }
 
         public static ScalarDelegateExecutor<TRequest, TResponse> Delegate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
@@ -159,7 +109,7 @@ namespace Altus.Suffusion
                 var channelService = App.Resolve<IChannelService>();
                 var channel = channelService.Create(_request.ChannelName);
                 return channel.Call<DelegatedExecutionRequest, TResponse>(
-                new ChannelRequest<DelegatedExecutionRequest>(_request.ChannelName)
+                new ChannelRequest<DelegatedExecutionRequest, TResponse>(_request.ChannelName)
                 {
                     Timeout = timeout > 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(30000),
                     Payload = new DelegatedExecutionRequest()

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffusion.Routing
 {
-    public sealed class NoArgs
+    public class NoArgs
     {
         public static readonly NoArgs Empty = new NoArgs();
     }

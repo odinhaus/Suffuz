@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffusion.Routing
 {
-    public sealed class NoReturn
+    public class NoReturn
     {
         public static readonly NoReturn Empty = new NoReturn();
     }

@@ -14,11 +14,10 @@ namespace Altus.Suffusion.Routing
     {
         Dictionary<string, ServiceRoute> _routes = new Dictionary<string, ServiceRoute>();
 
-        public ServiceRoute GetRoute(string channelId, Type requestType)
+        public ServiceRoute GetRoute(string channelId, Type requestType, Type responseType)
         {
             ServiceRoute route;
-            if (requestType == typeof(NoArgs)) requestType = null;
-            var key = channelId + (requestType?.FullName ?? "null");
+            var key = ServiceRoute.GetKey(channelId, requestType, responseType);
             lock (_routes)
             {
                 if (!_routes.TryGetValue(key, out route))
@@ -29,84 +28,52 @@ namespace Altus.Suffusion.Routing
             return route;
         }
 
-        public ServiceRoute GetRoute<TRequest>(string channelId)
+        public ServiceRoute GetRoute<TRequest, TResponse>(string channelId)
         {
-            return GetRoute(channelId, typeof(TRequest));
+            return GetRoute(channelId, typeof(TRequest), typeof(TResponse));
         }
 
         public ServiceRoute<TRequest, TResult> Route<THandler, TRequest, TResult>(string channelId, Expression<Func<THandler, TRequest, TResult>> handler)
         {
-            var route = new ServiceRoute<TRequest, TResult>() { Handler = CreateDelegate(handler), HasParameters = true };
-            var key = channelId + typeof(TRequest).FullName;
-            lock (_routes)
-            {
-                if (!_routes.ContainsKey(key))
-                {
-                    _routes.Add(key, route);
-                    App.Resolve<IChannelService>().Create(channelId); // gets the channel up and running
-                }
-                else
-                {
-                    _routes[key] = route;
-                }
-            }
+            var route = new ServiceRoute<TRequest, TResult>(channelId) { Handler = CreateDelegate(handler), HasParameters = typeof(TRequest) != typeof(NoArgs) };
+            SetRoute(route);
             return route;
         }
 
         public ServiceRoute<NoArgs, TResult> Route<THandler, TResult>(string channelId, Expression<Func<THandler, TResult>> handler)
         {
-            var route = new ServiceRoute<NoArgs, TResult>() { Handler = CreateDelegate(handler), HasParameters = false };
-            var key = channelId + "null";
-            lock (_routes)
-            {
-                if (!_routes.ContainsKey(key))
-                {
-                    _routes.Add(key, route);
-                    App.Resolve<IChannelService>().Create(channelId); // gets the channel up and running
-                }
-                else
-                {
-                    _routes[key] = route;
-                }
-            }
+            var route = new ServiceRoute<NoArgs, TResult>(channelId) { Handler = CreateDelegate(handler), HasParameters = false };
+            SetRoute(route);
             return route;
         }
 
         public ServiceRoute<TMessage, NoReturn> Route<THandler, TMessage>(string channelId, Expression<Action<THandler, TMessage>> handler)
         {
-            var route = new ServiceRoute<TMessage, NoReturn>() { Handler = CreateDelegate(handler), HasParameters = true };
-            var key = channelId + typeof(TMessage).FullName;
-            lock (_routes)
-            {
-                if (!_routes.ContainsKey(key))
-                {
-                    _routes.Add(key, route);
-                    App.Resolve<IChannelService>().Create(channelId); // gets the channel up and running
-                }
-                else
-                {
-                    _routes[key] = route;
-                }
-            }
+            var route = new ServiceRoute<TMessage, NoReturn>(channelId) { Handler = CreateDelegate(handler), HasParameters = typeof(TMessage) != typeof(NoArgs) };
+            SetRoute(route);
             return route;
         }
         public ServiceRoute<NoArgs, NoReturn> Route<THandler>(string channelId, Expression<Action<THandler>> handler)
         {
-            var route = new ServiceRoute<NoArgs, NoReturn>() { Handler = CreateDelegate(handler), HasParameters = true };
-            var key = channelId + typeof(NoArgs).FullName;
+            var route = new ServiceRoute<NoArgs, NoReturn>(channelId) { Handler = CreateDelegate(handler), HasParameters = false };
+            SetRoute(route);
+            return route;
+        }
+
+        private void SetRoute<TRequest, TResponse>(ServiceRoute<TRequest, TResponse> route)
+        {
             lock (_routes)
             {
-                if (!_routes.ContainsKey(key))
+                if (!_routes.ContainsKey(route.Key))
                 {
-                    _routes.Add(key, route);
-                    App.Resolve<IChannelService>().Create(channelId); // gets the channel up and running
+                    _routes.Add(route.Key, route);
+                    App.Resolve<IChannelService>().Create(route.ChannelId); // gets the channel up and running
                 }
                 else
                 {
-                    _routes[key] = route;
+                    _routes[route.Key] = route;
                 }
             }
-            return route;
         }
 
 
