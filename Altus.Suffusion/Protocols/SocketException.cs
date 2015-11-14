@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Protocols
+namespace Altus.Suffūz.Protocols
 {
     public delegate void SocketExceptionHandler(object sender, SocketExceptionEventArgs e);
     public class SocketExceptionEventArgs

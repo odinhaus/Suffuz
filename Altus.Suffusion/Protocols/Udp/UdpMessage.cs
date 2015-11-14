@@ -6,7 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Protocols.Udp
+namespace Altus.Suffūz.Protocols.Udp
 {
     public class UdpMessage : IComparer<UdpSegment>
     {

@@ -1,4 +1,4 @@
-﻿using Altus.Suffusion.Messages;
+﻿using Altus.Suffūz.Messages;
 using System;
 using System.Linq.Expressions;
 using System.Collections.Generic;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Routing
+namespace Altus.Suffūz.Routing
 {
     public abstract class ServiceRoute
     {

@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Diagnostics
+namespace Altus.Suffūz.Diagnostics
 {
     /// <summary>
     /// Performance Counter install attribute that assists in creation of runtime counters

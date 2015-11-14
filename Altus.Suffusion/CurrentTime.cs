@@ -1,4 +1,4 @@
-﻿using Altus.Suffusion.Diagnostics;
+﻿using Altus.Suffūz.Diagnostics;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,7 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion
+namespace Altus.Suffūz
 {
     public static class CurrentTime
     {

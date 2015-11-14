@@ -1,6 +1,6 @@
-﻿using Altus.Suffusion.Diagnostics;
-using Altus.Suffusion.IO;
-using Altus.Suffusion.Serialization;
+﻿using Altus.Suffūz.Diagnostics;
+using Altus.Suffūz.IO;
+using Altus.Suffūz.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -11,7 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Reflection;
 
-namespace Altus.Suffusion.Protocols
+namespace Altus.Suffūz.Protocols
 {
     [System.Serializable]
     public abstract class IdentifiedMessage

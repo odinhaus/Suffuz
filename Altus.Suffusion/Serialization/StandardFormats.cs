@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Serialization
+namespace Altus.Suffūz.Serialization
 {
     public static class StandardFormats
     {

@@ -5,7 +5,7 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Serialization.Binary
+namespace Altus.Suffūz.Serialization.Binary
 {
     public class ComplexSerializer : ISerializer
     {

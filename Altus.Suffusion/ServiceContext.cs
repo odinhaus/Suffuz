@@ -7,7 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
-namespace Altus.Suffusion.Windows
+namespace Altus.Suffūz.Windows
 {
     public class ServiceContext : ApplicationContext
     {

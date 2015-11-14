@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Diagnostics
+namespace Altus.Suffūz.Diagnostics
 {
     public static partial class Logger
     {

@@ -5,7 +5,7 @@ using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Routing
+namespace Altus.Suffūz.Routing
 {
     public interface IServiceRouter
     {

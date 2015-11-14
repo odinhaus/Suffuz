@@ -1,7 +1,7 @@
-﻿using Altus.Suffusion.Diagnostics;
-using Altus.Suffusion.IO;
-using Altus.Suffusion.Routing;
-using Altus.Suffusion.Serialization;
+﻿using Altus.Suffūz.Diagnostics;
+using Altus.Suffūz.IO;
+using Altus.Suffūz.Routing;
+using Altus.Suffūz.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -12,10 +12,10 @@ using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Altus.Suffusion.Messages;
+using Altus.Suffūz.Messages;
 using System.Xml.Linq;
 
-namespace Altus.Suffusion.Protocols.Udp
+namespace Altus.Suffūz.Protocols.Udp
 {
     public delegate void DataReceivedHandler(object sender, DataReceivedArgs e);
 

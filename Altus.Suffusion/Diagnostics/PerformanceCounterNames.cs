@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Diagnostics
+namespace Altus.Suffūz.Diagnostics
 {
     /// <summary>
     /// Put the counter names here to ensure that they are easy to manage

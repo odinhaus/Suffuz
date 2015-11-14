@@ -1,4 +1,4 @@
-﻿using Altus.Suffusion.Routing;
+﻿using Altus.Suffūz.Routing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,7 +6,7 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Protocols
+namespace Altus.Suffūz.Protocols
 {
     public interface IChannel : IDisposable
     {

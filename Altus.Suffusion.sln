@@ -3,9 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 14
 VisualStudioVersion = 14.0.23107.0
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffusion", "Altus.Suffusion\Altus.Suffusion.csproj", "{155E27AD-91EE-4D31-BF4B-4A215324FBB2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffūz", "Altus.Suffusion\Altus.Suffūz.csproj", "{155E27AD-91EE-4D31-BF4B-4A215324FBB2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffusion.Test", "Altus.Suffusion.Test\Altus.Suffusion.Test.csproj", "{7FAA05DC-65F6-4759-AA56-BCD40C71C25A}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffūz.Test", "Altus.Suffusion.Test\Altus.Suffūz.Test.csproj", "{7FAA05DC-65F6-4759-AA56-BCD40C71C25A}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

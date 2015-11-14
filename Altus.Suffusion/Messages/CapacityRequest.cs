@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Messages
+namespace Altus.Suffūz.Messages
 {
     public class CapacityRequest<TRequest, TResponse>
     {

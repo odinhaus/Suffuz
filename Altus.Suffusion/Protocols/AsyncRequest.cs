@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Protocols
+namespace Altus.Suffūz.Protocols
 {
     public delegate void TimeoutHandler(object sender, TimeoutException ex);
     public delegate void MessageReceivedHandler(object sender, Message message);

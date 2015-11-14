@@ -1,15 +1,15 @@
 ﻿
-using Altus.Suffusion.DependencyInjection;
+using Altus.Suffūz.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion
+namespace Altus.Suffūz
 {
     public class App<T> : App
-        where T : Altus.Suffusion.IBootstrapper, new()
+        where T : Altus.Suffūz.IBootstrapper, new()
     {
         protected App() { }
         public static void Initialize()

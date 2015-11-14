@@ -1,11 +1,11 @@
-﻿using Altus.Suffusion.DependencyInjection;
+﻿using Altus.Suffūz.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion
+namespace Altus.Suffūz
 {
     public interface IBootstrapper
     {

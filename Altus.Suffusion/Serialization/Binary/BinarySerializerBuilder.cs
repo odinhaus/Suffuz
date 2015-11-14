@@ -9,7 +9,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Serialization.Binary
+namespace Altus.Suffūz.Serialization.Binary
 {
     public class BinarySerializerBuilder : IComparer<MemberInfo>, IBinarySerializerBuilder
     {
@@ -425,9 +425,9 @@ using System.Linq;
 using System.Text;
 using System.IO;
 using System.Runtime.Serialization;
-using Altus.Suffusion.Serialization;
-using Altus.Suffusion.IO;
-using Altus.Suffusion.Serialization.Binary;
+using Altus.Suffūz.Serialization;
+using Altus.Suffūz.IO;
+using Altus.Suffūz.Serialization.Binary;
 
 <Using>
 

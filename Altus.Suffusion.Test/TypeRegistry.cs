@@ -3,16 +3,16 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Altus.Suffusion.DependencyInjection;
+using Altus.Suffūz.DependencyInjection;
 using System.Configuration;
 using StructureMap;
-using Altus.Suffusion.Serialization;
-using Altus.Suffusion.Routing;
-using Altus.Suffusion.Protocols;
-using Altus.Suffusion.Serialization.Binary;
-using Altus.Suffusion.Protocols.Udp;
+using Altus.Suffūz.Serialization;
+using Altus.Suffūz.Routing;
+using Altus.Suffūz.Protocols;
+using Altus.Suffūz.Serialization.Binary;
+using Altus.Suffūz.Protocols.Udp;
 
-namespace Altus.Suffusion.Test
+namespace Altus.Suffūz.Test
 {
     public class TypeRegistry : IBootstrapper
     {

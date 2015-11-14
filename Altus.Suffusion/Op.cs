@@ -1,12 +1,12 @@
-﻿using Altus.Suffusion.Protocols;
-using Altus.Suffusion.Routing;
+﻿using Altus.Suffūz.Protocols;
+using Altus.Suffūz.Routing;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion
+namespace Altus.Suffūz
 {
     public class Op<TRequest, TResponse>
     {

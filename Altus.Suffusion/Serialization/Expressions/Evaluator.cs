@@ -5,7 +5,7 @@ using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Serialization.Expressions
+namespace Altus.Suffūz.Serialization.Expressions
 {
     public static class Evaluator
     {

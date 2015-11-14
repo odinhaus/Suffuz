@@ -1,4 +1,4 @@
-﻿using Altus.Suffusion;
+﻿using Altus.Suffūz;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -10,7 +10,7 @@ using System.Security.Permissions;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Diagnostics
+namespace Altus.Suffūz.Diagnostics
 {
     public enum PerformanceCounterCategories
     {

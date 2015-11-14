@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Serialization.Binary
+namespace Altus.Suffūz.Serialization.Binary
 {
     public interface IBinarySerializerBuilder
     {

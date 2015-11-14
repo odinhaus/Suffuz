@@ -4,9 +4,9 @@ using System.Linq;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
-using Altus.Suffusion.Serialization;
+using Altus.Suffūz.Serialization;
 
-namespace Altus.Suffusion.Protocols.Udp
+namespace Altus.Suffūz.Protocols.Udp
 {
     public class UdpHeader : MessageSegment
     {

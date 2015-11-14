@@ -1,4 +1,4 @@
-﻿using Altus.Suffusion.Protocols;
+﻿using Altus.Suffūz.Protocols;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -6,7 +6,7 @@ using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Routing
+namespace Altus.Suffūz.Routing
 {
     public delegate void TaskRoute<T>(T payload);
     public delegate U TaskRoute<T, U>(T payload);

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using Altus.Suffusion.Routing;
+using Altus.Suffūz.Routing;
 
-namespace Altus.Suffusion.Protocols
+namespace Altus.Suffūz.Protocols
 {
     public class ChannelRequest : ChannelRequest<NoArgs, NoReturn>
     {

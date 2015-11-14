@@ -1,4 +1,4 @@
-﻿using Altus.Suffusion.Serialization;
+﻿using Altus.Suffūz.Serialization;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.IO
+namespace Altus.Suffūz.IO
 {
     //========================================================================================================//
     /// <summary>

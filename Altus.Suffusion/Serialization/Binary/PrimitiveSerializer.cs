@@ -1,4 +1,4 @@
-﻿using Altus.Suffusion.IO;
+﻿using Altus.Suffūz.IO;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -6,7 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffusion.Serialization.Binary
+namespace Altus.Suffūz.Serialization.Binary
 {
     public class PrimitiveSerializer : ISerializer
     {

@@ -9,7 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Xml.Linq;
 
-namespace Altus.Suffusion.Serialization.Expressions
+namespace Altus.Suffūz.Serialization.Expressions
 {
     public sealed class TypeResolver
     {
