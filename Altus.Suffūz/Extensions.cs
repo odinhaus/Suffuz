@@ -32,16 +32,16 @@ namespace Altus.Suffūz
             return new Extensions.AggregateExecutor<TRequest, TResponse>(request, aggregator, (responses) => false);
         }
 
-        public static DelegateExecutor<TRequest, TResponse> Delegate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
+        public static NominateExecutor<TRequest, TResponse> Nominate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<NominateResponse, bool>> nominator)
         {
-            return new Extensions.DelegateExecutor<TRequest, TResponse>(request, delegator);
+            return new Extensions.NominateExecutor<TRequest, TResponse>(request, nominator);
         }
 
         public class AggregateExecutor<TRequest, TResponse>
         {
             private Func<IEnumerable<TResponse>, IEnumerable<TResponse>> _aggregator;
             private Op<TRequest, TResponse> _request;
-            private Expression<Func<CapacityResponse, bool>> _delegator;
+            private Expression<Func<NominateResponse, bool>> _delegator;
             private Func<IEnumerable<TResponse>, bool> _terminator;
 
             public AggregateExecutor(Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator)
@@ -51,7 +51,7 @@ namespace Altus.Suffūz
                 this._terminator = terminator;
             }
 
-            public AggregateExecutor(Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator, Expression<Func<CapacityResponse, bool>> delegator)
+            public AggregateExecutor(Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator, Expression<Func<NominateResponse, bool>> delegator)
                 : this(request, aggregator, terminator)
             {
                 this._delegator = delegator;
@@ -74,13 +74,14 @@ namespace Altus.Suffūz
                 }
                 else
                 {
-                    var request = new ChannelRequest<DelegatedExecutionRequest, TResponse>(_request.ChannelName)
+                    var request = new ChannelRequest<NominateExecutionRequest, TResponse>(_request.ChannelName)
                     {
                         Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(5000),
-                        Payload = new DelegatedExecutionRequest()
+                        Payload = new NominateExecutionRequest()
                         {
                             Request = _request.Request,
-                            Delegator = new Serialization.Expressions.ExpressionSerializer().Serialize(_delegator).ToString()
+                            Nominator = new Serialization.Expressions.ExpressionSerializer().Serialize(_delegator).ToString(),
+                            ScalarResults = false
                         }
                     };
                     var enumerableResponse = new EnumerableResponse<TResponse>(request.Timeout, _terminator);
@@ -90,14 +91,14 @@ namespace Altus.Suffūz
             }
         }
 
-        public class DelegateExecutor<TRequest, TResponse>
+        public class NominateExecutor<TRequest, TResponse>
         {
-            private Expression<Func<CapacityResponse, bool>> _delegator;
+            private Expression<Func<NominateResponse, bool>> _nominator;
             private Op<TRequest, TResponse> _request;
 
-            public DelegateExecutor(Op<TRequest, TResponse> request, Expression<Func<CapacityResponse, bool>> delegator)
+            public NominateExecutor(Op<TRequest, TResponse> request, Expression<Func<NominateResponse, bool>> nominator)
             {
-                this._delegator = delegator;
+                this._nominator = nominator;
                 this._request = request;
             }
 
@@ -105,26 +106,27 @@ namespace Altus.Suffūz
             {
                 var channelService = App.Resolve<IChannelService>();
                 var channel = channelService.Create(_request.ChannelName);
-                return channel.Call<DelegatedExecutionRequest, TResponse>(
-                new ChannelRequest<DelegatedExecutionRequest, TResponse>(_request.ChannelName)
+                return channel.Call<NominateExecutionRequest, TResponse>(
+                new ChannelRequest<NominateExecutionRequest, TResponse>(_request.ChannelName)
                 {
                     Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(30000),
-                    Payload = new DelegatedExecutionRequest()
+                    Payload = new NominateExecutionRequest()
                     {
                         Request = _request.Request,
-                        Delegator = new Serialization.Expressions.ExpressionSerializer().Serialize(_delegator).ToString()
+                        Nominator = new Serialization.Expressions.ExpressionSerializer().Serialize(_nominator).ToString(),
+                        ScalarResults = true
                     }
                 });
             }
 
             public AggregateExecutor<TRequest, TResponse> Aggregate(Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
             {
-                return new AggregateExecutor<TRequest, TResponse>(this._request, aggregator, (responses) => false,  _delegator);
+                return new AggregateExecutor<TRequest, TResponse>(this._request, aggregator, (responses) => false,  _nominator);
             }
 
             public AggregateExecutor<TRequest, TResponse> Aggregate(Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator)
             {
-                return new AggregateExecutor<TRequest, TResponse>(this._request, aggregator, terminator, _delegator);
+                return new AggregateExecutor<TRequest, TResponse>(this._request, aggregator, terminator, _nominator);
             }
         }
 

@@ -288,6 +288,18 @@ namespace Altus.Suffūz.Protocols.Udp
 
                 var response = Call(message, request.Timeout);
 
+                if (request.Payload is NominateExecutionRequest)
+                {
+                    var payload = ((NominateExecutionRequest)(object)request.Payload).Request;
+                    message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
+                    {
+                        Payload = new RoutablePayload(payload, payload.GetType(), typeof(TResponse)),
+                        Recipients = request.Recipients
+                    };
+
+                    response = Call(message, request.Timeout);
+                }
+
                 return (TResponse)response.Payload;
             }
         }
@@ -589,8 +601,9 @@ namespace Altus.Suffūz.Protocols.Udp
             var payloadType = TypeHelper.GetType(message.PayloadType);
             var requestType = payloadType;
             var responseType = typeof(NoReturn);
+            var isScalar = false;
             object payload = message.Payload;
-            Func<CapacityResponse, bool> capacityPredicate = null;
+            Func<NominateResponse, bool> capacityPredicate = null;
 
             if (payloadType == typeof(RoutablePayload))
             {
@@ -602,9 +615,10 @@ namespace Altus.Suffūz.Protocols.Udp
             if (IsDelegatedRequest(payload, payloadType, out requestType))
             {
                 capacityPredicate = new Serialization.Expressions.ExpressionSerializer()
-                    .Deserialize<Func<CapacityResponse, bool>>(XElement.Parse(((DelegatedExecutionRequest)payload).Delegator))
+                    .Deserialize<Func<NominateResponse, bool>>(XElement.Parse(((NominateExecutionRequest)payload).Nominator))
                     .Compile();
-                payload = ((DelegatedExecutionRequest)payload).Request;
+                isScalar = ((NominateExecutionRequest)payload).ScalarResults;
+                payload = ((NominateExecutionRequest)payload).Request;
             }
 
             var route = _router.GetRoute(message.ServiceUri, requestType, responseType);
@@ -613,13 +627,29 @@ namespace Altus.Suffūz.Protocols.Udp
                 if (capacityPredicate != null)
                 {
                     // we need to evaluate whether the route should be executed
-                    var capacity = route.Capacity();
-                    if (capacityPredicate(capacity))
+                    var nomination = route.Nominate();
+                    if (capacityPredicate(nomination))
                     {
-                        var delay = route.Delay(capacity);
+                        var delay = route.Delay(nomination);
                         if (delay.TotalMilliseconds > 0)
                         {
                             Thread.Sleep(delay);
+                        }
+
+                        if (isScalar)
+                        {
+                            // return the nomination message, so the requestor can select a single agent to handle the request
+                            var response = new Message(Format, message.ServiceUri, message.ServiceType, App.InstanceName)
+                            {
+                                Payload = nomination,
+                                CorrelationId = message.Id,
+                                DeliveryGuaranteed = message.DeliveryGuaranteed,
+                                Recipients = new string[] { message.Sender },
+                                Timestamp = CurrentTime.Now,
+                                IsReponse = true
+                            };
+                            this.Send(response);
+                            return;
                         }
                     }
                     else return; // we didn't pass the test, so don't process the request
@@ -640,6 +670,7 @@ namespace Altus.Suffūz.Protocols.Udp
                         Timestamp = CurrentTime.Now,
                         IsReponse = true
                     };
+
                     this.Send(response);
                     //Console.WriteLine("Sent {0} To {1}", result.GetType().Name, message.Sender);
                 }
@@ -652,9 +683,9 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             requestType = payloadType;
 
-            if (requestType.Equals(typeof(DelegatedExecutionRequest)))
+            if (requestType.Equals(typeof(NominateExecutionRequest)))
             {
-                requestType = ((DelegatedExecutionRequest)payload).Request.GetType();
+                requestType = ((NominateExecutionRequest)payload).Request.GetType();
                 if (requestType.Implements(typeof(ISerializer<>)))
                 {
                     requestType = requestType.BaseType;

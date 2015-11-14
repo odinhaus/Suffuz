@@ -55,20 +55,17 @@ namespace Altus.Suffūz
             // additionally, set a capacity limit on this request
             // and delay responses for up to 5 seconds for this request proportional to its current capacity score
             router.Route<Handler, TestRequest, TestResponse>(CHANNEL, (handler, request) => handler.Handle(request))
-                  .Capacity(() => new CapacityResponse()
+                  .Nominate(() => new NominateResponse()
                   {
-                      Minimum = 0,
-                      Maximum = 100,
-                      Current = 25,
                       Score = CostFunctions.CapacityCost(25d, 0d, 100d)
                   })
                   .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
 
             // route incoming requests on CHANNEL with no arguments to an instance of Handler, returning a TestResponse result
-            // additionally, set a capacity limit on this request
+            // additionally, set a nominatoion score on this request to a double
             // and delay responses for up to 5 seconds for this request proportional to its current capacity score
             router.Route<Handler, TestResponse>(CHANNEL, (handler) => handler.Handle())
-                  .Capacity(() => new CapacityResponse() { Minimum = 0, Maximum = 100, Current = 25, Score = CostFunctions.CapacityCost(25d, 0d, 100d) })
+                  .Nominate(() => CostFunctions.CapacityCost(25d, 0d, 100d))
                   .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
 
             // route incoming requests on CHANNEL of type CommandRequest to handler with no result
@@ -99,14 +96,14 @@ namespace Altus.Suffūz
             // test prevent the request from beng dispatched to their corresponding handlers, 
             // thus preventing both evaluation and responses
             var result2 = Op<TestResponse>.New(CHANNEL, new TestRequest())
-                                        .Delegate(response => response.Score > TestResponse.SomeNumber())
+                                        .Nominate(response => response.Score > TestResponse.SomeNumber())
                                         .Execute();
 
             // executes the request on respondants whose capacity exceeds and arbitrary threshold
             // returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
             // and blocks for 2000 milliseconds while waiting for responses
             var enResult1 = Op<TestResponse>.New(CHANNEL, new TestRequest())
-                                        .Delegate(cr => cr.Score > 0.9)
+                                        .Nominate(cr => cr.Score > 0.9)
                                         .Aggregate((responses) => responses.Where(r => r.Size > 2))
                                         .Execute(2000)
                                         .ToArray();
@@ -115,7 +112,7 @@ namespace Altus.Suffūz
             // returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
             // and blocks until the terminal condition is met (responses.Count() > 0)
             var enResult2 = Op<TestResponse>.New(CHANNEL, new TestRequest())
-                                        .Delegate(cr => cr.Score > 0.9)
+                                        .Nominate(cr => cr.Score > 0.9)
                                         .Aggregate((responses) => responses.Where(r => r.Size > 2),
                                                    (reponses) => reponses.Count() > 0)
                                         .Execute()

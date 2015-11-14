@@ -58,7 +58,7 @@
     <Compile Include="IO\StreamHelper.cs" />
     <Compile Include="Messages\CapacityRequest.cs" />
     <Compile Include="Messages\CapacityResponse.cs" />
-    <Compile Include="Messages\DelegatedExecutionRequest.cs" />
+    <Compile Include="Messages\NominateExecutionRequest.cs" />
     <Compile Include="Op.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Protocols\Action.cs" />

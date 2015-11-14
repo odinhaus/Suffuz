@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Altus.Suffūz.Serialization.Binary;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,11 +7,9 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Messages
 {
-    public class CapacityResponse
+    public class NominateResponse
     {
-        public double Minimum { get; set; }
-        public double Maximum { get; set; }
-        public double Current { get; set; }
+        [BinarySerializable(0)]
         public double Score { get; set; }
     }
 }

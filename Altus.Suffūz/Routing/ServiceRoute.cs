@@ -10,12 +10,12 @@ namespace Altus.Suffūz.Routing
 {
     public abstract class ServiceRoute
     {
-        protected Func<CapacityResponse> _capacity;
-        protected Func<CapacityResponse, TimeSpan> _delay;
+        protected Func<NominateResponse> _nominator;
+        protected Func<NominateResponse, TimeSpan> _delay;
 
         protected ServiceRoute(string channelId)
         {
-            _capacity = () => new CapacityResponse() { Minimum = 0, Maximum = 100, Current = 0, Score = 0.0d };
+            _nominator = () => new NominateResponse() { Score = 1d };
             _delay = (response) => TimeSpan.FromMilliseconds((1d - response.Score) * 2000);
             ChannelId = channelId;
         }
@@ -24,14 +24,14 @@ namespace Altus.Suffūz.Routing
         public bool HasParameters { get; internal set; }
         public string ChannelId { get; private set; }
 
-        internal CapacityResponse Capacity()
+        internal NominateResponse Nominate()
         {
-            return _capacity();
+            return _nominator();
         }
 
-        internal TimeSpan Delay(CapacityResponse capacity)
+        internal TimeSpan Delay(NominateResponse nomination)
         {
-            return _delay(capacity);
+            return _delay(nomination);
         }
 
         public abstract string Key { get; }
@@ -59,15 +59,22 @@ namespace Altus.Suffūz.Routing
             }
         }
 
-        public ServiceRoute<TRequest, TResponse> Capacity(Expression<Func<CapacityResponse>> capacity)
+        public ServiceRoute<TRequest, TResponse> Nominate<TNomination>(Func<TNomination> nominator) where TNomination : NominateResponse
         {
-            _capacity = capacity.Compile();
+            _nominator = nominator;
             return this;
         }
 
-        public ServiceRoute<TRequest, TResponse> Delay(Expression<Func<CapacityResponse, TimeSpan>> delay)
+        public ServiceRoute<TRequest, TResponse> Nominate(Func<double> nominator)
         {
-            _delay = delay.Compile();
+            var compiled = nominator;
+            _nominator = () => new NominateResponse() { Score = compiled() };
+            return this;
+        }
+
+        public ServiceRoute<TRequest, TResponse> Delay(Func<NominateResponse, TimeSpan> delay)
+        {
+            _delay = delay;
             return this;
         }
     }
