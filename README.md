@@ -9,9 +9,13 @@ Suffūz is an API allowing .Net applications to easily request services from and
 
 Out of the box, it utilizes Multicast UDP messaging groups, allowing clients to establish arbitrary "channels" for communication endpoints, over which POCO .Net types can be exchanged.
 
-In addition to the basic request/response scenarios supported, the system also allows for general broadcast messaging, as well as load distribution through the application of arbitrary cost functions and availability delays that can be configured on a route-specific basis, allowing worker agents with more capacity to handle units of work to respond more quickly to requests for service, and then be allocated the work requested.  
+In addition to the basic request/response scenarios supported, the system also allows for general broadcast messaging and direct messaging as well as load distribution through the application of arbitrary cost functions and availability delays that can be configured on a route-specific basis, allowing worker agents with more capacity to handle units of work to respond more quickly to requests for service, and then be allocated the work requested.  
 
 The API uses simple fluent-styled syntax to create both calling and routing patterns, and it is built to easily adapt to your choice of Dependency Injection platform, supporting rich extensibility and testability.
+
+##Sample Use Cases
+###SCADA
+![alt tag](https://raw.github.com/odinhaus/Suffuz/master/Media/SCADA.png)
 
 ##Sample Usage
 ####Remote Execution
