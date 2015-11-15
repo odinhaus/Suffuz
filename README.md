@@ -126,6 +126,8 @@ var enResult3 = Get<TestResponse>.From(CHANNEL, new CommandRequest())
 
 ####Message Routing
 ```
+// get the service router from the DI container
+var router = App.Resolve<IServiceRouter>();
 // set a default handler for CHANNEL for requests with no arguments and no responses
 router.Route<Handler>(CHANNEL, (handler) => handler.HandleNoArgs());
 
@@ -156,9 +158,10 @@ router.Route<Handler, TestResponse>(CHANNEL, (handler) => handler.Handle())
 ```
 // sets the DI container adapter to TypeRegistry
 App<TypeRegistry>.Initialize();
-// creates the local channel instance for the CHANNEL service
-_channelService = App.Resolve<IChannelService>();
-_channelService.Create(CHANNEL);
+// get the channel service from the DU container
+var channelService = App.Resolve<IChannelService>();
+// creates the local channel instance for the CHANNEL service and starts listening
+channelService.Create(CHANNEL);
 ```
 
 ####Bootstrapping and Dependency Injection
