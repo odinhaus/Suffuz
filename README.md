@@ -13,6 +13,9 @@ In addition to the basic request/response scenarios supported, the system also a
 
 The API uses simple fluent-styled syntax to create both calling and routing patterns, and it is built to easily adapt to your choice of Dependency Injection platform, supporting rich extensibility and testability.
 
+
+
+
 ##Sample Use Cases
 ###SCADA
 ![alt tag](https://raw.github.com/odinhaus/Suffuz/master/Media/SCADA.png)
@@ -29,6 +32,27 @@ Often times when scaling web applications across multiple web and service nodes,
 
 In these scenarios, fast access, and zero-touch group membership are of the utmost importance.  Suffūz provides the platform to make this simple.
 
+
+###Worker Pool (With or Without Nomination Constraints)
+![alt tag](https://raw.github.com/odinhaus/Suffuz/master/Media/WorkerPool.png)
+
+In some designs, you need a designated node to act as a dispatcher of queued work requests where you also have N worker nodes, all capable of processing the request.
+
+In some situations you might want the work to be dispatched to a single node, and other cases you might want the work dispatched to arbitrary number of nodes, based on some logical condition as determined by the dispatcher.
+
+In the former case, worker selection can be achieved by a simple matter of asking for workers capable of processing a given request to identify themselves, and then dispatching the request to the first respondant, and ignoring the others.  All things being equal, the fastest worker to respond, should also be the fastest worker to process the request.
+
+But things aren't always equal, so sometimes you need a way to balance the field. Suffūz accomplishes this by allowing the dispatcher to determine a nomination selection threshold which is evaluated on each worker, for each request route.  Each worker can be configured with a simple delegate to compute a score, between 0.0 and 1.0 representing the worker's current ability to handle the request, with 1.0 being the most capable, and 0.0 meaning least.  That score is compared to the threshold function provided by the dispatcher, and if it is sufficient, the worker indicates its ability to process the request with a nomination response.  
+
+Additionally, the route can also be configured with a nomination response delay based on the nomination score which server to directly support worker candidate selection by the dispatcher.  By making low scores respond more slowly than high scores, it increases the chance that high scorers nomination responses will be received by the dispatcher first, allowing them to be chosen for the work, rather than more burdened workers.
+
+Obviously, imposing response delays won't be appropriate for all systems, as it could have the side-effect of reducing overall system throughput, so additional mechanisms might be required to determine how to compute the delay factor, based on the system-wide average capacity, for example, which could be broadcast regularly over a designated channel, and incorporated into the delay computation function.  That's all up to you, and your use cases.  Either way, Suffūz supports it in any form that you need.
+
+In the latter case, where the same work request is distributed across N concurrent nodes, delaying responses probably makes less sense, so you'd likely only want to optionally configure the nomination threshold for those routes, and allow all workers that pass the nomination test to complete and return the results of their work as soon as possible.
+
+
+
+
 ##Sample Usage
 ####Remote Execution
 ```
@@ -44,7 +68,8 @@ var result1 = Get<TestResponse>.From(CHANNEL, new TestRequest()).Execute();
 
 // executes the request on respondants whose capacity exceeds an arbitrary threshold
 // the first respondant passing the nomination predicate test and returning a signaling message to the caller
-// is then sent the actual request to be processed, ensuring the actual request is only processed on a single remote agent
+// is then sent the actual request to be processed, ensuring the actual request is only processed 
+// on a single remote agent
 // nomination scoring is configured as part of the route definition on the recipient
 // if no nomination scoring is defined on the recipient, a maximum value of 1.0 is returned for the score
 // the Delegate expression is evaluated within the respondants' process, such that failing 
@@ -56,7 +81,8 @@ var result2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
 
 // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
 // blocks for the default timeout (Op.DefaultTimeout)
-// because this combination of request/response type is not mapped, no response will return within the timeout period specified (500ms)
+// because this combination of request/response type is not mapped, no response will return within 
+// the timeout period specified (500ms)
 // a timeout exception is throw in this case, or if none of the respondant results are received in time
 try
 {
@@ -68,8 +94,8 @@ catch(TimeoutException)
 }
 
 // executes the request on respondants whose capacity exceeds and arbitrary threshold
-// returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
-// and blocks for 2000 milliseconds while waiting for responses
+// returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) 
+// which is evaluated locally and blocks for 2000 milliseconds while waiting for responses
 // if no responses are received within the timeout, and empty set is returned
 // any responses received after the timeout are ignored
 var enResult1 = Get<TestResponse>.From(CHANNEL, new TestRequest())
@@ -79,8 +105,8 @@ var enResult1 = Get<TestResponse>.From(CHANNEL, new TestRequest())
                             .ToArray();
 
 // executes the request on respondants whose capacity exceeds and arbitrary threshold
-// returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
-// and blocks until the terminal condition is met (responses.Count() > 0)
+// returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) 
+// which is evaluated locally and blocks until the terminal condition is met (responses.Count() > 0)
 var enResult2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
                             .Nominate(cr => cr.Score > 0.9)
                             .Aggregate((responses) => responses.Where(r => r.Size > 2),
@@ -88,8 +114,9 @@ var enResult2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
                             .Execute()
                             .ToArray();
 
-// in this case, because we're executing and aggregation for an unmapped request/response pair, the call will simply block for the 
-// timeout period, and return no results.  Aggregations DO NOT through timeout exceptions in the absence of any responses, only scalar
+// in this case, because we're executing an aggregation for an unmapped request/response pair, 
+// the call will simply block for the timeout period, and return no results.  
+// Aggregations DO NOT through timeout exceptions in the absence of any responses, only scalar
 // execution calls can produce timeout exceptions.
 var enResult3 = Get<TestResponse>.From(CHANNEL, new CommandRequest())
                                 .Aggregate(responses => responses)
@@ -99,13 +126,16 @@ var enResult3 = Get<TestResponse>.From(CHANNEL, new CommandRequest())
 
 ####Message Routing
 ```
+// get the service router from the DI container
+var router = App.Resolve<IServiceRouter>();
 // set a default handler for CHANNEL for requests with no arguments and no responses
 router.Route<Handler>(CHANNEL, (handler) => handler.HandleNoArgs());
 
 // route incoming requests on CHANNEL of type CommandRequest to handler with no result
 router.Route<Handler, CommandRequest>(CHANNEL, (handler, request) => handler.Handle(request));
 
-// route incoming requests on CHANNEL of type TestRequest to an instance of type Handler, returning a TestResponse result
+// route incoming requests on CHANNEL of type TestRequest to an instance of type Handler, 
+// returning a TestResponse result
 // additionally, set a capacity limit on this request
 // and delay responses for up to 5 seconds for this request proportional to its current capacity score
 router.Route<Handler, TestRequest, TestResponse>(CHANNEL, (handler, request) => handler.Handle(request))
@@ -115,10 +145,100 @@ router.Route<Handler, TestRequest, TestResponse>(CHANNEL, (handler, request) => 
       })
       .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
 
-// route incoming requests on CHANNEL with no arguments to an instance of Handler, returning a TestResponse result
+// route incoming requests on CHANNEL with no arguments to an instance of Handler, 
+// returning a TestResponse result
 // additionally, set a nominatoion score on this request to a double
 // and delay responses for up to 5 seconds for this request proportional to its current capacity score
 router.Route<Handler, TestResponse>(CHANNEL, (handler) => handler.Handle())
       .Nominate(() => CostFunctions.CapacityCost(25d, 0d, 100d))
       .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
+```
+
+####Setting Up DI and Creating Channels
+```
+// sets the DI container adapter to TypeRegistry
+App<TypeRegistry>.Initialize();
+// get the channel service from the DU container
+var channelService = App.Resolve<IChannelService>();
+// creates the local channel instance for the CHANNEL service and starts listening
+channelService.Create(CHANNEL);
+```
+
+####Bootstrapping and Dependency Injection
+```
+/// <summary>
+/// Sample Bootstrapper reading from configuration, and providing a dependency resolver, 
+/// with basic DI Mappings for StructureMap
+/// </summary>
+public class TypeRegistry : IBootstrapper
+{
+    /// <summary>
+    /// Any byte[] that can be used in the creation of message hashes when communicating with other nodes
+    /// </summary>
+    public byte[] InstanceCryptoKey
+    {
+        get
+        {
+            return Convert.FromBase64String(ConfigurationManager.AppSettings["instanceCryptoKey"]);
+        }
+    }
+    /// <summary>
+    /// Globally unique Id for this node
+    /// </summary>
+    public ulong InstanceId
+    {
+        get
+        {
+            return ulong.Parse(ConfigurationManager.AppSettings["instanceId"]);
+        }
+    }
+    /// <summary>
+    /// Globally unique Name for this node
+    /// </summary>
+    public string InstanceName
+    {
+        get
+        {
+            return ConfigurationManager.AppSettings["instanceName"];
+        }
+    }
+    /// <summary>
+    /// Returns the DI type resolver adapter
+    /// </summary>
+    /// <returns></returns>
+    public IResolveTypes Initialize()
+    {
+        return new TypeResolver(
+            new Container(c =>
+        {
+            c.For<ISerializationContext>().Use<SerializationContext>();
+            c.For<IServiceRouter>().Use<ServiceRouter>().Singleton();
+            c.For<IChannelService>().Use<MulticastChannelService>().Singleton();
+            c.For<IBinarySerializerBuilder>().Use<BinarySerializerBuilder>().Singleton();
+            c.For<ISerializer>().Use<ComplexSerializer>();
+        }));
+    }
+}
+
+/// <summary>
+/// Simple StructureMap DI adapter for Suffūz 
+/// </summary>
+public class TypeResolver : IResolveTypes
+{
+    private IContainer _container;
+
+    public TypeResolver(IContainer container)
+    {
+        _container = container;
+    }
+    public T Resolve<T>()
+    {
+        return _container.GetInstance<T>();
+    }
+
+    public IEnumerable<T> ResolveAll<T>()
+    {
+        return _container.GetAllInstances<T>();
+    }
+}
 ```
