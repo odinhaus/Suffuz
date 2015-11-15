@@ -17,6 +17,18 @@ The API uses simple fluent-styled syntax to create both calling and routing patt
 ###SCADA
 ![alt tag](https://raw.github.com/odinhaus/Suffuz/master/Media/SCADA.png)
 
+In a typical SCADA application, you have a variety of computing nodes either observing or directly participating in an industrial control process.  Many times, nodes can join and leave throughout the lifecycle of the process.  A messaging infrastructure that allows for seamless group membership, with both broadcast messaging and directed messaging is paramount for development of such systems.  
+
+Suffūz is a great fit for these types of processes by leveraging fast, compiled binary serialization and UDP messaging, Suffūz can achieve sub-millisecond message latencies, which is critical for high-speed industrial processes.  It is also sufficient for most high-fidelity industrial data logging applications as well.
+
+
+###Shared Memory
+![alt tag](https://raw.github.com/odinhaus/Suffuz/master/Media/SharedMemory.png)
+
+Often times when scaling web applications across multiple web and service nodes, there is a need for relatively fast access to shared state across those devices.  Suffūz would provide the correct pieces for those situations as well, where a common stateful node would maintain a dictionary of shared items in memory, which could be accessed and updated by N dependant nodes, that might come and go randomly over the lifecycle of the shared state.
+
+In these scenarios, fast access, and zero-touch group membership are of the utmost importance.  Suffūz provides the platform to make this simple.
+
 ##Sample Usage
 ####Remote Execution
 ```
