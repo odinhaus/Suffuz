@@ -160,3 +160,82 @@ App<TypeRegistry>.Initialize();
 _channelService = App.Resolve<IChannelService>();
 _channelService.Create(CHANNEL);
 ```
+
+####Bootstrapping and Dependency Injection
+```
+/// <summary>
+/// Sample Bootstrapper reading from configuration, and providing a dependency resolver, 
+/// with basic DI Mappings for StructureMap
+/// </summary>
+public class TypeRegistry : IBootstrapper
+{
+    /// <summary>
+    /// Any byte[] that can be used in the creation of message hashes when communicating with other nodes
+    /// </summary>
+    public byte[] InstanceCryptoKey
+    {
+        get
+        {
+            return Convert.FromBase64String(ConfigurationManager.AppSettings["instanceCryptoKey"]);
+        }
+    }
+    /// <summary>
+    /// Globally unique Id for this node
+    /// </summary>
+    public ulong InstanceId
+    {
+        get
+        {
+            return ulong.Parse(ConfigurationManager.AppSettings["instanceId"]);
+        }
+    }
+    /// <summary>
+    /// Globally unique Name for this node
+    /// </summary>
+    public string InstanceName
+    {
+        get
+        {
+            return ConfigurationManager.AppSettings["instanceName"];
+        }
+    }
+    /// <summary>
+    /// Returns the DI type resolver adapter
+    /// </summary>
+    /// <returns></returns>
+    public IResolveTypes Initialize()
+    {
+        return new TypeResolver(
+            new Container(c =>
+        {
+            c.For<ISerializationContext>().Use<SerializationContext>();
+            c.For<IServiceRouter>().Use<ServiceRouter>().Singleton();
+            c.For<IChannelService>().Use<MulticastChannelService>().Singleton();
+            c.For<IBinarySerializerBuilder>().Use<BinarySerializerBuilder>().Singleton();
+            c.For<ISerializer>().Use<ComplexSerializer>();
+        }));
+    }
+}
+
+/// <summary>
+/// Simple StructureMap DI adapter for Suffūz 
+/// </summary>
+public class TypeResolver : IResolveTypes
+{
+    private IContainer _container;
+
+    public TypeResolver(IContainer container)
+    {
+        _container = container;
+    }
+    public T Resolve<T>()
+    {
+        return _container.GetInstance<T>();
+    }
+
+    public IEnumerable<T> ResolveAll<T>()
+    {
+        return _container.GetAllInstances<T>();
+    }
+}
+```
