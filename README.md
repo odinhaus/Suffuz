@@ -1,4 +1,4 @@
-# Suffūz
+![alt tag](https://raw.github.com/odinhaus/Suffuz/master/Media/Suffuze_Logo.png)
 #### Pronounced: */səˈfyo͞oz/*
 #### Meaning: *gradually spread through or over*
 
