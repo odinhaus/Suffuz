@@ -5,7 +5,7 @@
 #####*A simple and fast API for distributed computing with .Net.*
 
 ##Description
-Suffūz is an API allowing .Net applications to easily request services from and distribute units of work across a group of disparate processes or machines.
+Suffūz is an API allowing .Net applications to easily request services from and distribute units of work to a group of disparate processes or machines.
 
 Out of the box, it utilizes Multicast UDP messaging groups, allowing clients to establish arbitrary "channels" for communication endpoints, over which POCO .Net types can be exchanged.
 
