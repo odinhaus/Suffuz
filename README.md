@@ -50,7 +50,8 @@ Obviously, imposing response delays won't be appropriate for all systems, as it 
 
 In the latter case, where the same work request is distributed across N concurrent nodes, delaying responses probably makes less sense, so you'd likely only want to optionally configure the nomination threshold for those routes, and allow all workers that pass the nomination test to complete and return the results of their work as soon as possible.
 
-
+###Whatever Else You Can Dream Up....
+Any other simple distributed computing scenarios you might imagine, Suffūz can probably give you a good place to start.
 
 
 ##Sample Usage
