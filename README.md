@@ -48,6 +48,7 @@ Additionally, the route can also be configured with a nomination response delay 
 
 Obviously, imposing response delays won't be appropriate for all systems, as it could have the side-effect of reducing overall system throughput, so additional mechanisms might be required to determine how to compute the delay factor, based on the system-wide average capacity, for example, which could be broadcast regularly over a designated channel, and incorporated into the delay computation function.  That's all up to you, and your use cases.  Either way, Suffūz supports it in any form that you need.
 
+In the latter case, where the same work request is distributed across N concurrent nodes, delaying responses probably makes less sense, so you'd likely only want to optionally configure the nomination threshold for those routes, and allow all workers that pass the nomination test to complete and return the results of their work as soon as possible.
 
 
 
@@ -79,7 +80,8 @@ var result2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
 
 // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
 // blocks for the default timeout (Op.DefaultTimeout)
-// because this combination of request/response type is not mapped, no response will return within the timeout period specified (500ms)
+// because this combination of request/response type is not mapped, no response will return within 
+// the timeout period specified (500ms)
 // a timeout exception is throw in this case, or if none of the respondant results are received in time
 try
 {
@@ -91,8 +93,8 @@ catch(TimeoutException)
 }
 
 // executes the request on respondants whose capacity exceeds and arbitrary threshold
-// returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
-// and blocks for 2000 milliseconds while waiting for responses
+// returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) 
+// which is evaluated locally and blocks for 2000 milliseconds while waiting for responses
 // if no responses are received within the timeout, and empty set is returned
 // any responses received after the timeout are ignored
 var enResult1 = Get<TestResponse>.From(CHANNEL, new TestRequest())
@@ -102,8 +104,8 @@ var enResult1 = Get<TestResponse>.From(CHANNEL, new TestRequest())
                             .ToArray();
 
 // executes the request on respondants whose capacity exceeds and arbitrary threshold
-// returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
-// and blocks until the terminal condition is met (responses.Count() > 0)
+// returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) 
+// which is evaluated locally and blocks until the terminal condition is met (responses.Count() > 0)
 var enResult2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
                             .Nominate(cr => cr.Score > 0.9)
                             .Aggregate((responses) => responses.Where(r => r.Size > 2),
@@ -111,8 +113,9 @@ var enResult2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
                             .Execute()
                             .ToArray();
 
-// in this case, because we're executing and aggregation for an unmapped request/response pair, the call will simply block for the 
-// timeout period, and return no results.  Aggregations DO NOT through timeout exceptions in the absence of any responses, only scalar
+// in this case, because we're executing an aggregation for an unmapped request/response pair, 
+// the call will simply block for the timeout period, and return no results.  
+// Aggregations DO NOT through timeout exceptions in the absence of any responses, only scalar
 // execution calls can produce timeout exceptions.
 var enResult3 = Get<TestResponse>.From(CHANNEL, new CommandRequest())
                                 .Aggregate(responses => responses)
