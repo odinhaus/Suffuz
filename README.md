@@ -67,7 +67,8 @@ Get.From(CHANNEL, new CommandRequest()).Execute();
 
 // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
 // blocks for the default timeout (Get.DefaultTimeout)
-var result1 = Get<TestResponse>.From(CHANNEL, new TestRequest()).Execute();
+var result1 = Get<TestResponse>.From(CHANNEL, new TestRequest())
+                                .Execute();
 
 
 // executes the request on respondants whose capacity exceeds an arbitrary threshold
@@ -89,7 +90,8 @@ var result2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
 // a timeout exception is throw in this case, or if none of the respondant results are received in time
 try
 {
-    var result3 = Get<TestResponse>.From(CHANNEL, new CommandRequest()).Execute(500);
+    var result3 = Get<TestResponse>.From(CHANNEL, new CommandRequest())
+                                .Execute(500);
 }
 catch(TimeoutException)
 {
@@ -99,7 +101,8 @@ catch(TimeoutException)
 // executes a directed TestRequest call on the CHANNEL, for a specific recipient (App.InstanceName), 
 // and returns the first result returned from any respondant
 // blocks for up to 500ms
-var result4 = Get<TestResponse>.From(CHANNEL, new TestRequest()).Execute(500, App.InstanceName);
+var result4 = Get<TestResponse>.From(CHANNEL, new TestRequest())
+                                .Execute(500, App.InstanceName);
 
 
 // executes a TestRequest call on the CHANNEL, and returns all responses received within one second
