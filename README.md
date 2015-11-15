@@ -13,6 +13,9 @@ In addition to the basic request/response scenarios supported, the system also a
 
 The API uses simple fluent-styled syntax to create both calling and routing patterns, and it is built to easily adapt to your choice of Dependency Injection platform, supporting rich extensibility and testability.
 
+
+
+
 ##Sample Use Cases
 ###SCADA
 ![alt tag](https://raw.github.com/odinhaus/Suffuz/master/Media/SCADA.png)
@@ -28,6 +31,26 @@ Suffūz is a great fit for these types of processes by leveraging fast, compiled
 Often times when scaling web applications across multiple web and service nodes, there is a need for relatively fast access to shared state across those devices.  Suffūz would provide the correct pieces for those situations as well, where a common stateful node would maintain a dictionary of shared items in memory, which could be accessed and updated by N dependant nodes, that might come and go randomly over the lifecycle of the shared state.
 
 In these scenarios, fast access, and zero-touch group membership are of the utmost importance.  Suffūz provides the platform to make this simple.
+
+
+###Worker Pool (With or Without Nomination Constraints)
+![alt tag](https://raw.github.com/odinhaus/Suffuz/master/Media/WorkerPool.png)
+
+In some designs, you need a designated node to act as a dispatcher of queued work requests where you also have N worker nodes, all capable of processing the request.
+
+In some situations you might want the work to be dispatched to a single node, and other cases you might want the work dispatched to arbitrary number of nodes, based on some logical condition as determined by the dispatcher.
+
+In the former case, worker selection can be achieved by a simple matter of asking for workers capable of processing a given request to identify themselves, and then dispatching the request to the first respondant, and ignoring the others.  All things being equal, the fastest worker to respond, should also be the fastest worker to process the request.
+
+But things aren't always equal, so sometimes you need a way to balance the field. Suffūz accomplishes this by allowing the dispatcher to determine a nomination selection threshold which is evaluated on each worker, for each request route.  Each worker can be configured with a simple delegate to compute a score, between 0.0 and 1.0 representing the worker's current ability to handle the request, with 1.0 being the most capable, and 0.0 meaning least.  That score is compared to the threshold function provided by the dispatcher, and if it is sufficient, the worker indicates its ability to process the request with a nomination response.  
+
+Additionally, the route can also be configured with a nomination response delay based on the nomination score which server to directly support worker candidate selection by the dispatcher.  By making low scores respond more slowly than high scores, it increases the chance that high scorers nomination responses will be received by the dispatcher first, allowing them to be chosen for the work, rather than more burdened workers.
+
+Obviously, imposing response delays won't be appropriate for all systems, as it could have the side-effect of reducing overall system throughput, so additional mechanisms might be required to determine how to compute the delay factor, based on the system-wide average capacity, for example, which could be broadcast regularly over a designated channel, and incorporated into the delay computation function.  That's all up to you, and your use cases.  Either way, Suffūz supports it in any form that you need.
+
+
+
+
 
 ##Sample Usage
 ####Remote Execution
