@@ -9,7 +9,7 @@ using StructureMap;
 namespace Altus.Suffūz.Test
 {
     /// <summary>
-    /// StructureMap DI adapter for Suffusion 
+    /// StructureMap DI adapter for Suffūz 
     /// </summary>
     public class TypeResolver : IResolveTypes
     {

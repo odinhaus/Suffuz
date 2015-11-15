@@ -14,8 +14,14 @@ using Altus.Suffūz.Protocols.Udp;
 
 namespace Altus.Suffūz.Test
 {
+    /// <summary>
+    /// Sample Bootstrapper reading from configuration, and providing a dependency resolver, with basic DI Mappings for StructureMap
+    /// </summary>
     public class TypeRegistry : IBootstrapper
     {
+        /// <summary>
+        /// Any byte[] that can be used in the creation of message hashes when communicating with other nodes
+        /// </summary>
         public byte[] InstanceCryptoKey
         {
             get
@@ -23,7 +29,9 @@ namespace Altus.Suffūz.Test
                 return Convert.FromBase64String(ConfigurationManager.AppSettings["instanceCryptoKey"]);
             }
         }
-
+        /// <summary>
+        /// Globally unique Id for this node
+        /// </summary>
         public ulong InstanceId
         {
             get
@@ -31,7 +39,9 @@ namespace Altus.Suffūz.Test
                 return ulong.Parse(ConfigurationManager.AppSettings["instanceId"]);
             }
         }
-
+        /// <summary>
+        /// Globally unique Name for this node
+        /// </summary>
         public string InstanceName
         {
             get
@@ -39,7 +49,10 @@ namespace Altus.Suffūz.Test
                 return ConfigurationManager.AppSettings["instanceName"];
             }
         }
-
+        /// <summary>
+        /// Returns the DI type resolver adapter
+        /// </summary>
+        /// <returns></returns>
         public IResolveTypes Initialize()
         {
             return new TypeResolver(

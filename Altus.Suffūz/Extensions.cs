@@ -15,62 +15,96 @@ namespace Altus.Suffūz
 {
     public static class Extensions
     {
-        public static TResponse Execute<TRequest, TResponse>(this Get<TRequest, TResponse> request, int timeout = -1)
+        public static TResponse Execute<TRequest, TResponse>(this Get<TRequest, TResponse> request, int timeout = -1, params string[] recipients)
         {
             var channelService = App.Resolve<IChannelService>();
             var channel = channelService.Create(request.ChannelName);
+            if (recipients == null || recipients.Length == 0)
+            {
+                recipients = new string[] { "*" };
+            }
+
             return channel.Call<TRequest, TResponse>(
                 new ChannelRequest<TRequest, TResponse>(request.ChannelName)
                 {
                     Timeout = timeout > 0 ? TimeSpan.FromMilliseconds(timeout) : request.TimeOut,
-                    Payload = request.Request
+                    Payload = request.Request,
+                    Recipients = recipients
                 });
         }
 
-        public static AggregateExecutor<TRequest, TResponse> Aggregate<TRequest, TResponse>(this Get<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
+       
+
+        public static EnumerableExecutor<TRequest, TResponse> Enumerate<TRequest, TResponse>(this Get<TRequest, TResponse> request)
         {
-            return new Extensions.AggregateExecutor<TRequest, TResponse>(request, aggregator, (responses) => false);
+            return new Extensions.EnumerableExecutor<TRequest, TResponse>(request, (responses) => responses, (responses) => false);
         }
 
-        public static NominateExecutor<TRequest, TResponse> Nominate<TRequest, TResponse>(this Get<TRequest, TResponse> request, Expression<Func<NominateResponse, bool>> nominator)
+        public static EnumerableExecutor<TRequest, TResponse> Enumerate<TRequest, TResponse>(this Get<TRequest, TResponse> request, 
+            Func<IEnumerable<TResponse>, bool> terminator)
+        {
+            return new Extensions.EnumerableExecutor<TRequest, TResponse>(request, (responses) => responses, terminator);
+        }
+
+        public static EnumerableExecutor<TRequest, TResponse> Enumerate<TRequest, TResponse>(this Get<TRequest, TResponse> request, 
+            Func<IEnumerable<TResponse>, IEnumerable<TResponse>> selector)
+        {
+            return new Extensions.EnumerableExecutor<TRequest, TResponse>(request, selector, (responses) => false);
+        }
+
+        public static EnumerableExecutor<TRequest, TResponse> Enumerate<TRequest, TResponse>(this Get<TRequest, TResponse> request, 
+            Func<IEnumerable<TResponse>, IEnumerable<TResponse>> selector, 
+            Func<IEnumerable<TResponse>, bool> terminator)
+        {
+            return new Extensions.EnumerableExecutor<TRequest, TResponse>(request, selector, terminator);
+        }
+
+
+        public static NominateExecutor<TRequest, TResponse> Nominate<TRequest, TResponse>(this Get<TRequest, TResponse> request, 
+            Expression<Func<NominateResponse, bool>> nominator)
         {
             return new Extensions.NominateExecutor<TRequest, TResponse>(request, nominator);
         }
 
-        public class AggregateExecutor<TRequest, TResponse>
+        public class EnumerableExecutor<TRequest, TResponse>
         {
-            private Func<IEnumerable<TResponse>, IEnumerable<TResponse>> _aggregator;
+            private Func<IEnumerable<TResponse>, IEnumerable<TResponse>> _selector;
             private Get<TRequest, TResponse> _request;
             private Expression<Func<NominateResponse, bool>> _delegator;
             private Func<IEnumerable<TResponse>, bool> _terminator;
 
-            public AggregateExecutor(Get<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator)
+            public EnumerableExecutor(Get<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> selector, Func<IEnumerable<TResponse>, bool> terminator)
             {
-                this._aggregator = aggregator;
+                this._selector = selector;
                 this._request = request;
                 this._terminator = terminator;
             }
 
-            public AggregateExecutor(Get<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator, Expression<Func<NominateResponse, bool>> delegator)
-                : this(request, aggregator, terminator)
+            public EnumerableExecutor(Get<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> selector, Func<IEnumerable<TResponse>, bool> terminator, Expression<Func<NominateResponse, bool>> delegator)
+                : this(request, selector, terminator)
             {
                 this._delegator = delegator;
             }
 
-            public IEnumerable<TResponse> Execute(int timeout = -1)
+            public IEnumerable<TResponse> Execute(int timeout = -1, params string[] recipients)
             {
                 var channelService = App.Resolve<IChannelService>();
                 var channel = channelService.Create(_request.ChannelName);
+                if (recipients == null || recipients.Length == 0)
+                {
+                    recipients = new string[] { "*" };
+                }
                 if (_delegator == null)
                 {
                     var request = new ChannelRequest<TRequest, TResponse>(_request.ChannelName)
                     {
                         Payload = _request.Request,
-                        Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : _request.TimeOut
+                        Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : _request.TimeOut,
+                        Recipients = recipients
                     };
                     var enumerableResponse = new EnumerableResponse<TResponse>(request.Timeout, _terminator);
                     Task.Run(() => channel.Call(request, enumerableResponse.Predicate)); // we don't want to block here
-                    return _aggregator(enumerableResponse);
+                    return _selector(enumerableResponse);
                 }
                 else
                 {
@@ -82,11 +116,12 @@ namespace Altus.Suffūz
                             Request = _request.Request,
                             Nominator = new Serialization.Expressions.ExpressionSerializer().Serialize(_delegator).ToString(),
                             ScalarResults = false
-                        }
+                        },
+                        Recipients = recipients
                     };
                     var enumerableResponse = new EnumerableResponse<TResponse>(request.Timeout, _terminator);
                     Task.Run(() => channel.Call(request, enumerableResponse.Predicate)); // we don't want to block here
-                    return _aggregator(enumerableResponse);
+                    return _selector(enumerableResponse);
                 }
             }
         }
@@ -102,10 +137,14 @@ namespace Altus.Suffūz
                 this._request = request;
             }
 
-            public TResponse Execute(int timeout = -1)
+            public TResponse Execute(int timeout = -1, params string[] recipients)
             {
                 var channelService = App.Resolve<IChannelService>();
                 var channel = channelService.Create(_request.ChannelName);
+                if (recipients == null || recipients.Length == 0)
+                {
+                    recipients = new string[] { "*" };
+                }
                 return channel.Call<NominateExecutionRequest, TResponse>(
                 new ChannelRequest<NominateExecutionRequest, TResponse>(_request.ChannelName)
                 {
@@ -115,18 +154,24 @@ namespace Altus.Suffūz
                         Request = _request.Request,
                         Nominator = new Serialization.Expressions.ExpressionSerializer().Serialize(_nominator).ToString(),
                         ScalarResults = true
-                    }
+                    },
+                    Recipients = recipients
                 });
             }
 
-            public AggregateExecutor<TRequest, TResponse> Aggregate(Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
+            public EnumerableExecutor<TRequest, TResponse> Enumerate()
             {
-                return new AggregateExecutor<TRequest, TResponse>(this._request, aggregator, (responses) => false,  _nominator);
+                return new EnumerableExecutor<TRequest, TResponse>(this._request, (responses) => responses, (responses) => false, _nominator);
             }
 
-            public AggregateExecutor<TRequest, TResponse> Aggregate(Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator)
+            public EnumerableExecutor<TRequest, TResponse> Enumerate(Func<IEnumerable<TResponse>, IEnumerable<TResponse>> selector)
             {
-                return new AggregateExecutor<TRequest, TResponse>(this._request, aggregator, terminator, _nominator);
+                return new EnumerableExecutor<TRequest, TResponse>(this._request, selector, (responses) => false,  _nominator);
+            }
+
+            public EnumerableExecutor<TRequest, TResponse> Enumerate(Func<IEnumerable<TResponse>, IEnumerable<TResponse>> selector, Func<IEnumerable<TResponse>, bool> terminator)
+            {
+                return new EnumerableExecutor<TRequest, TResponse>(this._request, selector, terminator, _nominator);
             }
         }
 
