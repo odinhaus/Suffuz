@@ -68,7 +68,8 @@ var result1 = Get<TestResponse>.From(CHANNEL, new TestRequest()).Execute();
 
 // executes the request on respondants whose capacity exceeds an arbitrary threshold
 // the first respondant passing the nomination predicate test and returning a signaling message to the caller
-// is then sent the actual request to be processed, ensuring the actual request is only processed on a single remote agent
+// is then sent the actual request to be processed, ensuring the actual request is only processed 
+// on a single remote agent
 // nomination scoring is configured as part of the route definition on the recipient
 // if no nomination scoring is defined on the recipient, a maximum value of 1.0 is returned for the score
 // the Delegate expression is evaluated within the respondants' process, such that failing 
@@ -131,7 +132,8 @@ router.Route<Handler>(CHANNEL, (handler) => handler.HandleNoArgs());
 // route incoming requests on CHANNEL of type CommandRequest to handler with no result
 router.Route<Handler, CommandRequest>(CHANNEL, (handler, request) => handler.Handle(request));
 
-// route incoming requests on CHANNEL of type TestRequest to an instance of type Handler, returning a TestResponse result
+// route incoming requests on CHANNEL of type TestRequest to an instance of type Handler, 
+// returning a TestResponse result
 // additionally, set a capacity limit on this request
 // and delay responses for up to 5 seconds for this request proportional to its current capacity score
 router.Route<Handler, TestRequest, TestResponse>(CHANNEL, (handler, request) => handler.Handle(request))
@@ -141,10 +143,20 @@ router.Route<Handler, TestRequest, TestResponse>(CHANNEL, (handler, request) => 
       })
       .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
 
-// route incoming requests on CHANNEL with no arguments to an instance of Handler, returning a TestResponse result
+// route incoming requests on CHANNEL with no arguments to an instance of Handler, 
+// returning a TestResponse result
 // additionally, set a nominatoion score on this request to a double
 // and delay responses for up to 5 seconds for this request proportional to its current capacity score
 router.Route<Handler, TestResponse>(CHANNEL, (handler) => handler.Handle())
       .Nominate(() => CostFunctions.CapacityCost(25d, 0d, 100d))
       .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
+```
+
+####Setting Up DI and Creating Channels
+```
+// sets the DI container adapter to TypeRegistry
+App<TypeRegistry>.Initialize();
+// creates the local channel instance for the CHANNEL service
+_channelService = App.Resolve<IChannelService>();
+_channelService.Create(CHANNEL);
 ```
