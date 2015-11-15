@@ -8,9 +8,9 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz
 {
-    public class Op<TRequest, TResponse>
+    public class Get<TRequest, TResponse>
     {
-        internal Op(string channelName, TRequest request)
+        internal Get(string channelName, TRequest request)
         {
             ChannelName = channelName;
             Request = request;
@@ -19,26 +19,46 @@ namespace Altus.Suffūz
         public TRequest Request { get; set; }
         public bool HasArgs { get { return typeof(TRequest) != typeof(NoArgs); } }
         public bool HasReturn { get { return typeof(TRequest) != typeof(NoReturn); } }
+        public TimeSpan TimeOut { get; set; }
     }
 
-    public static class Op<TResponse>
+    public static class Get<TResponse>
     {
-        public static Op<TRequest, TResponse> New<TRequest>(string channelId, TRequest request)
+        public static Get<TRequest, TResponse> From<TRequest>(string channelId, TRequest request)
         {
-            return new Op<TRequest, TResponse>(channelId, request);
+            return new Get<TRequest, TResponse>(channelId, request) { TimeOut = DefaultTimeout };
+        }
+
+        public static TimeSpan DefaultTimeout
+        {
+            get
+            {
+                return Get.DefaultTimeout;
+            }
+            set
+            {
+                Get.DefaultTimeout = value;
+            }
         }
     }
 
-    public static class Op
+    public static class Get
     {
-        public static Op<TRequest, NoReturn> New<TRequest>(string channelId, TRequest request)
+        static Get()
         {
-            return new Op<TRequest, NoReturn>(channelId, request);
+            DefaultTimeout = TimeSpan.FromSeconds(10);
         }
 
-        public static Op<NoArgs, NoReturn> New(string channelId)
+        public static Get<TRequest, NoReturn> From<TRequest>(string channelId, TRequest request)
         {
-            return new Op<NoArgs, NoReturn>(channelId, NoArgs.Empty);
+            return new Get<TRequest, NoReturn>(channelId, request) { TimeOut = DefaultTimeout };
         }
+
+        public static Get<NoArgs, NoReturn> From(string channelId)
+        {
+            return new Get<NoArgs, NoReturn>(channelId, NoArgs.Empty) { TimeOut = DefaultTimeout };
+        }
+
+        public static TimeSpan DefaultTimeout { get; set; }
     }
 }

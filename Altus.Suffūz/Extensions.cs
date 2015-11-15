@@ -15,24 +15,24 @@ namespace Altus.Suffūz
 {
     public static class Extensions
     {
-        public static TResponse Execute<TRequest, TResponse>(this Op<TRequest, TResponse> request, int timeout = -1)
+        public static TResponse Execute<TRequest, TResponse>(this Get<TRequest, TResponse> request, int timeout = -1)
         {
             var channelService = App.Resolve<IChannelService>();
             var channel = channelService.Create(request.ChannelName);
             return channel.Call<TRequest, TResponse>(
                 new ChannelRequest<TRequest, TResponse>(request.ChannelName)
                 {
-                    Timeout = timeout > 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(30000),
+                    Timeout = timeout > 0 ? TimeSpan.FromMilliseconds(timeout) : request.TimeOut,
                     Payload = request.Request
                 });
         }
 
-        public static AggregateExecutor<TRequest, TResponse> Aggregate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
+        public static AggregateExecutor<TRequest, TResponse> Aggregate<TRequest, TResponse>(this Get<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator)
         {
             return new Extensions.AggregateExecutor<TRequest, TResponse>(request, aggregator, (responses) => false);
         }
 
-        public static NominateExecutor<TRequest, TResponse> Nominate<TRequest, TResponse>(this Op<TRequest, TResponse> request, Expression<Func<NominateResponse, bool>> nominator)
+        public static NominateExecutor<TRequest, TResponse> Nominate<TRequest, TResponse>(this Get<TRequest, TResponse> request, Expression<Func<NominateResponse, bool>> nominator)
         {
             return new Extensions.NominateExecutor<TRequest, TResponse>(request, nominator);
         }
@@ -40,18 +40,18 @@ namespace Altus.Suffūz
         public class AggregateExecutor<TRequest, TResponse>
         {
             private Func<IEnumerable<TResponse>, IEnumerable<TResponse>> _aggregator;
-            private Op<TRequest, TResponse> _request;
+            private Get<TRequest, TResponse> _request;
             private Expression<Func<NominateResponse, bool>> _delegator;
             private Func<IEnumerable<TResponse>, bool> _terminator;
 
-            public AggregateExecutor(Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator)
+            public AggregateExecutor(Get<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator)
             {
                 this._aggregator = aggregator;
                 this._request = request;
                 this._terminator = terminator;
             }
 
-            public AggregateExecutor(Op<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator, Expression<Func<NominateResponse, bool>> delegator)
+            public AggregateExecutor(Get<TRequest, TResponse> request, Func<IEnumerable<TResponse>, IEnumerable<TResponse>> aggregator, Func<IEnumerable<TResponse>, bool> terminator, Expression<Func<NominateResponse, bool>> delegator)
                 : this(request, aggregator, terminator)
             {
                 this._delegator = delegator;
@@ -66,7 +66,7 @@ namespace Altus.Suffūz
                     var request = new ChannelRequest<TRequest, TResponse>(_request.ChannelName)
                     {
                         Payload = _request.Request,
-                        Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(5000)
+                        Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : _request.TimeOut
                     };
                     var enumerableResponse = new EnumerableResponse<TResponse>(request.Timeout, _terminator);
                     Task.Run(() => channel.Call(request, enumerableResponse.Predicate)); // we don't want to block here
@@ -76,7 +76,7 @@ namespace Altus.Suffūz
                 {
                     var request = new ChannelRequest<NominateExecutionRequest, TResponse>(_request.ChannelName)
                     {
-                        Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(5000),
+                        Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : _request.TimeOut,
                         Payload = new NominateExecutionRequest()
                         {
                             Request = _request.Request,
@@ -94,9 +94,9 @@ namespace Altus.Suffūz
         public class NominateExecutor<TRequest, TResponse>
         {
             private Expression<Func<NominateResponse, bool>> _nominator;
-            private Op<TRequest, TResponse> _request;
+            private Get<TRequest, TResponse> _request;
 
-            public NominateExecutor(Op<TRequest, TResponse> request, Expression<Func<NominateResponse, bool>> nominator)
+            public NominateExecutor(Get<TRequest, TResponse> request, Expression<Func<NominateResponse, bool>> nominator)
             {
                 this._nominator = nominator;
                 this._request = request;
@@ -109,7 +109,7 @@ namespace Altus.Suffūz
                 return channel.Call<NominateExecutionRequest, TResponse>(
                 new ChannelRequest<NominateExecutionRequest, TResponse>(_request.ChannelName)
                 {
-                    Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : TimeSpan.FromMilliseconds(30000),
+                    Timeout = timeout >= 0 ? TimeSpan.FromMilliseconds(timeout) : _request.TimeOut,
                     Payload = new NominateExecutionRequest()
                     {
                         Request = _request.Request,

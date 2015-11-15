@@ -280,6 +280,16 @@ namespace Altus.Suffūz.Protocols.Udp
             }
             else
             {
+                bool isNomination = request.Payload is NominateExecutionRequest;
+                object deferredPayload = null;
+                if (isNomination)
+                {
+                    // for scalar nominations, we don't want to send the actual request payload twice
+                    // so we strip it here, and hold it
+                    deferredPayload = ((NominateExecutionRequest)(object)request.Payload).Request;
+                    ((NominateExecutionRequest)(object)request.Payload).Request = NoArgs.Empty;
+                }
+
                 var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
                 {
                     Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
@@ -288,13 +298,13 @@ namespace Altus.Suffūz.Protocols.Udp
 
                 var response = Call(message, request.Timeout);
 
-                if (request.Payload is NominateExecutionRequest)
+                if (isNomination)
                 {
-                    var payload = ((NominateExecutionRequest)(object)request.Payload).Request;
+                    // now send the actual payload to first respondant
                     message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
                     {
-                        Payload = new RoutablePayload(payload, payload.GetType(), typeof(TResponse)),
-                        Recipients = request.Recipients
+                        Payload = new RoutablePayload(deferredPayload, deferredPayload.GetType(), typeof(TResponse)),
+                        Recipients = new string[] { response.Sender }
                     };
 
                     response = Call(message, request.Timeout);
