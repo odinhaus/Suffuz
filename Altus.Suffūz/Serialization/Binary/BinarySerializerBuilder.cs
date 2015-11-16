@@ -433,7 +433,7 @@ using Altus.Suffūz.Serialization.Binary;
 
 namespace <Namespace>
 {
-    [System.CodeDom.Compiler.GeneratedCodeAttribute(""CSGO"", ""1.0"")]
+    [System.CodeDom.Compiler.GeneratedCodeAttribute(""Suffūz"", ""1.0"")]
     [System.Serializable]
     public class BinarySerializer_<TypeName> : <QualifiedTypeName>, ISerializer<<QualifiedTypeName>>
     {       
@@ -464,35 +464,6 @@ namespace <Namespace>
             return format.Equals(StandardFormats.BINARY, StringComparison.InvariantCultureIgnoreCase);
         }
 
-        protected virtual void OnDispose()
-        {
-        }
-
-
-        IEnumerable<Type> _types = null;
-        public IEnumerable<Type> SupportedTypes
-        {
-            get { return _types; }
-        }
-
-        public void Initialize(string name, params string[] args)
-        {
-            this._types = OnGetSupportedTypes();
-            this.Name = name;
-        }
-
-        public bool IsInitialized
-        {
-            get;
-            private set;
-        }
-
-        public bool IsEnabled
-        {
-            get;
-            set;
-        }
-
         public int Priority
         {
             get;
@@ -508,8 +479,7 @@ namespace <Namespace>
 
         public bool SupportsType(Type type)
         {
-            return _types != null 
-                    && (_types.Contains(type) || type.IsAssignableFrom(typeof(ISerializer<<QualifiedTypeName>>)));
+            return typeof(ISerializer<<QualifiedTypeName>>).IsAssignableFrom(type);
         }
 
         public byte[] Serialize(object source)
@@ -522,22 +492,7 @@ namespace <Namespace>
             return OnDeserialize(source, targetType);
         }
 
-        public event EventHandler Disposed;
-
-        public System.ComponentModel.ISite Site
-        {
-            get;
-            set;
-        }
-
         <NameProperty>
-
-        public void Dispose()
-        {
-            this.OnDispose();
-            if (Disposed != null)
-                Disposed(this, new EventArgs());
-        }
 
         public byte[] Serialize(<QualifiedTypeName> source)
         {
