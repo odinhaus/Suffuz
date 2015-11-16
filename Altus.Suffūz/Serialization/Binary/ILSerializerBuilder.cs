@@ -100,6 +100,7 @@ namespace Altus.Suffūz.Serialization.Binary
 
             return typeBuilder.CreateType();
         }
+
         private void SerializeMembers(TypeBuilder typeBuilder, Type interfaceType, MethodBuilder methodBuilder, Label exit)
         {
             
@@ -247,8 +248,6 @@ namespace Altus.Suffūz.Serialization.Binary
             return methodBuilder;
         }
 
-       
-
         private MethodInfo ImplementOnDeserialize(TypeBuilder typeBuilder, Type interfaceType, ConstructorInfo ctor, MethodInfo deserializeType)
         {
             /*
@@ -356,8 +355,6 @@ namespace Altus.Suffūz.Serialization.Binary
 
             return methodBuilder;
         }
-
-
 
         private void ImplementDeserializeGenericStream(TypeBuilder typeBuilder, Type interfaceType, MethodInfo deserializeGeneric)
         {

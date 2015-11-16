@@ -9,7 +9,7 @@ namespace Altus.Suffūz.Tests
     public class ILSerializationTests
     {
         [TestMethod]
-        public void CanCompileSerializerForSimplePOCO()
+        public void CanCreateSimplePOCOSerializer()
         {
             var builder = new ILSerializerBuilder();
             var instance = builder.CreateSerializerType<SimplePOCO>();
@@ -19,8 +19,35 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(instance.SupportsFormat(StandardFormats.BINARY));
             Assert.IsFalse(instance.SupportsFormat(StandardFormats.CSV));
 
-            var poco = instance.Deserialize(new byte[0]);
-            var bytes = instance.Serialize(poco);
+            var testPoco = new SimplePOCO()
+            {
+                Prop1 = 3
+            };
+            var poco = instance.Deserialize(instance.Serialize(testPoco));
+
+            Assert.IsTrue(testPoco.Equals(poco));
+
+            builder.SaveAssembly();
+        }
+
+        [TestMethod]
+        public void CanCreateSimpleGenericPOCOSerializer()
+        {
+            var builder = new ILSerializerBuilder();
+            var instance = builder.CreateSerializerType<GenericPOCO<int>>();
+
+            Assert.IsTrue(instance.SupportsType(typeof(GenericPOCO<int>)));
+            Assert.IsTrue(instance.SupportsType(instance.GetType()));
+            Assert.IsTrue(instance.SupportsFormat(StandardFormats.BINARY));
+            Assert.IsFalse(instance.SupportsFormat(StandardFormats.CSV));
+
+            var testPoco = new GenericPOCO<int>()
+            {
+                Prop1 = 3
+            };
+            var poco = instance.Deserialize(instance.Serialize(testPoco));
+
+            Assert.IsTrue(testPoco.Equals(poco));
 
             builder.SaveAssembly();
         }
@@ -29,5 +56,20 @@ namespace Altus.Suffūz.Tests
     public class SimplePOCO
     {
         public int Prop1 { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            return base.Equals(obj);
+        }
+    }
+
+    public class GenericPOCO<T>
+    {
+        public T Prop1 { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            return base.Equals(obj);
+        }
     }
 }
