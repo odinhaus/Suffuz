@@ -60,7 +60,7 @@ Any other simple distributed computing scenarios you might imagine, Suffūz can 
 
 ##Sample Usage
 ####Remote Execution
-```
+```C#
 // executes the default call on the CHANNEL, with no arguments or response
 Get.From(Channels.CHANNEL).Execute();
 
@@ -153,7 +153,7 @@ var enResult5 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest())
 ```
 
 ####Message Routing
-```
+```C#
 // get the service router from the DI container
 var router = App.Resolve<IServiceRouter>();
 // set a default handler for CHANNEL for requests with no arguments and no responses
@@ -183,7 +183,7 @@ router.Route<Handler, TestResponse>(CHANNEL, (handler) => handler.Handle())
 ```
 
 ####Setting Up DI and Creating Channels
-```
+```C#
 // sets the DI container adapter to TypeRegistry
 App<TypeRegistry>.Initialize();
 // get the channel service from the DU container
@@ -193,7 +193,7 @@ channelService.Create(CHANNEL);
 ```
 
 ####Bootstrapping and Dependency Injection
-```
+```C#
 /// <summary>
 /// Sample Bootstrapper reading from configuration, and providing a dependency resolver, with basic DI Mappings for StructureMap
 /// </summary>
