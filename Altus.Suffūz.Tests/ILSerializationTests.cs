@@ -16,7 +16,8 @@ namespace Altus.Suffūz.Tests
 
             Assert.IsTrue(instance.SupportsType(typeof(SimplePOCO)));
             Assert.IsTrue(instance.SupportsType(instance.GetType()));
-            //Assert.IsTrue(instance.SupportsFormat(StandardFormats.BINARY));
+            Assert.IsTrue(instance.SupportsFormat(StandardFormats.BINARY));
+            Assert.IsFalse(instance.SupportsFormat(StandardFormats.CSV));
 
             builder.SaveAssembly();
         }
