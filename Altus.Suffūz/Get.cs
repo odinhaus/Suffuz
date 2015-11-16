@@ -24,6 +24,11 @@ namespace Altus.Suffūz
 
     public static class Get<TResponse>
     {
+        public static Get<NoArgs, TResponse> From(string channelId)
+        {
+            return From<NoArgs>(channelId, NoArgs.Empty);
+        }
+
         public static Get<TRequest, TResponse> From<TRequest>(string channelId, TRequest request)
         {
             return new Get<TRequest, TResponse>(channelId, request) { TimeOut = DefaultTimeout };

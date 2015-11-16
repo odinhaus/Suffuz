@@ -55,12 +55,17 @@ namespace Altus.Suffūz.Test
         /// <returns></returns>
         public IResolveTypes Initialize()
         {
+            var channelService = new MulticastChannelService();
+            // create our channel mappings
+            channelService.Register(Channels.CHANNEL, Channels.CHANNEL_EP);
+
             return new TypeResolver(
                 new Container(c =>
             {
                 c.For<ISerializationContext>().Use<SerializationContext>();
                 c.For<IServiceRouter>().Use<ServiceRouter>().Singleton();
-                c.For<IChannelService>().Use<MulticastChannelService>().Singleton();
+                // use the mapped channels above
+                c.For<IChannelService>().Use<MulticastChannelService>(channelService).Singleton();
                 c.For<IBinarySerializerBuilder>().Use<BinarySerializerBuilder>().Singleton();
                 c.For<ISerializer>().Use<ComplexSerializer>();
             }));

@@ -15,7 +15,7 @@ namespace Altus.Suffūz
 {
     class Program
     {
-        public const string CHANNEL = "channel1";
+        
         private static IChannelService _channelService;
 
         static void Main(string[] args)
@@ -42,7 +42,7 @@ namespace Altus.Suffūz
         {
             // creates the local channel instance for the CHANNEL service
             _channelService = App.Resolve<IChannelService>();
-            _channelService.Create(CHANNEL);
+            _channelService.Create(Channels.CHANNEL);
         }
 
         /// <summary>
@@ -52,15 +52,15 @@ namespace Altus.Suffūz
         {
             var router = App.Resolve<IServiceRouter>();
             // set a default handler for CHANNEL for requests with no arguments and no responses
-            router.Route<Handler>(CHANNEL, (handler) => handler.HandleNoArgs());
+            router.Route<Handler>(Channels.CHANNEL, (handler) => handler.HandleNoArgs());
 
             // route incoming requests on CHANNEL of type CommandRequest to handler with no result
-            router.Route<Handler, CommandRequest>(CHANNEL, (handler, request) => handler.Handle(request));
+            router.Route<Handler, CommandRequest>(Channels.CHANNEL, (handler, request) => handler.Handle(request));
 
             // route incoming requests on CHANNEL of type TestRequest to an instance of type Handler, returning a TestResponse result
             // additionally, set a capacity limit on this request
             // and delay responses for up to 5 seconds for this request proportional to its current capacity score
-            router.Route<Handler, TestRequest, TestResponse>(CHANNEL, (handler, request) => handler.Handle(request))
+            router.Route<Handler, TestRequest, TestResponse>(Channels.CHANNEL, (handler, request) => handler.Handle(request))
                   .Nominate(() => new NominateResponse()
                   {
                       Score = CostFunctions.CapacityCost(25d, 0d, 100d)
@@ -70,7 +70,7 @@ namespace Altus.Suffūz
             // route incoming requests on CHANNEL with no arguments to an instance of Handler, returning a TestResponse result
             // additionally, set a nominatoion score on this request to a double
             // and delay responses for up to 5 seconds for this request proportional to its current capacity score
-            router.Route<Handler, TestResponse>(CHANNEL, (handler) => handler.Handle())
+            router.Route<Handler, TestResponse>(Channels.CHANNEL, (handler) => handler.Handle())
                   .Nominate(() => CostFunctions.CapacityCost(25d, 0d, 100d))
                   .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
         }
@@ -82,16 +82,16 @@ namespace Altus.Suffūz
         static void DoIt()
         {
             // executes the default call on the CHANNEL, with no arguments or response
-            Get.From(CHANNEL).Execute();
+            Get.From(Channels.CHANNEL).Execute();
 
 
             // executes with no result on the CHANNEL
-            Get.From(CHANNEL, new CommandRequest()).Execute();
+            Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
 
 
             // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
             // blocks for the default timeout (Get.DefaultTimeout)
-            var result1 = Get<TestResponse>.From(CHANNEL, new TestRequest()).Execute();
+            var result1 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute();
 
 
             // executes the request on respondants whose capacity exceeds an arbitrary threshold
@@ -102,7 +102,7 @@ namespace Altus.Suffūz
             // the Delegate expression is evaluated within the respondants' process, such that failing 
             // test prevent the request from beng dispatched to their corresponding handlers, 
             // thus preventing both evaluation and responses
-            var result2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
+            var result2 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
                                             .Nominate(response => response.Score > TestResponse.SomeNumber())
                                             .Execute();
 
@@ -113,7 +113,7 @@ namespace Altus.Suffūz
             // a timeout exception is throw in this case, or if none of the respondant results are received in time
             try
             {
-                var result3 = Get<TestResponse>.From(CHANNEL, new CommandRequest()).Execute(500);
+                var result3 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest()).Execute(500);
             }
             catch(TimeoutException)
             {
@@ -123,18 +123,18 @@ namespace Altus.Suffūz
             // executes a directed TestRequest call on the CHANNEL, for a specific recipient (App.InstanceName), 
             // and returns the first result returned from any respondant
             // blocks for up to 500ms
-            var result4 = Get<TestResponse>.From(CHANNEL, new TestRequest()).Execute(500, App.InstanceName);
+            var result4 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute(500, App.InstanceName);
 
 
             // executes a TestRequest call on the CHANNEL, and returns all responses received within one second
-            var enResult1 = Get<TestResponse>.From(CHANNEL, new TestRequest())
+            var enResult1 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
                                             .Enumerate()
                                             .Execute(1000)
                                             .ToArray();
 
             // executes a TestRequest call on the CHANNEL, and returns the first two responses received within the Get.DefaultTimeout time period
             // if the terminator condition is not met within the timeout period, the result will contain the responses received up to that time
-            var enResult2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
+            var enResult2 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
                                             .Enumerate((responses) => responses.Count() > 2)
                                             .Execute()
                                             .ToArray();
@@ -145,7 +145,7 @@ namespace Altus.Suffūz
             // and blocks for 2000 milliseconds while waiting for responses
             // if no responses are received within the timeout, and empty set is returned
             // any responses received after the timeout are ignored
-            var enResult3 = Get<TestResponse>.From(CHANNEL, new TestRequest())
+            var enResult3 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
                                             .Nominate(cr => cr.Score > 0.9)
                                             .Enumerate((responses) => responses.Where(r => r.Size > 2))
                                             .Execute(2000)
@@ -155,7 +155,7 @@ namespace Altus.Suffūz
             // executes the request on respondants whose capacity exceeds and arbitrary threshold
             // returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
             // and blocks until the terminal condition is met (responses.Count() > 0)
-            var enResult4 = Get<TestResponse>.From(CHANNEL, new TestRequest())
+            var enResult4 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
                                             .Nominate(cr => cr.Score > 0.9)
                                             .Enumerate((responses) => responses.Where(r => r.Size > 2),
                                                        (reponses) => reponses.Count() > 0)
@@ -166,7 +166,7 @@ namespace Altus.Suffūz
             // in this case, because we're executing an enumeration for an unmapped request/response pair, the call will simply block for the 
             // timeout period, and return no results.  Enumerations DO NOT through timeout exceptions in the absence of any responses, only scalar
             // execution calls can produce timeout exceptions.
-            var enResult5 = Get<TestResponse>.From(CHANNEL, new CommandRequest())
+            var enResult5 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest())
                                             .Enumerate(responses => responses)
                                             .Execute(500)
                                             .ToArray();
