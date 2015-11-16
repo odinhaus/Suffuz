@@ -58,17 +58,16 @@ Any other simple distributed computing scenarios you might imagine, Suffūz can 
 ####Remote Execution
 ```
 // executes the default call on the CHANNEL, with no arguments or response
-Get.From(CHANNEL).Execute();
+Get.From(Channels.CHANNEL).Execute();
 
 
 // executes with no result on the CHANNEL
-Get.From(CHANNEL, new CommandRequest()).Execute();
+Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
 
 
 // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
 // blocks for the default timeout (Get.DefaultTimeout)
-var result1 = Get<TestResponse>.From(CHANNEL, new TestRequest())
-                                .Execute();
+var result1 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute();
 
 
 // executes the request on respondants whose capacity exceeds an arbitrary threshold
@@ -79,9 +78,9 @@ var result1 = Get<TestResponse>.From(CHANNEL, new TestRequest())
 // the Delegate expression is evaluated within the respondants' process, such that failing 
 // test prevent the request from beng dispatched to their corresponding handlers, 
 // thus preventing both evaluation and responses
-var result2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
-                                .Nominate(response => response.Score > TestResponse.SomeNumber())
-                                .Execute();
+var result2 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+                              .Nominate(response => response.Score > TestResponse.SomeNumber())
+                              .Execute();
 
 
 // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
@@ -90,33 +89,31 @@ var result2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
 // a timeout exception is throw in this case, or if none of the respondant results are received in time
 try
 {
-    var result3 = Get<TestResponse>.From(CHANNEL, new CommandRequest())
-                                .Execute(500);
+  var result3 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest()).Execute(500);
 }
 catch(TimeoutException)
 {
-    Logger.LogInfo("Handled Timeout");
+  Logger.LogInfo("Handled Timeout");
 }
 
 // executes a directed TestRequest call on the CHANNEL, for a specific recipient (App.InstanceName), 
 // and returns the first result returned from any respondant
 // blocks for up to 500ms
-var result4 = Get<TestResponse>.From(CHANNEL, new TestRequest())
-                                .Execute(500, App.InstanceName);
+var result4 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute(500, App.InstanceName);
 
 
 // executes a TestRequest call on the CHANNEL, and returns all responses received within one second
-var enResult1 = Get<TestResponse>.From(CHANNEL, new TestRequest())
-                                .Enumerate()
-                                .Execute(1000)
-                                .ToArray();
+var enResult1 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+                              .Enumerate()
+                              .Execute(1000)
+                              .ToArray();
 
 // executes a TestRequest call on the CHANNEL, and returns the first two responses received within the Get.DefaultTimeout time period
 // if the terminator condition is not met within the timeout period, the result will contain the responses received up to that time
-var enResult2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
-                                .Enumerate((responses) => responses.Count() > 2)
-                                .Execute()
-                                .ToArray();
+var enResult2 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+                              .Enumerate((responses) => responses.Count() > 2)
+                              .Execute()
+                              .ToArray();
 
 
 // executes the request on respondants whose capacity exceeds and arbitrary threshold
@@ -124,32 +121,31 @@ var enResult2 = Get<TestResponse>.From(CHANNEL, new TestRequest())
 // and blocks for 2000 milliseconds while waiting for responses
 // if no responses are received within the timeout, and empty set is returned
 // any responses received after the timeout are ignored
-var enResult3 = Get<TestResponse>.From(CHANNEL, new TestRequest())
-                                .Nominate(cr => cr.Score > 0.9)
-                                .Enumerate((responses) => responses.Where(r => r.Size > 2))
-                                .Execute(2000)
-                                .ToArray();
+var enResult3 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+                              .Nominate(cr => cr.Score > 0.9)
+                              .Enumerate((responses) => responses.Where(r => r.Size > 2))
+                              .Execute(2000)
+                              .ToArray();
 
 
 // executes the request on respondants whose capacity exceeds and arbitrary threshold
 // returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
 // and blocks until the terminal condition is met (responses.Count() > 0)
-var enResult4 = Get<TestResponse>.From(CHANNEL, new TestRequest())
-                                .Nominate(cr => cr.Score > 0.9)
-                                .Enumerate((responses) => responses.Where(r => r.Size > 2),
-                                           (reponses) => reponses.Count() > 0)
-                                .Execute()
-                                .ToArray();
+var enResult4 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+                              .Nominate(cr => cr.Score > 0.9)
+                              .Enumerate((responses) => responses.Where(r => r.Size > 2),
+                                         (reponses) => reponses.Count() > 0)
+                              .Execute()
+                              .ToArray();
 
 
 // in this case, because we're executing an enumeration for an unmapped request/response pair, the call will simply block for the 
 // timeout period, and return no results.  Enumerations DO NOT through timeout exceptions in the absence of any responses, only scalar
 // execution calls can produce timeout exceptions.
-var enResult5 = Get<TestResponse>.From(CHANNEL, new CommandRequest())
-                                .Enumerate(responses => responses)
-                                .Execute(500)
-                                .ToArray();
-
+var enResult5 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest())
+                              .Enumerate(responses => responses)
+                              .Execute(500)
+                              .ToArray();
 ```
 
 ####Message Routing
