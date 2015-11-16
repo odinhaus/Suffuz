@@ -19,6 +19,9 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(instance.SupportsFormat(StandardFormats.BINARY));
             Assert.IsFalse(instance.SupportsFormat(StandardFormats.CSV));
 
+            var poco = instance.Deserialize(new byte[0]);
+            var bytes = instance.Serialize(poco);
+
             builder.SaveAssembly();
         }
     }

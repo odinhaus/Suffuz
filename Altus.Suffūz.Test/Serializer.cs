@@ -23,7 +23,8 @@ namespace Altus.Suffūz.Protocols
             using (MemoryStream ms = new MemoryStream())
             {
                 BinaryWriter br = new BinaryWriter(ms);
-                this.SerializeType(typed.Payload, br); br.Write(typed.PayloadType == null ? "" : typed.PayloadType);
+                this.SerializeType(typed.Payload, br);
+                br.Write(typed.PayloadType == null ? "" : typed.PayloadType);
                 br.Write(typed.ReturnType == null ? "" : typed.ReturnType);
 
                 return ms.ToArray();
@@ -76,13 +77,6 @@ namespace Altus.Suffūz.Protocols
             return OnDeserialize(source, targetType);
         }
 
-
-        public string Name
-        {
-            get;
-            private set;
-        }
-
         public byte[] Serialize(Altus.Suffūz.Protocols.RoutablePayload source)
         {
             return this.OnSerialize(source);
@@ -103,19 +97,14 @@ namespace Altus.Suffūz.Protocols
             return Deserialize(StreamHelper.GetBytes(inputSource));
         }
 
-        protected IEnumerable<Type> OnGetSupportedTypes()
-        {
-            return new Type[] { typeof(Altus.Suffūz.Protocols.RoutablePayload) };
-        }
-
         protected object DeserializeType(BinaryReader br)
         {
-            return BinarySerializerBuilder._BinarySerializer.Deserialize(br);
+            return _BinarySerializer.Deserialize(br);
         }
 
         protected void SerializeType(object source, BinaryWriter br)
         {
-            BinarySerializerBuilder._BinarySerializer.Serialize(source, br);
+            _BinarySerializer.Serialize(source, br);
         }
     }
 }
