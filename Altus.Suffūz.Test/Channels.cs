@@ -7,6 +7,9 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Test
 {
+    /// <summary>
+    /// Simple Channel mapping constants
+    /// </summary>
     public class Channels
     {
         public static readonly string CHANNEL = "channel1";
