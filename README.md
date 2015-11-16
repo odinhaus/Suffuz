@@ -4,6 +4,10 @@
 
 #####*A simple and fast API for distributed computing with .Net.*
 
+##NuGet
+####PM> Install-Package Altus.Suffuz
+[Altus.Suffuz on NuGet.org](https://www.nuget.org/packages/Altus.Suffuz/)
+
 ##Description
 Suffūz is an API allowing .Net applications to easily request services from and distribute units of work to a group of disparate processes or machines.
 
