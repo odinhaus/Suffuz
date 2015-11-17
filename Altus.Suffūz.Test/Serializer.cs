@@ -24,6 +24,7 @@ namespace Altus.Suffūz.Protocols
             {
                 BinaryWriter br = new BinaryWriter(ms);
                 this.SerializeType(typed.Payload, br);
+
                 br.Write(typed.PayloadType == null ? "" : typed.PayloadType);
                 br.Write(typed.ReturnType == null ? "" : typed.ReturnType);
 
