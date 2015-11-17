@@ -73,9 +73,21 @@ namespace Altus.Suffūz
 
             var bandwidth = (double)(serialized.Length * 1000000);
             var serializationRate = (bandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
-            Logger.LogInfo("Suffuz Bandwidth [Kb]: {0}", bandwidth / (1024d));
-            Logger.LogInfo("Suffuz Throughput [Mb/s]: {0}", serializationRate);
-            Logger.LogInfo("Suffuz Rate [Hz]: {0}", 1000000d / (stopwatch.ElapsedMilliseconds / 1000d));
+            Logger.LogInfo("Suffūz Bandwidth [Kb]: {0}", bandwidth / (1024d));
+            Logger.LogInfo("Suffūz Throughput [Mb/s]: {0}", serializationRate);
+            Logger.LogInfo("Suffūz Rate [Hz]: {0}", 1000000d / (stopwatch.ElapsedMilliseconds / 1000d));
+            stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            for (int i = 0; i < 1000000; i++)
+            {
+                instance.Deserialize(serialized);
+            }
+
+            stopwatch.Stop();
+            serializationRate = (bandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
+            Logger.LogInfo("Suffūz Throughput [Mb/s]: {0}", serializationRate);
+            Logger.LogInfo("Suffūz Rate [Hz]: {0}", 1000000d / (stopwatch.ElapsedMilliseconds / 1000d));
 
             var json = Newtonsoft.Json.JsonConvert.SerializeObject(testPoco);
             stopwatch = new Stopwatch();
@@ -91,6 +103,18 @@ namespace Altus.Suffūz
             var jbandwidth = (double)(json.Length * 1000000);
             var jserializationRate = (jbandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
             Logger.LogInfo("Json Bandwidth [Kb]: {0}", jbandwidth / (1024d));
+            Logger.LogInfo("Json Throughput [Mb/s]: {0}", jserializationRate);
+            Logger.LogInfo("Json Rate [Hz]: {0}", 1000000d / (stopwatch.ElapsedMilliseconds / 1000d));
+            stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            for (int i = 0; i < 1000000; i++)
+            {
+                Newtonsoft.Json.JsonConvert.DeserializeObject<SimplePOCO>(json);
+            }
+
+            stopwatch.Stop();
+            jserializationRate = (jbandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
             Logger.LogInfo("Json Throughput [Mb/s]: {0}", jserializationRate);
             Logger.LogInfo("Json Rate [Hz]: {0}", 1000000d / (stopwatch.ElapsedMilliseconds / 1000d));
         }
