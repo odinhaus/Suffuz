@@ -35,39 +35,13 @@ namespace Altus.Suffūz.Tests
                 K = 1,
                 L = 1,
                 M = 1,
-                N = new byte[] {1,2,3},
-                O = "Foo".ToCharArray()
+                N = new byte[] { 1, 2, 3 },
+                O = "Foo".ToCharArray(),
+                P = DateTime.Now
             };
 
             var serialized = instance.Serialize(testPoco);
             var poco = instance.Deserialize(serialized);
-
-            //var stopwatch = new Stopwatch();
-            //stopwatch.Start();
-
-            //for(int i = 0; i < 1000000; i++)
-            //{
-            //    instance.Serialize(testPoco);
-            //}
-
-            //stopwatch.Stop();
-
-            //var bandwidth = (double)(serialized.Length * 1000000);
-            //var serializationRate = ( bandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
-
-            //var json = Newtonsoft.Json.JsonConvert.SerializeObject(testPoco);
-            //stopwatch = new Stopwatch();
-            //stopwatch.Start();
-
-            //for (int i = 0; i < 1000000; i++)
-            //{
-            //    Newtonsoft.Json.JsonConvert.SerializeObject(testPoco);
-            //}
-
-            //stopwatch.Stop();
-
-            //var jbandwidth = (double)(json.Length * 1000000);
-            //var jserializationRate = (jbandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
 
             Assert.IsTrue(testPoco.Equals(poco));
 #if (DEBUG)
@@ -123,6 +97,9 @@ namespace Altus.Suffūz.Tests
         [BinarySerializable(14)]
         public char[] O { get; set; }
 
+        [BinarySerializable(15)]
+        public DateTime P { get; set; }
+
         public override bool Equals(object obj)
         {
             return this.Equals(obj as SimplePOCO);
@@ -145,7 +122,9 @@ namespace Altus.Suffūz.Tests
                 && value.L == L
                 && value.M == M
                 && ArraysEqual(value.N, N)
-                && ArraysEqual(value.O, O);
+                && ArraysEqual(value.O, O)
+                && value.P == P
+                ;
         }
 
         public bool ArraysEqual<T>(T[] a, T[]b)

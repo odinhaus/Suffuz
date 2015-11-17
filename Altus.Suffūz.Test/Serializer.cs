@@ -10,6 +10,7 @@ using Altus.Suffūz.IO;
 using Altus.Suffūz.Serialization.Binary;
 
 using Altus.Suffūz.Protocols;
+using Altus.Suffūz.Test;
 
 namespace Altus.Suffūz.Protocols
 {
@@ -107,5 +108,38 @@ namespace Altus.Suffūz.Protocols
         {
             _BinarySerializer.Serialize(source, br);
         }
+    }
+
+    public class Testing
+    {
+        protected byte[] OnSeserialize(object obj1)
+        {
+            SimplePOCO epoco = (SimplePOCO)obj1;
+            using (MemoryStream stream = new MemoryStream())
+            {
+                BinaryWriter writer = new BinaryWriter(stream);
+                long num = epoco.P.ToBinary();
+                writer.Write(num);
+                return stream.ToArray();
+            }
+        }
+        protected object OnDeserialize(byte[] buffer1, Type type)
+        {
+            SimplePOCO serializer;
+            using (MemoryStream stream = new MemoryStream(buffer1))
+            {
+                BinaryReader reader = new BinaryReader(stream);
+                serializer = new SimplePOCO();
+                if (reader.BaseStream.Position >= reader.BaseStream.Length)
+                {
+                    return serializer;
+                }
+                long dateData = reader.ReadInt64();
+                DateTime date = DateTime.FromBinary(dateData);
+                serializer.P = date;
+            }
+            return serializer;
+        }
+
     }
 }
