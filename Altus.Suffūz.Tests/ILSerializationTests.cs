@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Serialization;
+using System.Diagnostics;
 
 namespace Altus.Suffūz.Tests
 {
@@ -9,7 +10,7 @@ namespace Altus.Suffūz.Tests
     public class ILSerializationTests
     {
         [TestMethod]
-        public void CanCreateSimplePOCOSerializer()
+        public void CanSerializeSimpleMemebrs()
         {
             var builder = new ILSerializerBuilder();
             var instance = builder.CreateSerializerType<SimplePOCO>();
@@ -34,98 +35,52 @@ namespace Altus.Suffūz.Tests
                 K = 1,
                 L = 1,
                 M = 1,
-                N = new byte[] {1,2,3},
-                O = "Foo".ToCharArray()
+                N = new byte[] { 1, 2, 3 },
+                O = "Foo".ToCharArray(),
+                P = DateTime.Now,
+                Q = "foo",
+                nA = true
             };
+
             var serialized = instance.Serialize(testPoco);
             var poco = instance.Deserialize(serialized);
 
-            Assert.IsTrue(testPoco.Equals(poco));
+            Assert.IsTrue(testPoco.A.Equals(poco.A));
+            Assert.IsTrue(testPoco.B.Equals(poco.B));
+            Assert.IsTrue(testPoco.C.Equals(poco.C));
+            Assert.IsTrue(testPoco.D.Equals(poco.D));
+            Assert.IsTrue(testPoco.E.Equals(poco.E));
+            Assert.IsTrue(testPoco.F.Equals(poco.F));
+            Assert.IsTrue(testPoco.G.Equals(poco.G));
+            Assert.IsTrue(testPoco.H.Equals(poco.H));
+            Assert.IsTrue(testPoco.I.Equals(poco.I));
+            Assert.IsTrue(testPoco.J.Equals(poco.J));
+            Assert.IsTrue(testPoco.K.Equals(poco.K));
+            Assert.IsTrue(testPoco.L.Equals(poco.L));
+            Assert.IsTrue(testPoco.M.Equals(poco.M));
+            Assert.IsTrue(testPoco.N.Length.Equals(poco.N.Length) && poco.N[0] == 1 && poco.N[1] == 2 && poco.N[2] == 3);
+            Assert.IsTrue(testPoco.O.Length.Equals(poco.O.Length) && poco.O[0] == 'F' && poco.O[1] == 'o' && poco.O[2] == 'o');
+            Assert.IsTrue(testPoco.P.Equals(poco.P));
+            Assert.IsTrue(testPoco.Q.Equals(poco.Q));
 
-            builder.SaveAssembly();
-        }
-    }
-
-    public class SimplePOCO
-    {
-        [BinarySerializable(0)]
-        public bool A { get; set; }
-
-        [BinarySerializable(1)]
-        public byte B { get; set; }
-
-        [BinarySerializable(2)]
-        public sbyte C { get; set; }
-
-        [BinarySerializable(3)]
-        public char D { get; set; }
-
-        [BinarySerializable(4)]
-        public short E { get; set; }
-
-        [BinarySerializable(5)]
-        public ushort F { get; set; }
-
-        [BinarySerializable(6)]
-        public int G { get; set; }
-
-        [BinarySerializable(7)]
-        public uint H { get; set; }
-
-        [BinarySerializable(8)]
-        public long I { get; set; }
-
-        [BinarySerializable(9)]
-        public ulong J { get; set; }
-
-        [BinarySerializable(10)]
-        public float K { get; set; }
-
-        [BinarySerializable(11)]
-        public double L { get; set; }
-
-        [BinarySerializable(12)]
-        public decimal M { get; set; }
-
-        [BinarySerializable(13)]
-        public byte[] N { get; set; }
-
-        [BinarySerializable(14)]
-        public char[] O { get; set; }
-
-        public override bool Equals(object obj)
-        {
-            return this.Equals(obj as SimplePOCO);
-        }
-
-        public bool Equals(SimplePOCO value)
-        {
-            return value != null
-                && value.A == A
-                && value.B == B
-                && value.C == C
-                && value.D == D
-                && value.E == E
-                && value.F == F
-                && value.G == G
-                && value.H == H
-                && value.I == I
-                && value.J == J
-                && value.K == K
-                && value.L == L
-                && value.M == M
-                && ArraysEqual(value.N, N)
-                && ArraysEqual(value.O, O);
-        }
-
-        public bool ArraysEqual<T>(T[] a, T[]b)
-        {
-            if (a.Length != b.Length) return false;
-            for(int i = 0; i < a.Length; i++)
+            testPoco = new SimplePOCO()
             {
-                if (!a[i].Equals(b[i])) return false;
-            }
-            return true;
+                Q = null,
+                N = null,
+                O = null
+            };
+
+            serialized = instance.Serialize(testPoco);
+            poco = instance.Deserialize(serialized);
+
+            Assert.IsTrue(poco.Q == null);
+            Assert.IsTrue(poco.N == null);
+            Assert.IsTrue(poco.O == null);
+
+
+#if (DEBUG)
+            builder.SaveAssembly();
+#endif
         }
     }
 }
