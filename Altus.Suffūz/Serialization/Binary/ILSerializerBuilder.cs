@@ -127,6 +127,10 @@ namespace Altus.Suffūz.Serialization.Binary
                 {
                     SerializeValueType(typeBuilder, interfaceType, methodCode, member);
                 }
+                else if (IsNullableValueType(member))
+                {
+                    SerializeNullableValueType(typeBuilder, interfaceType, methodCode, member);
+                }
                 else
                 {
                     var memberType = MemberType(member);
@@ -237,45 +241,36 @@ namespace Altus.Suffūz.Serialization.Binary
         }
 
         private void SerializeByteArray(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
-        {
-            /*
-
-            C# ----------------------------------------------------------------------------------------------------
-            byte[] n = epoco.N;
-            int length = n.Length;
-            writer.Write(length);
-            writer.Write(n);
-
-            IL ----------------------------------------------------------------------------------------------------
-            IL_00b0:  ldloc.2
-            IL_00b1:  ldloc.0
-            IL_00b2:  callvirt   instance uint8[] ['Altus.Suffūz.Tests']'Altus.Suffūz.Tests'.SimplePOCO::get_N()
-            IL_00b7:  stloc.s    V_4
-            IL_00b9:  ldloc.s    V_4
-            IL_00bb:  callvirt   instance int32 [mscorlib]System.Array::get_Length()
-            IL_00c0:  stloc.s    V_5
-            IL_00c2:  ldloc.2
-            IL_00c3:  ldloc.s    V_5
-            IL_00c5:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(int32)
-            IL_00ca:  ldloc.2
-            IL_00cb:  ldloc.s    V_4
-            IL_00cd:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(uint8[])
-
-
-            */
-            methodCode.Emit(OpCodes.Ldloc_2); // binary writer
-            methodCode.Emit(OpCodes.Ldloc_0); // object to read
+        {           
             var array = methodCode.DeclareLocal(typeof(byte[]));
             var arrayLength = methodCode.DeclareLocal(typeof(int));
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var writeValue = methodCode.DeclareLocal(typeof(bool));
+            var dontWrite = methodCode.DefineLabel();
+
+            methodCode.Emit(OpCodes.Ldloc_0); // object to read
             if (member is FieldInfo)
             {
-                methodCode.Emit(OpCodes.Callvirt, (FieldInfo)member);
+                methodCode.Emit(OpCodes.Ldfld, (FieldInfo)member);
             }
             else
             {
                 methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetGetMethod());
             }
             methodCode.Emit(OpCodes.Stloc, array);
+            methodCode.Emit(OpCodes.Ldloc, array);
+            methodCode.Emit(OpCodes.Ldnull);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc_2);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(bool) }));
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_0);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, writeValue);
+            methodCode.Emit(OpCodes.Ldloc, writeValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontWrite);
             methodCode.Emit(OpCodes.Ldloc, array);
             methodCode.Emit(OpCodes.Callvirt, typeof(byte[]).GetProperty("Length").GetGetMethod());
             methodCode.Emit(OpCodes.Stloc, arrayLength);
@@ -285,42 +280,22 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Ldloc_2); // binary writer
             methodCode.Emit(OpCodes.Ldloc, array);
             methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { MemberType(member) }));
+            methodCode.MarkLabel(dontWrite);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private void SerializeCharArray(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
         {
-            /*
-
-            C# ----------------------------------------------------------------------------------------------------
-            byte[] n = epoco.N;
-            int length = n.Length;
-            writer.Write(length);
-            writer.Write(n);
-
-            IL ----------------------------------------------------------------------------------------------------
-            IL_00b0:  ldloc.2
-            IL_00b1:  ldloc.0
-            IL_00b2:  callvirt   instance uint8[] ['Altus.Suffūz.Tests']'Altus.Suffūz.Tests'.SimplePOCO::get_N()
-            IL_00b7:  stloc.s    V_4
-            IL_00b9:  ldloc.s    V_4
-            IL_00bb:  callvirt   instance int32 [mscorlib]System.Array::get_Length()
-            IL_00c0:  stloc.s    V_5
-            IL_00c2:  ldloc.2
-            IL_00c3:  ldloc.s    V_5
-            IL_00c5:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(int32)
-            IL_00ca:  ldloc.2
-            IL_00cb:  ldloc.s    V_4
-            IL_00cd:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(uint8[])
-
-
-            */
-            methodCode.Emit(OpCodes.Ldloc_2); // binary writer
-            methodCode.Emit(OpCodes.Ldloc_0); // object to read
             var array = methodCode.DeclareLocal(typeof(char[]));
             var arrayLength = methodCode.DeclareLocal(typeof(int));
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var writeValue = methodCode.DeclareLocal(typeof(bool));
+            var dontWrite = methodCode.DefineLabel();
+
+            methodCode.Emit(OpCodes.Ldloc_0); // object to read
             if (member is FieldInfo)
             {
-                methodCode.Emit(OpCodes.Callvirt, (FieldInfo)member);
+                methodCode.Emit(OpCodes.Ldfld, (FieldInfo)member);
             }
             else
             {
@@ -328,7 +303,20 @@ namespace Altus.Suffūz.Serialization.Binary
             }
             methodCode.Emit(OpCodes.Stloc, array);
             methodCode.Emit(OpCodes.Ldloc, array);
-            methodCode.Emit(OpCodes.Callvirt, typeof(char[]).GetProperty("Length").GetGetMethod());
+            methodCode.Emit(OpCodes.Ldnull);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc_2);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(bool) }));
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_0);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, writeValue);
+            methodCode.Emit(OpCodes.Ldloc, writeValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontWrite);
+            methodCode.Emit(OpCodes.Ldloc, array);
+            methodCode.Emit(OpCodes.Callvirt, typeof(byte[]).GetProperty("Length").GetGetMethod());
             methodCode.Emit(OpCodes.Stloc, arrayLength);
             methodCode.Emit(OpCodes.Ldloc_2); // binary writer
             methodCode.Emit(OpCodes.Ldloc, arrayLength);
@@ -336,6 +324,8 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Ldloc_2); // binary writer
             methodCode.Emit(OpCodes.Ldloc, array);
             methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { MemberType(member) }));
+            methodCode.MarkLabel(dontWrite);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private void SerializeValueType(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
@@ -353,6 +343,70 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { MemberType(member) }));
         }
 
+        private void SerializeNullableValueType(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
+        {
+            /*
+
+            IL_0016:  ldloc.0
+            IL_0017:  callvirt   instance valuetype [mscorlib]System.Nullable`1<bool> 'Altus.Suffūz.Tests'.SimplePOCO::get_nA()
+            IL_001c:  stloc.3
+            IL_001d:  ldloca.s   'value'
+            IL_001f:  call       instance bool valuetype [mscorlib]System.Nullable`1<bool>::get_HasValue()
+            IL_0024:  stloc.s    isNull
+            IL_0026:  ldloc.2
+            IL_0027:  ldloc.s    isNull
+            IL_0029:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(bool)
+            IL_002e:  nop
+            IL_002f:  ldloc.s    isNull
+            IL_0031:  ldc.i4.0
+            IL_0032:  ceq
+            IL_0034:  stloc.s    V_5
+            IL_0036:  ldloc.s    V_5
+            IL_0038:  brfalse.s  IL_004a
+            IL_003a:  nop
+            IL_003b:  ldloc.2
+            IL_003c:  ldloca.s   'value'
+            IL_003e:  call       instance !0 valuetype [mscorlib]System.Nullable`1<bool>::get_Value()
+            IL_0043:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(bool)
+            IL_0048:  nop
+
+            */
+            var type = MemberType(member);
+            var value = methodCode.DeclareLocal(type);
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var writeValue = methodCode.DeclareLocal(typeof(bool));
+            var dontWrite = methodCode.DefineLabel();
+
+            methodCode.Emit(OpCodes.Ldloc_0); // object to read
+            if (member is FieldInfo)
+            {
+                methodCode.Emit(OpCodes.Ldfld, (FieldInfo)member);
+            }
+            else
+            {
+                methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetGetMethod());
+            }
+            methodCode.Emit(OpCodes.Stloc, value);
+            methodCode.Emit(OpCodes.Ldloca, value);
+            methodCode.Emit(OpCodes.Call, type.GetProperty("HasValue").GetGetMethod());
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc_2);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(bool) }));
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_1);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, writeValue);
+            methodCode.Emit(OpCodes.Ldloc, writeValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontWrite);
+            methodCode.Emit(OpCodes.Ldloc_2); // binary writer
+            methodCode.Emit(OpCodes.Ldloca, value);
+            methodCode.Emit(OpCodes.Call, type.GetProperty("Value").GetGetMethod());
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { type.GetGenericArguments()[0] }));
+            methodCode.MarkLabel(dontWrite);
+            methodCode.Emit(OpCodes.Nop);
+        }
+
         private void DeserializeMembers(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, Label exit)
         {
             var members = GetSerializableMembers(typeBuilder.BaseType).ToList();
@@ -363,6 +417,10 @@ namespace Altus.Suffūz.Serialization.Binary
                 if (IsValueType(member))
                 {
                     DeserializeValueType(typeBuilder, interfaceType, methodCode, member);
+                }
+                else if (IsNullableValueType(member))
+                {
+                    DeserializeNullableValueType(typeBuilder, interfaceType, methodCode, member);
                 }
                 else
                 {
@@ -478,28 +536,21 @@ namespace Altus.Suffūz.Serialization.Binary
 
         private void DeserializeByteArray(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
         {
-            /*
-            C# -----------------------------------------------------------------------------------
-            int num2 = reader.ReadInt32();
-            char[] chArray = reader.ReadBytess(num2);
-            serializer.O = chArray;
-
-            IL -----------------------------------------------------------------------------------
-            IL_0304:  ldloc.1
-            IL_0305:  callvirt   instance int32 [mscorlib]System.IO.BinaryReader::ReadInt32()
-            IL_030a:  stloc.s    V_7
-            IL_030c:  ldloc.1
-            IL_030d:  ldloc.s    V_7
-            IL_030f:  callvirt   instance char[] [mscorlib]System.IO.BinaryReader::ReadBytess(int32)
-            IL_0314:  stloc.s    V_6
-            IL_0316:  ldloc.2
-            IL_0317:  ldloc.s    V_6
-            IL_0319:  callvirt   instance void ['Altus.Suffūz.Tests']'Altus.Suffūz.Tests'.SimplePOCO::set_O(char[])
-
-            */
             var array = methodCode.DeclareLocal(typeof(byte[]));
             var arrayLength = methodCode.DeclareLocal(typeof(int));
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var readValue = methodCode.DeclareLocal(typeof(bool));
+            var dontRead = methodCode.DefineLabel();
 
+            methodCode.Emit(OpCodes.Ldloc_1); // binary reader
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_0);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, readValue);
+            methodCode.Emit(OpCodes.Ldloc, readValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontRead);
             methodCode.Emit(OpCodes.Ldloc_1);
             methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt32"));
             methodCode.Emit(OpCodes.Stloc, arrayLength);
@@ -519,32 +570,27 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetSetMethod());
             }
+            methodCode.MarkLabel(dontRead);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private void DeserializeCharArray(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
         {
-            /*
-            C# -----------------------------------------------------------------------------------
-            int num2 = reader.ReadInt32();
-            char[] chArray = reader.ReadChars(num2);
-            serializer.O = chArray;
-
-            IL -----------------------------------------------------------------------------------
-            IL_0304:  ldloc.1
-            IL_0305:  callvirt   instance int32 [mscorlib]System.IO.BinaryReader::ReadInt32()
-            IL_030a:  stloc.s    V_7
-            IL_030c:  ldloc.1
-            IL_030d:  ldloc.s    V_7
-            IL_030f:  callvirt   instance char[] [mscorlib]System.IO.BinaryReader::ReadChars(int32)
-            IL_0314:  stloc.s    V_6
-            IL_0316:  ldloc.2
-            IL_0317:  ldloc.s    V_6
-            IL_0319:  callvirt   instance void ['Altus.Suffūz.Tests']'Altus.Suffūz.Tests'.SimplePOCO::set_O(char[])
-
-            */
             var array = methodCode.DeclareLocal(typeof(char[]));
             var arrayLength = methodCode.DeclareLocal(typeof(int));
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var readValue = methodCode.DeclareLocal(typeof(bool));
+            var dontRead = methodCode.DefineLabel();
 
+            methodCode.Emit(OpCodes.Ldloc_1); // binary reader
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_0);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, readValue);
+            methodCode.Emit(OpCodes.Ldloc, readValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontRead);
             methodCode.Emit(OpCodes.Ldloc_1);
             methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt32"));
             methodCode.Emit(OpCodes.Stloc, arrayLength);
@@ -564,6 +610,8 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetSetMethod());
             }
+            methodCode.MarkLabel(dontRead);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private void DeserializeValueType(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
@@ -633,6 +681,123 @@ namespace Altus.Suffūz.Serialization.Binary
             }
         }
 
+        private void DeserializeNullableValueType(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
+        {
+            /*
+
+            IL_003d:  ldloc.2
+            IL_003e:  callvirt   instance bool [mscorlib]System.IO.BinaryReader::ReadBoolean()
+            IL_0043:  stloc.3
+            IL_0044:  ldloc.3
+            IL_0045:  ldc.i4.0
+            IL_0046:  ceq
+            IL_0048:  stloc.s    V_6
+            IL_004a:  ldloc.s    V_6
+            IL_004c:  brfalse.s  IL_0062
+            IL_004e:  nop
+            IL_004f:  ldloc.0
+            IL_0050:  ldloc.2
+            IL_0051:  callvirt   instance bool [mscorlib]System.IO.BinaryReader::ReadBoolean()
+            IL_0056:  newobj     instance void valuetype [mscorlib]System.Nullable`1<bool>::.ctor(!0)
+            IL_005b:  callvirt   instance void 'Altus.Suffūz.Tests'.SimplePOCO::set_nA(valuetype [mscorlib]System.Nullable`1<bool>)
+            IL_0060:  nop
+
+            */
+            var type = MemberType(member);
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var readValue = methodCode.DeclareLocal(typeof(bool));
+            var dontRead = methodCode.DefineLabel();
+
+            methodCode.Emit(OpCodes.Ldloc_1); // binary reader
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_1);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, readValue);
+            methodCode.Emit(OpCodes.Ldloc, readValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontRead);
+
+            methodCode.Emit(OpCodes.Ldloc_2); // object to write
+            methodCode.Emit(OpCodes.Ldloc_1); // binary reader
+            if (type == typeof(bool?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
+                methodCode.Emit(OpCodes.Newobj, typeof(bool?).GetConstructor(new Type[] { typeof(bool) }));
+            }
+            else if (type == typeof(byte?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadByte"));
+                methodCode.Emit(OpCodes.Newobj, typeof(byte?).GetConstructor(new Type[] { typeof(byte) }));
+            }
+            else if (type == typeof(sbyte?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadSByte"));
+                methodCode.Emit(OpCodes.Newobj, typeof(sbyte?).GetConstructor(new Type[] { typeof(sbyte) }));
+            }
+            else if (type == typeof(char?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadChar"));
+                methodCode.Emit(OpCodes.Newobj, typeof(char?).GetConstructor(new Type[] { typeof(char) }));
+            }
+            else if (type == typeof(short?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt16"));
+                methodCode.Emit(OpCodes.Newobj, typeof(short?).GetConstructor(new Type[] { typeof(short) }));
+            }
+            else if (type == typeof(ushort?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadUInt16"));
+                methodCode.Emit(OpCodes.Newobj, typeof(ushort?).GetConstructor(new Type[] { typeof(ushort) }));
+            }
+            else if (type == typeof(int?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt32"));
+                methodCode.Emit(OpCodes.Newobj, typeof(int?).GetConstructor(new Type[] { typeof(int) }));
+            }
+            else if (type == typeof(uint?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadUInt32"));
+                methodCode.Emit(OpCodes.Newobj, typeof(uint?).GetConstructor(new Type[] { typeof(uint) }));
+            }
+            else if (type == typeof(long?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt64"));
+                methodCode.Emit(OpCodes.Newobj, typeof(long?).GetConstructor(new Type[] { typeof(long) }));
+            }
+            else if (type == typeof(ulong?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadUInt64"));
+                methodCode.Emit(OpCodes.Newobj, typeof(ulong?).GetConstructor(new Type[] { typeof(ulong) }));
+            }
+            else if (type == typeof(float?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadSingle"));
+                methodCode.Emit(OpCodes.Newobj, typeof(float?).GetConstructor(new Type[] { typeof(float) }));
+            }
+            else if (type == typeof(double?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadDouble"));
+                methodCode.Emit(OpCodes.Newobj, typeof(double?).GetConstructor(new Type[] { typeof(double) }));
+            }
+            else if (type == typeof(decimal?))
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadDecimal"));
+                methodCode.Emit(OpCodes.Newobj, typeof(decimal?).GetConstructor(new Type[] { typeof(decimal) }));
+            }
+
+            if (member is FieldInfo)
+            {
+                methodCode.Emit(OpCodes.Stfld, (FieldInfo)member);
+            }
+            else
+            {
+                methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetSetMethod());
+            }
+            methodCode.MarkLabel(dontRead);
+            methodCode.Emit(OpCodes.Nop);
+        }
+
         private void CheckStreamPosition(ILGenerator methodCode, Label exit)
         {
             /*
@@ -700,6 +865,25 @@ namespace Altus.Suffūz.Serialization.Binary
                 || memberType == typeof(float)
                 || memberType == typeof(double)
                 || memberType == typeof(decimal)
+                ;
+        }
+
+        private bool IsNullableValueType(MemberInfo member)
+        {
+            var memberType = MemberType(member);
+            return memberType == typeof(bool?)
+                || memberType == typeof(byte?)
+                || memberType == typeof(sbyte?)
+                || memberType == typeof(char?)
+                || memberType == typeof(short?)
+                || memberType == typeof(ushort?)
+                || memberType == typeof(int?)
+                || memberType == typeof(uint?)
+                || memberType == typeof(long?)
+                || memberType == typeof(ulong?)
+                || memberType == typeof(float?)
+                || memberType == typeof(double?)
+                || memberType == typeof(decimal?)
                 ;
         }
 

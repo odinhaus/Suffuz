@@ -60,38 +60,48 @@ namespace Altus.Suffūz.Tests
         [BinarySerializable(16)]
         public string Q { get; set; }
 
-        [BinarySerializable(17)]
-        public string R { get; set; }
 
+        [BinarySerializable(1000)]
+        public bool? nA { get; set; }
 
-        public override bool Equals(object obj)
-        {
-            return this.Equals(obj as SimplePOCO);
-        }
+        [BinarySerializable(1001)]
+        public byte? nB { get; set; }
 
-        public bool Equals(SimplePOCO value)
-        {
-            return value != null
-                && value.A == A
-                && value.B == B
-                && value.C == C
-                && value.D == D
-                && value.E == E
-                && value.F == F
-                && value.G == G
-                && value.H == H
-                && value.I == I
-                && value.J == J
-                && value.K == K
-                && value.L == L
-                && value.M == M
-                && ArraysEqual(value.N, N)
-                && ArraysEqual(value.O, O)
-                && value.P == P
-                && value.Q == Q
-                && value.R == R
-                ;
-        }
+        [BinarySerializable(1002)]
+        public sbyte? nC { get; set; }
+
+        [BinarySerializable(1003)]
+        public char? nD { get; set; }
+
+        [BinarySerializable(1004)]
+        public short? nE { get; set; }
+
+        [BinarySerializable(1005)]
+        public ushort? nF { get; set; }
+
+        [BinarySerializable(1006)]
+        public int? nG { get; set; }
+
+        [BinarySerializable(1007)]
+        public uint? nH { get; set; }
+
+        [BinarySerializable(1008)]
+        public long? nI { get; set; }
+
+        [BinarySerializable(1009)]
+        public ulong? nJ { get; set; }
+
+        [BinarySerializable(10010)]
+        public float? nK { get; set; }
+
+        [BinarySerializable(10011)]
+        public double? nL { get; set; }
+
+        [BinarySerializable(10012)]
+        public decimal? nM { get; set; }
+
+        [BinarySerializable(10015)]
+        public DateTime? nP { get; set; }
 
         public bool ArraysEqual<T>(T[] a, T[] b)
         {

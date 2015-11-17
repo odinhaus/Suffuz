@@ -119,13 +119,13 @@ namespace Altus.Suffūz.Protocols
             using (MemoryStream stream = new MemoryStream())
             {
                 BinaryWriter writer = new BinaryWriter(stream);
-                string text = epoco.Q;
-                bool isNull = text == null;
-                writer.Write(isNull);
-                if (!isNull)
-                {
-                    writer.Write(text);
-                }
+                //bool? value = epoco.nA;
+                //bool isNull = value.HasValue;
+                //writer.Write(isNull);
+                //if (!isNull)
+                //{
+                //    writer.Write(value.Value);
+                //}
                 return stream.ToArray();
             }
         }
@@ -136,15 +136,15 @@ namespace Altus.Suffūz.Protocols
             {
                 BinaryReader reader = new BinaryReader(stream);
                 serializer = new SimplePOCO();
-                if (reader.BaseStream.Position >= reader.BaseStream.Length)
-                {
-                    return serializer;
-                }
-                bool isNull = reader.ReadBoolean();
-                if (!isNull)
-                {
-                    serializer.Q = reader.ReadString();
-                }
+                //if (reader.BaseStream.Position >= reader.BaseStream.Length)
+                //{
+                //    return serializer;
+                //}
+                //bool isNull = reader.ReadBoolean();
+                //if (!isNull)
+                //{
+                //    serializer.nA = reader.ReadBoolean();
+                //}
             }
             return serializer;
         }

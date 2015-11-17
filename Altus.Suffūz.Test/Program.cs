@@ -35,28 +35,23 @@ namespace Altus.Suffūz
             var builder = new ILSerializerBuilder();
             var instance = builder.CreateSerializerType<SimplePOCO>();
 
-            //Assert.IsTrue(instance.SupportsType(typeof(SimplePOCO)));
-            //Assert.IsTrue(instance.SupportsType(instance.GetType()));
-            //Assert.IsTrue(instance.SupportsFormat(StandardFormats.BINARY));
-            //Assert.IsFalse(instance.SupportsFormat(StandardFormats.CSV));
-
             var testPoco = new SimplePOCO()
             {
-                A = true,
-                B = 1,
-                C = 1,
-                D = (char)1,
-                E = 1,
-                F = 1,
-                G = 1,
-                H = 1,
-                I = 1,
-                J = 1,
-                K = 1,
-                L = 1,
-                M = 1,
+                //A = true,
+                //B = 1,
+                //C = 1,
+                //D = (char)1,
+                //E = 1,
+                //F = 1,
+                //G = 1,
+                //H = 1,
+                //I = 1,
+                //J = 1,
+                //K = 1,
+                //L = 1,
+                //M = 1,
                 N = new byte[] { 1, 2, 3 },
-                O = "Foo".ToCharArray()
+                //O = "Foo".ToCharArray()
             };
 
             var serialized = instance.Serialize(testPoco);
