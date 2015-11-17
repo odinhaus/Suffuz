@@ -431,18 +431,20 @@ namespace Altus.Suffūz.Serialization.Binary
             IL_002f:  ceq
 
             */
-
-            methodCode.Emit(OpCodes.Ldloc_1);
-            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetProperty("BaseStream").GetGetMethod());
-            methodCode.Emit(OpCodes.Callvirt, typeof(Stream).GetProperty("Length").GetGetMethod());
+            var jump = methodCode.DefineLabel();
             methodCode.Emit(OpCodes.Ldloc_1);
             methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetProperty("BaseStream").GetGetMethod());
             methodCode.Emit(OpCodes.Callvirt, typeof(Stream).GetProperty("Position").GetGetMethod());
+            methodCode.Emit(OpCodes.Ldloc_1);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetProperty("BaseStream").GetGetMethod());
+            methodCode.Emit(OpCodes.Callvirt, typeof(Stream).GetProperty("Length").GetGetMethod());
             methodCode.Emit(OpCodes.Clt);
             methodCode.Emit(OpCodes.Ldc_I4_0);
             methodCode.Emit(OpCodes.Ceq);
-            methodCode.Emit(OpCodes.Brfalse, exit);
-
+            methodCode.Emit(OpCodes.Brfalse, jump);
+            methodCode.Emit(OpCodes.Leave, exit);
+            methodCode.MarkLabel(jump);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private bool IsValueType(MemberInfo member)
