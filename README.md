@@ -283,3 +283,21 @@ public class Channels
     public static readonly IPEndPoint CHANNEL_EP = new IPEndPoint(IPAddress.Parse("224.0.0.0"), 5000);
 }
 ```
+##Performance
+####Serialization Benchmarks
+######Suffūz Binary Protocol Serialization
+Suffūz Bandwidth [Kb]: 72265.625
+Serialization:
+Suffuz Throughput [Mb/s]: 96.4828104138852
+Suffūz Rate [Hz]: 1335113.48464619
+Deserialization:
+Suffūz Throughput [Mb/s]: 85.3195100354191
+Suffūz Rate [Hz]: 1180637.54427391
+######NewtonSoft.Json v7
+Json Bandwidth [Kb]: 121093.75
+Serialization:
+Json Throughput [Mb/s]: 15.6290332989158
+Json Rate [Hz]: 129065.565307176
+Deserialization:
+Json Throughput [Mb/s]: 12.1506873369456
+Json Rate [Hz]: 100341.15994380
