@@ -5,6 +5,7 @@ using Altus.Suffūz.Protocols.Udp;
 using Altus.Suffūz.Routing;
 using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Test;
+using Altus.Suffūz.Tests;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;

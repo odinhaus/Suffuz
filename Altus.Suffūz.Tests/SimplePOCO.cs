@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Altus.Suffūz.Test
+namespace Altus.Suffūz.Tests
 {
     public class SimplePOCO
     {
@@ -57,6 +57,13 @@ namespace Altus.Suffūz.Test
         [BinarySerializable(15)]
         public DateTime P { get; set; }
 
+        [BinarySerializable(16)]
+        public string Q { get; set; }
+
+        [BinarySerializable(17)]
+        public string R { get; set; }
+
+
         public override bool Equals(object obj)
         {
             return this.Equals(obj as SimplePOCO);
@@ -79,7 +86,11 @@ namespace Altus.Suffūz.Test
                 && value.L == L
                 && value.M == M
                 && ArraysEqual(value.N, N)
-                && ArraysEqual(value.O, O);
+                && ArraysEqual(value.O, O)
+                && value.P == P
+                && value.Q == Q
+                && value.R == R
+                ;
         }
 
         public bool ArraysEqual<T>(T[] a, T[] b)

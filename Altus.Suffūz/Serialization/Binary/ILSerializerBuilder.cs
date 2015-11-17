@@ -142,8 +142,75 @@ namespace Altus.Suffūz.Serialization.Binary
                     {
                         SerializeDateTime(typeBuilder, interfaceType, methodCode, member);
                     }
+                    else if (memberType == typeof(string))
+                    {
+                        SerializeString(typeBuilder, interfaceType, methodCode, member);
+                    }
                 }
             }
+        }
+
+        private void SerializeString(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
+        {
+            /*
+
+            IL_0016:  ldloc.0
+            IL_0017:  callvirt   instance string 'Altus.Suffūz.Tests'.SimplePOCO::get_Q()
+            IL_001c:  stloc.3
+            IL_001d:  ldloc.3
+            IL_001e:  ldnull
+            IL_001f:  ceq
+            IL_0021:  stloc.s    isNull
+            IL_0023:  ldloc.2
+            IL_0024:  ldloc.s    isNull
+            IL_0026:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(bool)
+            IL_002b:  nop
+            IL_002c:  ldloc.s    isNull
+            IL_002e:  ldc.i4.0
+            IL_002f:  ceq
+            IL_0031:  stloc.s    V_5
+            IL_0033:  ldloc.s    V_5
+            IL_0035:  brfalse.s  IL_003f
+            IL_0037:  nop
+            IL_0038:  ldloc.2
+            IL_0039:  ldloc.3
+            IL_003a:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(string)
+            IL_003f:  nop
+
+            */
+            var text = methodCode.DeclareLocal(typeof(string));
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var writeValue = methodCode.DeclareLocal(typeof(bool));
+            var dontWrite = methodCode.DefineLabel();
+
+            methodCode.Emit(OpCodes.Ldloc_0); // object to read
+            if (member is FieldInfo)
+            {
+                methodCode.Emit(OpCodes.Ldfld, (FieldInfo)member);
+            }
+            else
+            {
+                methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetGetMethod());
+            }
+            methodCode.Emit(OpCodes.Stloc, text);
+            methodCode.Emit(OpCodes.Ldloc, text);
+            methodCode.Emit(OpCodes.Ldnull);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc_2);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(bool) }));
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_0);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, writeValue);
+            methodCode.Emit(OpCodes.Ldloc, writeValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontWrite);
+            methodCode.Emit(OpCodes.Ldloc_2); // binary writer
+            methodCode.Emit(OpCodes.Ldloc, text);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(string) }));
+            methodCode.MarkLabel(dontWrite);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private void SerializeDateTime(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
@@ -312,8 +379,64 @@ namespace Altus.Suffūz.Serialization.Binary
                     {
                         DeserializeDateTime(typeBuilder, interfaceType, methodCode, member);
                     }
+                    else if (memberType == typeof(string))
+                    {
+                        DeserializeString(typeBuilder, interfaceType, methodCode, member);
+                    }
                 }
             }
+        }
+
+        private void DeserializeString(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
+        {
+            /*
+
+            IL_003e:  callvirt   instance bool [mscorlib]System.IO.BinaryReader::ReadBoolean()
+            IL_0043:  stloc.3
+            IL_0044:  ldloc.3
+            IL_0045:  ldc.i4.0
+            IL_0046:  ceq
+            IL_0048:  stloc.s    V_6
+            IL_004a:  ldloc.s    V_6
+            IL_004c:  brfalse.s  IL_006e
+            IL_004e:  nop
+            IL_004f:  ldloc.0
+            IL_0050:  ldloc.2
+            IL_0051:  callvirt   instance string [mscorlib]System.IO.BinaryReader::ReadString()
+            IL_0056:  callvirt   instance void 'Altus.Suffūz.Tests'.SimplePOCO::set_Q(string)
+            IL_006e:  nop
+
+            */
+
+            var text = methodCode.DeclareLocal(typeof(string));
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var readValue = methodCode.DeclareLocal(typeof(bool));
+            var dontRead = methodCode.DefineLabel();
+
+            methodCode.Emit(OpCodes.Ldloc_1); // binary reader
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_0);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, readValue);
+            methodCode.Emit(OpCodes.Ldloc, readValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontRead);
+            methodCode.Emit(OpCodes.Ldloc_1); // binary reader
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadString"));
+            methodCode.Emit(OpCodes.Stloc, text);
+            methodCode.Emit(OpCodes.Ldloc_2); // object to write
+            methodCode.Emit(OpCodes.Ldloc, text);
+            if (member is FieldInfo)
+            {
+                methodCode.Emit(OpCodes.Stfld, (FieldInfo)member);
+            }
+            else
+            {
+                methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetSetMethod());
+            }
+            methodCode.MarkLabel(dontRead);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private void DeserializeDateTime(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)

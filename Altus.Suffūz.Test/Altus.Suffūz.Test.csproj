@@ -58,11 +58,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\Altus.Suffūz.Tests\SimplePOCO.cs">
+      <Link>SimplePOCO.cs</Link>
+    </Compile>
     <Compile Include="Channels.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Serializer.cs" />
-    <Compile Include="SimplePOCO.cs" />
     <Compile Include="TypeRegistry.cs" />
     <Compile Include="TypeResolver.cs" />
   </ItemGroup>

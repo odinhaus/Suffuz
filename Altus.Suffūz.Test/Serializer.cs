@@ -11,6 +11,7 @@ using Altus.Suffūz.Serialization.Binary;
 
 using Altus.Suffūz.Protocols;
 using Altus.Suffūz.Test;
+using Altus.Suffūz.Tests;
 
 namespace Altus.Suffūz.Protocols
 {
@@ -118,8 +119,13 @@ namespace Altus.Suffūz.Protocols
             using (MemoryStream stream = new MemoryStream())
             {
                 BinaryWriter writer = new BinaryWriter(stream);
-                long num = epoco.P.ToBinary();
-                writer.Write(num);
+                string text = epoco.Q;
+                bool isNull = text == null;
+                writer.Write(isNull);
+                if (!isNull)
+                {
+                    writer.Write(text);
+                }
                 return stream.ToArray();
             }
         }
@@ -134,9 +140,11 @@ namespace Altus.Suffūz.Protocols
                 {
                     return serializer;
                 }
-                long dateData = reader.ReadInt64();
-                DateTime date = DateTime.FromBinary(dateData);
-                serializer.P = date;
+                bool isNull = reader.ReadBoolean();
+                if (!isNull)
+                {
+                    serializer.Q = reader.ReadString();
+                }
             }
             return serializer;
         }
