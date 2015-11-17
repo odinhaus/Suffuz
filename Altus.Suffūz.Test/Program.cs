@@ -7,6 +7,7 @@ using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Test;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -20,10 +21,78 @@ namespace Altus.Suffūz
 
         static void Main(string[] args)
         {
+            PerfTest();
+
             ConfigureApp();
             ConfigureRoutes();
             OpenChannels();
             DoIt();
+        }
+
+        private static void PerfTest()
+        {
+            var builder = new ILSerializerBuilder();
+            var instance = builder.CreateSerializerType<SimplePOCO>();
+
+            //Assert.IsTrue(instance.SupportsType(typeof(SimplePOCO)));
+            //Assert.IsTrue(instance.SupportsType(instance.GetType()));
+            //Assert.IsTrue(instance.SupportsFormat(StandardFormats.BINARY));
+            //Assert.IsFalse(instance.SupportsFormat(StandardFormats.CSV));
+
+            var testPoco = new SimplePOCO()
+            {
+                A = true,
+                B = 1,
+                C = 1,
+                D = (char)1,
+                E = 1,
+                F = 1,
+                G = 1,
+                H = 1,
+                I = 1,
+                J = 1,
+                K = 1,
+                L = 1,
+                M = 1,
+                N = new byte[] { 1, 2, 3 },
+                O = "Foo".ToCharArray()
+            };
+
+            var serialized = instance.Serialize(testPoco);
+            var poco = instance.Deserialize(serialized);
+
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            for (int i = 0; i < 1000000; i++)
+            {
+                instance.Serialize(testPoco);
+            }
+
+            stopwatch.Stop();
+
+            var bandwidth = (double)(serialized.Length * 1000000);
+            var serializationRate = (bandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
+            Logger.LogInfo("Suffuz Bandwidth [Kb]: {0}", bandwidth / (1024d));
+            Logger.LogInfo("Suffuz Throughput [Mb/s]: {0}", serializationRate);
+            Logger.LogInfo("Suffuz Rate [Hz]: {0}", 1000000d / (stopwatch.ElapsedMilliseconds / 1000d));
+
+            var json = Newtonsoft.Json.JsonConvert.SerializeObject(testPoco);
+            stopwatch = new Stopwatch();
+            stopwatch.Start();
+
+            for (int i = 0; i < 1000000; i++)
+            {
+                Newtonsoft.Json.JsonConvert.SerializeObject(testPoco);
+            }
+
+            stopwatch.Stop();
+
+            var jbandwidth = (double)(json.Length * 1000000);
+            var jserializationRate = (jbandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
+            Logger.LogInfo("Json Bandwidth [Kb]: {0}", jbandwidth / (1024d));
+            Logger.LogInfo("Json Throughput [Mb/s]: {0}", jserializationRate);
+            Logger.LogInfo("Json Rate [Hz]: {0}", 1000000d / (stopwatch.ElapsedMilliseconds / 1000d));
         }
 
         /// <summary>
@@ -218,6 +287,89 @@ namespace Altus.Suffūz
         public void Handle(CommandRequest request)
         {
             Logger.LogInfo("Handled CommandRequest");
+        }
+    }
+
+    public class SimplePOCO
+    {
+        [BinarySerializable(0)]
+        public bool A { get; set; }
+
+        [BinarySerializable(1)]
+        public byte B { get; set; }
+
+        [BinarySerializable(2)]
+        public sbyte C { get; set; }
+
+        [BinarySerializable(3)]
+        public char D { get; set; }
+
+        [BinarySerializable(4)]
+        public short E { get; set; }
+
+        [BinarySerializable(5)]
+        public ushort F { get; set; }
+
+        [BinarySerializable(6)]
+        public int G { get; set; }
+
+        [BinarySerializable(7)]
+        public uint H { get; set; }
+
+        [BinarySerializable(8)]
+        public long I { get; set; }
+
+        [BinarySerializable(9)]
+        public ulong J { get; set; }
+
+        [BinarySerializable(10)]
+        public float K { get; set; }
+
+        [BinarySerializable(11)]
+        public double L { get; set; }
+
+        [BinarySerializable(12)]
+        public decimal M { get; set; }
+
+        [BinarySerializable(13)]
+        public byte[] N { get; set; }
+
+        [BinarySerializable(14)]
+        public char[] O { get; set; }
+
+        public override bool Equals(object obj)
+        {
+            return this.Equals(obj as SimplePOCO);
+        }
+
+        public bool Equals(SimplePOCO value)
+        {
+            return value != null
+                && value.A == A
+                && value.B == B
+                && value.C == C
+                && value.D == D
+                && value.E == E
+                && value.F == F
+                && value.G == G
+                && value.H == H
+                && value.I == I
+                && value.J == J
+                && value.K == K
+                && value.L == L
+                && value.M == M
+                && ArraysEqual(value.N, N)
+                && ArraysEqual(value.O, O);
+        }
+
+        public bool ArraysEqual<T>(T[] a, T[] b)
+        {
+            if (a.Length != b.Length) return false;
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (!a[i].Equals(b[i])) return false;
+            }
+            return true;
         }
     }
 }

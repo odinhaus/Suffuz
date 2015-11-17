@@ -2,6 +2,7 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Serialization;
+using System.Diagnostics;
 
 namespace Altus.Suffūz.Tests
 {
@@ -37,12 +38,41 @@ namespace Altus.Suffūz.Tests
                 N = new byte[] {1,2,3},
                 O = "Foo".ToCharArray()
             };
+
             var serialized = instance.Serialize(testPoco);
             var poco = instance.Deserialize(serialized);
 
-            Assert.IsTrue(testPoco.Equals(poco));
+            //var stopwatch = new Stopwatch();
+            //stopwatch.Start();
 
+            //for(int i = 0; i < 1000000; i++)
+            //{
+            //    instance.Serialize(testPoco);
+            //}
+
+            //stopwatch.Stop();
+
+            //var bandwidth = (double)(serialized.Length * 1000000);
+            //var serializationRate = ( bandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
+
+            //var json = Newtonsoft.Json.JsonConvert.SerializeObject(testPoco);
+            //stopwatch = new Stopwatch();
+            //stopwatch.Start();
+
+            //for (int i = 0; i < 1000000; i++)
+            //{
+            //    Newtonsoft.Json.JsonConvert.SerializeObject(testPoco);
+            //}
+
+            //stopwatch.Stop();
+
+            //var jbandwidth = (double)(json.Length * 1000000);
+            //var jserializationRate = (jbandwidth / (stopwatch.ElapsedMilliseconds / 1000d)) / (1024 * 1000);
+
+            Assert.IsTrue(testPoco.Equals(poco));
+#if (DEBUG)
             builder.SaveAssembly();
+#endif
         }
     }
 
