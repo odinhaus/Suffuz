@@ -34,6 +34,8 @@ namespace Altus.Suffūz.Tests
                 K = 1,
                 L = 1,
                 M = 1,
+                N = new byte[] {1,2,3},
+                O = "Foo".ToCharArray()
             };
             var serialized = instance.Serialize(testPoco);
             var poco = instance.Deserialize(serialized);
@@ -84,6 +86,12 @@ namespace Altus.Suffūz.Tests
 
         [BinarySerializable(12)]
         public decimal M { get; set; }
+
+        [BinarySerializable(13)]
+        public byte[] N { get; set; }
+
+        [BinarySerializable(14)]
+        public char[] O { get; set; }
 
         public override bool Equals(object obj)
         {
