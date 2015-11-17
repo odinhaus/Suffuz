@@ -113,4 +113,10 @@ namespace Altus.Suffūz.Tests
             return true;
         }
     }
+
+    public class NDateTime
+    {
+        [BinarySerializable(0)]
+        public DateTime? A { get; set; }
+    }
 }

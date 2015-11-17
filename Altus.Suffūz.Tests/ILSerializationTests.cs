@@ -76,9 +76,74 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(poco.Q == null);
             Assert.IsTrue(poco.N == null);
             Assert.IsTrue(poco.O == null);
+        }
 
+        [TestMethod]
+        public void CanSerializeNullableMembers()
+        {
+            var builder = new ILSerializerBuilder();
+            var instance = builder.CreateSerializerType<SimplePOCO>();
 
+            Assert.IsTrue(instance.SupportsType(typeof(SimplePOCO)));
+            Assert.IsTrue(instance.SupportsType(instance.GetType()));
+            Assert.IsTrue(instance.SupportsFormat(StandardFormats.BINARY));
+            Assert.IsFalse(instance.SupportsFormat(StandardFormats.CSV));
+
+            var testPoco = new SimplePOCO()
+            {
+                nA = true,
+                nB = 1,
+                nC = 1,
+                nD = (char)1,
+                nE = 1,
+                nF = 1,
+                nG = 1,
+                nH = 1,
+                nI = 1,
+                nJ = 1,
+                nK = 1,
+                nL = 1,
+                nM = 1,
+                nP = DateTime.Now,
+            };
+
+            var serialized = instance.Serialize(testPoco);
+            var poco = instance.Deserialize(serialized);
+
+            Assert.IsTrue(testPoco.nA.Equals(poco.nA));
+            Assert.IsTrue(testPoco.nB.Equals(poco.nB));
+            Assert.IsTrue(testPoco.nC.Equals(poco.nC));
+            Assert.IsTrue(testPoco.nD.Equals(poco.nD));
+            Assert.IsTrue(testPoco.nE.Equals(poco.nE));
+            Assert.IsTrue(testPoco.nF.Equals(poco.nF));
+            Assert.IsTrue(testPoco.nG.Equals(poco.nG));
+            Assert.IsTrue(testPoco.nH.Equals(poco.nH));
+            Assert.IsTrue(testPoco.nI.Equals(poco.nI));
+            Assert.IsTrue(testPoco.nJ.Equals(poco.nJ));
+            Assert.IsTrue(testPoco.nK.Equals(poco.nK));
+            Assert.IsTrue(testPoco.nL.Equals(poco.nL));
+            Assert.IsTrue(testPoco.nM.Equals(poco.nM));
+            Assert.IsTrue(testPoco.nP.Equals(poco.nP));
+        }
+
+        [TestMethod]
+        public void CanSerializeNullableDateTime()
+        {
+            var builder = new ILSerializerBuilder();
+            var instance = builder.CreateSerializerType<NDateTime>();
+            var testPoco = new NDateTime() { A = DateTime.Now };
+            var serialized = instance.Serialize(testPoco);
+            var poco = instance.Deserialize(serialized);
+            Assert.IsTrue(testPoco.A.Equals(poco.A));
+        }
+
+        [TestInitialize]
+        public void Init()
+        {
 #if (DEBUG)
+            var builder = new ILSerializerBuilder();
+            builder.CreateSerializerType<SimplePOCO>();
+            builder.CreateSerializerType<NDateTime>();
             builder.SaveAssembly();
 #endif
         }

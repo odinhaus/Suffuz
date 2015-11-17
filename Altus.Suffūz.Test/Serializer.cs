@@ -115,39 +115,42 @@ namespace Altus.Suffūz.Protocols
     {
         protected byte[] OnSeserialize(object obj1)
         {
-            SimplePOCO epoco = (SimplePOCO)obj1;
+            NDateTime time = (NDateTime)obj1;
             using (MemoryStream stream = new MemoryStream())
             {
                 BinaryWriter writer = new BinaryWriter(stream);
-                //bool? value = epoco.nA;
-                //bool isNull = value.HasValue;
-                //writer.Write(isNull);
-                //if (!isNull)
-                //{
-                //    writer.Write(value.Value);
-                //}
+                DateTime? a = time.A;
+                bool hasValue = a.HasValue;
+                writer.Write(hasValue);
+                if (hasValue)
+                {
+                    long num = a.Value.ToBinary();
+                    writer.Write(num);
+                }
                 return stream.ToArray();
             }
         }
+
         protected object OnDeserialize(byte[] buffer1, Type type)
         {
-            SimplePOCO serializer;
+            NDateTime serializer;
             using (MemoryStream stream = new MemoryStream(buffer1))
             {
                 BinaryReader reader = new BinaryReader(stream);
-                serializer = new SimplePOCO();
-                //if (reader.BaseStream.Position >= reader.BaseStream.Length)
-                //{
-                //    return serializer;
-                //}
-                //bool isNull = reader.ReadBoolean();
-                //if (!isNull)
-                //{
-                //    serializer.nA = reader.ReadBoolean();
-                //}
+                serializer = new NDateTime();
+                if (reader.BaseStream.Position >= reader.BaseStream.Length)
+                {
+                    return serializer;
+                }
+                if (reader.ReadBoolean())
+                {
+                    DateTime time = DateTime.FromBinary(reader.ReadInt64());
+                    serializer.A = time;
+                }
             }
             return serializer;
         }
+
 
     }
 }
