@@ -309,6 +309,10 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 SerializeStringArrayElement(methodCode, value, i, elemType);
             }
+            else if (elemType == typeof(DateTime))
+            {
+                SerializeDateTimeArrayElement(methodCode, value, i, elemType);
+            }
             //else
             //{
             //    throw new NotSupportedException();
@@ -328,6 +332,19 @@ namespace Altus.Suffūz.Serialization.Binary
 
             methodCode.MarkLabel(noValue);
             methodCode.Emit(OpCodes.Nop);
+        }
+
+        private void SerializeDateTimeArrayElement(ILGenerator methodCode, LocalBuilder array, LocalBuilder i, Type elemType)
+        {
+            var value = methodCode.DeclareLocal(typeof(DateTime));
+            methodCode.Emit(OpCodes.Ldloc_2);
+            methodCode.Emit(OpCodes.Ldloc, array);
+            methodCode.Emit(OpCodes.Ldloc, i);
+            methodCode.Emit(OpCodes.Ldelem, typeof(DateTime));
+            methodCode.Emit(OpCodes.Stloc, value);
+            methodCode.Emit(OpCodes.Ldloca, value);
+            methodCode.Emit(OpCodes.Call, typeof(DateTime).GetMethod("ToBinary", BindingFlags.Public | BindingFlags.Instance));
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(long) }));
         }
 
         private void SerializeStringArrayElement(ILGenerator methodCode, LocalBuilder value, LocalBuilder i, Type elemType)
@@ -832,6 +849,10 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 DeserializeStringArrayElement(methodCode, array, i, elemType);
             }
+            else if (elemType == typeof(DateTime))
+            {
+                DeserializeDateTimeArrayElement(methodCode, array, i, elemType);
+            }
             //else
             //    throw new NotSupportedException();
 
@@ -860,6 +881,16 @@ namespace Altus.Suffūz.Serialization.Binary
 
             methodCode.MarkLabel(nullValue);
             methodCode.Emit(OpCodes.Nop);
+        }
+
+        private void DeserializeDateTimeArrayElement(ILGenerator methodCode, LocalBuilder array, LocalBuilder i, Type elemType)
+        {
+            methodCode.Emit(OpCodes.Ldloc, array);
+            methodCode.Emit(OpCodes.Ldloc, i);
+            methodCode.Emit(OpCodes.Ldloc_1); // binary reader
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt64"));
+            methodCode.Emit(OpCodes.Call, typeof(DateTime).GetMethod("FromBinary", BindingFlags.Public | BindingFlags.Static));
+            methodCode.Emit(OpCodes.Stelem, elemType);
         }
 
         private void DeserializeStringArrayElement(ILGenerator methodCode, LocalBuilder array, LocalBuilder i, Type elemType)

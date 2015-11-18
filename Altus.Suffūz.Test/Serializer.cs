@@ -115,11 +115,11 @@ namespace Altus.Suffūz.Protocols
     {
         protected byte[] OnSeserialize(object obj1)
         {
-            var time = (Array<string>)obj1;
+            var time = (Array<DateTime>)obj1;
             using (MemoryStream stream = new MemoryStream())
             {
                 BinaryWriter writer = new BinaryWriter(stream);
-                string[] a = time.A;
+                DateTime[] a = time.A;
                 bool hasValue = a != null;
                 writer.Write(hasValue);
                 if (hasValue)
@@ -133,7 +133,7 @@ namespace Altus.Suffūz.Protocols
                         writer.Write(isNull);
                         if (!isNull)
                         {
-                            writer.Write(a[i]);
+                            writer.Write(value.ToBinary());
                         }
                     }
                 }
