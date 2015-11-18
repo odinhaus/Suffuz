@@ -115,11 +115,11 @@ namespace Altus.Suffūz.Protocols
     {
         protected byte[] OnSeserialize(object obj1)
         {
-            var time = (Array<DateTime>)obj1;
+            var time = (Array<int?>)obj1;
             using (MemoryStream stream = new MemoryStream())
             {
                 BinaryWriter writer = new BinaryWriter(stream);
-                DateTime[] a = time.A;
+                int?[] a = time.A;
                 bool hasValue = a != null;
                 writer.Write(hasValue);
                 if (hasValue)
@@ -129,11 +129,10 @@ namespace Altus.Suffūz.Protocols
                     for(int i = 0; i < count; i++)
                     {
                         var value = a[i];
-                        var isNull = value == null;
-                        writer.Write(isNull);
-                        if (!isNull)
+                        writer.Write(value.HasValue);
+                        if (value.HasValue)
                         {
-                            writer.Write(value.ToBinary());
+                            writer.Write(value.Value);
                         }
                     }
                 }
@@ -143,11 +142,11 @@ namespace Altus.Suffūz.Protocols
 
         protected object OnDeserialize(byte[] buffer1, Type type)
         {
-            Array<string> serializer;
+            Array<int?> serializer;
             using (MemoryStream stream = new MemoryStream(buffer1))
             {
                 BinaryReader reader = new BinaryReader(stream);
-                serializer = new Array<string>();
+                serializer = new Array<int?>();
                 if (reader.BaseStream.Position >= reader.BaseStream.Length)
                 {
                     return serializer;
@@ -155,12 +154,12 @@ namespace Altus.Suffūz.Protocols
                 if (reader.ReadBoolean())
                 {
                     int count = reader.ReadInt32();
-                    string[] a = new string[count];
+                    int?[] a = new int?[count];
                     for(int i = 0; i < count; i++)
                     {
                         if (reader.ReadBoolean())
                         {
-                            a[i] = reader.ReadString();
+                            a[i] = reader.ReadInt32();
                         }
                     }
                     serializer.A = a;
