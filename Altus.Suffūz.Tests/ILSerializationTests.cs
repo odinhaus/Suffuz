@@ -167,20 +167,24 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(testPoco.A[1].Equals(pocoInt.A[1]));
         }
 
-
+        static bool _beenHere = false;
         [TestInitialize]
         public void Init()
         {
 #if (DEBUG)
-            var builder = new ILSerializerBuilder();
-            builder.CreateSerializerType<SimplePOCO>();
-            builder.CreateSerializerType<NDateTime>();
-            builder.CreateSerializerType<Array<int>>();
-            builder.CreateSerializerType<Array<double>>();
-            builder.CreateSerializerType<Array<long>>();
-            builder.CreateSerializerType<Array<decimal>>();
-            builder.CreateSerializerType<Array<string>>();
-            builder.SaveAssembly();
+            if (_beenHere)
+            {
+                var builder = new ILSerializerBuilder();
+                builder.CreateSerializerType<SimplePOCO>();
+                builder.CreateSerializerType<NDateTime>();
+                builder.CreateSerializerType<Array<int>>();
+                builder.CreateSerializerType<Array<double>>();
+                builder.CreateSerializerType<Array<long>>();
+                builder.CreateSerializerType<Array<decimal>>();
+                builder.CreateSerializerType<Array<string>>();
+                builder.SaveAssembly();
+                _beenHere = true;
+            }
 #endif
         }
     }
