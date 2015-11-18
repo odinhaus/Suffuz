@@ -208,6 +208,20 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(testPoco.A[2].Equals(poco.A[2]));
         }
 
+        [TestMethod]
+        public void CanSerializeByteArrayArrays()
+        {
+            var builder = new ILSerializerBuilder();
+            var instance = builder.CreateSerializerType<Array<DateTime?>>();
+            var testPoco = new Array<DateTime?>() { A = new DateTime?[] { DateTime.Now, null, DateTime.Now.AddDays(1) } };
+            var serialized = instance.Serialize(testPoco);
+            var poco = instance.Deserialize(serialized);
+            Assert.IsTrue(testPoco.A.Length.Equals(poco.A.Length));
+            Assert.IsTrue(testPoco.A[0].Equals(poco.A[0]));
+            Assert.IsTrue(testPoco.A[1].Equals(poco.A[1]));
+            Assert.IsTrue(testPoco.A[2].Equals(poco.A[2]));
+        }
+
         static bool _beenHere = false;
         [TestInitialize]
         public void Init()
