@@ -10,7 +10,7 @@ namespace Altus.Suffūz.Tests
     public class ILSerializationTests
     {
         [TestMethod]
-        public void CanSerializeSimpleMemebrs()
+        public void CanSerializeSimpleMembers()
         {
             var builder = new ILSerializerBuilder();
             var instance = builder.CreateSerializerType<SimplePOCO>();
@@ -222,6 +222,17 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(testPoco.A[2].Equals(poco.A[2]));
         }
 
+        [TestMethod]
+        public void CanSerializeComplexMembers()
+        {
+            var builder = new ILSerializerBuilder();
+            var instance = builder.CreateSerializerType<ComplexPOCO>();
+            var testPoco = new ComplexPOCO() { SimplePOCO = new SimplePOCO() { A = true } };
+            var serialized = instance.Serialize(testPoco);
+            var poco = instance.Deserialize(serialized);
+            Assert.IsTrue(testPoco.SimplePOCO.A.Equals(poco.SimplePOCO.A));
+        }
+
         static bool _beenHere = false;
         [TestInitialize]
         public void Init()
@@ -241,6 +252,7 @@ namespace Altus.Suffūz.Tests
                 builder.CreateSerializerType<Array<int?>>();
                 builder.CreateSerializerType<Array<decimal?>>();
                 builder.CreateSerializerType<Array<DateTime?>>();
+                builder.CreateSerializerType<ComplexPOCO>();
                 builder.SaveAssembly();
                 _beenHere = true;
             }
