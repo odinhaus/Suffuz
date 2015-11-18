@@ -154,6 +154,19 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(testPocoDec.A.Length.Equals(pocoDec.A.Length) && testPocoDec.A[0] == pocoDec.A[0] && testPocoDec.A[1] == pocoDec.A[1]);
         }
 
+        [TestMethod]
+        public void CanSerializeStringArrays()
+        {
+            var builder = new ILSerializerBuilder();
+            var instance = builder.CreateSerializerType<Array<string>>();
+            var testPoco = new Array<string>() { A = new string[] { "Foo", "Bar" } };
+            var serialized = instance.Serialize(testPoco);
+            var pocoInt = instance.Deserialize(serialized);
+            Assert.IsTrue(testPoco.A.Length.Equals(pocoInt.A.Length));
+            Assert.IsTrue(testPoco.A[0].Equals(pocoInt.A[0]));
+            Assert.IsTrue(testPoco.A[1].Equals(pocoInt.A[1]));
+        }
+
 
         [TestInitialize]
         public void Init()
@@ -166,6 +179,7 @@ namespace Altus.Suffūz.Tests
             builder.CreateSerializerType<Array<double>>();
             builder.CreateSerializerType<Array<long>>();
             builder.CreateSerializerType<Array<decimal>>();
+            builder.CreateSerializerType<Array<string>>();
             builder.SaveAssembly();
 #endif
         }

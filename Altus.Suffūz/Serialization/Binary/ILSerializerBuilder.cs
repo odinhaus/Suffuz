@@ -20,19 +20,19 @@ namespace Altus.Suffūz.Serialization.Binary
         private static ModuleBuilder _modBuilder;
         private static AssemblyBuilder _asmBuilder;
         private static Dictionary<string, Func<ISerializer>> _typeCache = new Dictionary<string, Func<ISerializer>>();
-        private static ISymbolDocumentWriter _symbolDocWriter;
+        //private static ISymbolDocumentWriter _symbolDocWriter;
 
         static ILSerializerBuilder()
         {
             _asmBuilder = Thread.GetDomain().DefineDynamicAssembly(_asmName, AssemblyBuilderAccess.RunAndSave);
             _modBuilder = _asmBuilder.DefineDynamicModule(_asmName.Name + ".dll", true);
-            _symbolDocWriter = _modBuilder.DefineDocument(_asmName.Name + ".pdb", Guid.Empty, Guid.Empty, Guid.Empty);
-            var caBuilder = new CustomAttributeBuilder(
-                 typeof(DebuggableAttribute).GetConstructor(new Type[] { typeof(DebuggableAttribute.DebuggingModes) }),
-                new object[] {
-                    DebuggableAttribute.DebuggingModes.DisableOptimizations |
-                    DebuggableAttribute.DebuggingModes.Default });
-            _asmBuilder.SetCustomAttribute(caBuilder);
+            //_symbolDocWriter = _modBuilder.DefineDocument(_asmName.Name + ".pdb", Guid.Empty, Guid.Empty, Guid.Empty);
+            //var caBuilder = new CustomAttributeBuilder(
+            //     typeof(DebuggableAttribute).GetConstructor(new Type[] { typeof(DebuggableAttribute.DebuggingModes) }),
+            //    new object[] {
+            //        DebuggableAttribute.DebuggingModes.DisableOptimizations |
+            //        DebuggableAttribute.DebuggingModes.Default });
+            //_asmBuilder.SetCustomAttribute(caBuilder);
 
         }
         public ISerializer CreateSerializerType(Type type)
@@ -305,11 +305,15 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 SerializeValueTypeArrayElement(methodCode, value, i, elemType);
             }
-            else
+            else if (elemType == typeof(string))
             {
-                throw new NotSupportedException();
+                SerializeStringArrayElement(methodCode, value, i, elemType);
             }
-             
+            //else
+            //{
+            //    throw new NotSupportedException();
+            //}
+
             // increment i
             methodCode.Emit(OpCodes.Ldloc, i);
             methodCode.Emit(OpCodes.Ldc_I4_1);
@@ -323,6 +327,68 @@ namespace Altus.Suffūz.Serialization.Binary
 
 
             methodCode.MarkLabel(noValue);
+            methodCode.Emit(OpCodes.Nop);
+        }
+
+        private void SerializeStringArrayElement(ILGenerator methodCode, LocalBuilder value, LocalBuilder i, Type elemType)
+        {
+            /*
+
+            IL_0049:  ldloc.3
+            IL_004a:  ldloc.s    i
+            IL_004c:  ldelem.ref
+            IL_004d:  stloc.s    'value'
+            IL_004f:  ldloc.s    'value'
+            IL_0051:  ldnull
+            IL_0052:  ceq
+            IL_0054:  stloc.s    isNull
+            IL_0056:  ldloc.2
+            IL_0057:  ldloc.s    isNull
+            IL_0059:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(bool)
+            IL_005e:  nop
+            IL_005f:  ldloc.s    isNull
+            IL_0061:  ldc.i4.0
+            IL_0062:  ceq
+            IL_0064:  stloc.s    V_10
+            IL_0066:  ldloc.s    V_10
+            IL_0068:  brfalse.s  IL_0077
+            IL_006a:  nop
+            IL_006b:  ldloc.2
+            IL_006c:  ldloc.3
+            IL_006d:  ldloc.s    i
+            IL_006f:  ldelem.ref
+            IL_0070:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(string)
+
+
+            */
+            var elemValue = methodCode.DeclareLocal(elemType);
+            var isElemNull = methodCode.DeclareLocal(typeof(bool));
+
+            var nullElement = methodCode.DefineLabel();
+
+            methodCode.Emit(OpCodes.Ldloc_2);
+            methodCode.Emit(OpCodes.Ldloc, value);
+            methodCode.Emit(OpCodes.Ldloc, i);
+            methodCode.Emit(OpCodes.Ldelem_Ref);
+            
+            methodCode.Emit(OpCodes.Stloc, elemValue);
+            methodCode.Emit(OpCodes.Ldloc, elemValue);
+            methodCode.Emit(OpCodes.Ldnull);
+            methodCode.Emit(OpCodes.Ceq);
+            
+            methodCode.Emit(OpCodes.Stloc, isElemNull);
+            methodCode.Emit(OpCodes.Ldloc, isElemNull);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(bool) }));
+            methodCode.Emit(OpCodes.Ldloc, isElemNull);
+            methodCode.Emit(OpCodes.Ldc_I4_0);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Brfalse, nullElement);
+
+            methodCode.Emit(OpCodes.Ldloc_2);
+            methodCode.Emit(OpCodes.Ldloc, elemValue);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(string) }));
+
+            methodCode.MarkLabel(nullElement);
             methodCode.Emit(OpCodes.Nop);
         }
 
@@ -757,17 +823,19 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Br, countCheck);
             methodCode.MarkLabel(loopStart);
             methodCode.Emit(OpCodes.Nop);
-            methodCode.Emit(OpCodes.Ldloc, array);
-            methodCode.Emit(OpCodes.Ldloc, i);
 
             if (IsValueType(elemType))
             {
                 DeserializeValueTypeArrayElement(methodCode, array, i, elemType);
             }
-            else
-                throw new NotSupportedException();
-            // set element and check iteration count
-            methodCode.Emit(OpCodes.Stelem, elemType);
+            else if (elemType == typeof(string))
+            {
+                DeserializeStringArrayElement(methodCode, array, i, elemType);
+            }
+            //else
+            //    throw new NotSupportedException();
+
+            // check iteration count
             methodCode.Emit(OpCodes.Ldloc, i);
             methodCode.Emit(OpCodes.Ldc_I4_1);
             methodCode.Emit(OpCodes.Add);
@@ -794,9 +862,43 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Nop);
         }
 
+        private void DeserializeStringArrayElement(ILGenerator methodCode, LocalBuilder array, LocalBuilder i, Type elemType)
+        {
+            /*
+
+            IL_005f:  ldloc.2
+            IL_0060:  callvirt   instance bool [mscorlib]System.IO.BinaryReader::ReadBoolean()
+            IL_0065:  stloc.s    V_9
+            IL_0067:  ldloc.s    V_9
+            IL_0069:  brfalse.s  IL_0078
+            IL_006b:  nop
+            IL_006c:  ldloc.s    a
+            IL_006e:  ldloc.s    i
+            IL_0070:  ldloc.2
+            IL_0071:  callvirt   instance string [mscorlib]System.IO.BinaryReader::ReadString()
+            IL_0076:  stelem.ref
+
+
+            */
+
+            var nullElement = methodCode.DefineLabel();
+            methodCode.Emit(OpCodes.Ldloc_1);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
+            methodCode.Emit(OpCodes.Brtrue, nullElement);
+            methodCode.Emit(OpCodes.Ldloc, array);
+            methodCode.Emit(OpCodes.Ldloc, i);
+            methodCode.Emit(OpCodes.Ldloc_1);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadString"));
+            methodCode.Emit(OpCodes.Stelem_Ref);
+
+            methodCode.MarkLabel(nullElement);
+            methodCode.Emit(OpCodes.Nop);
+        }
+
         private void DeserializeValueTypeArrayElement(ILGenerator methodCode, LocalBuilder array, LocalBuilder i, Type type)
         {
-            methodCode.MarkSequencePoint(_symbolDocWriter, 1, 1, 1, 1);
+            methodCode.Emit(OpCodes.Ldloc, array);
+            methodCode.Emit(OpCodes.Ldloc, i);
             methodCode.Emit(OpCodes.Ldloc_1);
             if (type == typeof(bool))
             {
@@ -850,6 +952,8 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadDecimal"));
             }
+
+            methodCode.Emit(OpCodes.Stelem, type);
         }
 
         private void DeserializeNullableDateTime(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
