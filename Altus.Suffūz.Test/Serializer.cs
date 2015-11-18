@@ -115,17 +115,21 @@ namespace Altus.Suffūz.Protocols
     {
         protected byte[] OnSeserialize(object obj1)
         {
-            NDateTime time = (NDateTime)obj1;
+            var time = (Array<int>)obj1;
             using (MemoryStream stream = new MemoryStream())
             {
                 BinaryWriter writer = new BinaryWriter(stream);
-                DateTime? a = time.A;
-                bool hasValue = a.HasValue;
+                int[] a = time.A;
+                bool hasValue = a != null;
                 writer.Write(hasValue);
                 if (hasValue)
                 {
-                    long num = a.Value.ToBinary();
-                    writer.Write(num);
+                    int count = a.Length;
+                    writer.Write(count);
+                    for(int i = 0; i < count; i++)
+                    {
+                        writer.Write(a[i]);
+                    }
                 }
                 return stream.ToArray();
             }
@@ -133,19 +137,24 @@ namespace Altus.Suffūz.Protocols
 
         protected object OnDeserialize(byte[] buffer1, Type type)
         {
-            NDateTime serializer;
+            Array<decimal> serializer;
             using (MemoryStream stream = new MemoryStream(buffer1))
             {
                 BinaryReader reader = new BinaryReader(stream);
-                serializer = new NDateTime();
+                serializer = new Array<decimal>();
                 if (reader.BaseStream.Position >= reader.BaseStream.Length)
                 {
                     return serializer;
                 }
                 if (reader.ReadBoolean())
                 {
-                    DateTime time = DateTime.FromBinary(reader.ReadInt64());
-                    serializer.A = time;
+                    int count = reader.ReadInt32();
+                    decimal[] a = new decimal[count];
+                    for(int i = 0; i < count; i++)
+                    {
+                        a[i] = reader.ReadDecimal();
+                    }
+                    serializer.A = a;
                 }
             }
             return serializer;

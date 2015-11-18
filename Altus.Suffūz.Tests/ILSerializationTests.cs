@@ -137,6 +137,24 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(testPoco.A.Equals(poco.A));
         }
 
+        [TestMethod]
+        public void CanSerializeValueTypeArrays()
+        {
+            var builder = new ILSerializerBuilder();
+            var instanceInt = builder.CreateSerializerType<Array<int>>();
+            var testPocoInt = new Array<int>() { A = new int[] { 3, 2 } };
+            var serializedInt = instanceInt.Serialize(testPocoInt);
+            var pocoInt = instanceInt.Deserialize(serializedInt);
+            Assert.IsTrue(testPocoInt.A.Length.Equals(pocoInt.A.Length) && testPocoInt.A[0] == pocoInt.A[0] && testPocoInt.A[1] == pocoInt.A[1]);
+
+            var instanceDec = builder.CreateSerializerType<Array<decimal>>();
+            var testPocoDec = new Array<decimal>() { A = new decimal[] { 3M, 2M, 4M } };
+            var serializedDec = instanceDec.Serialize(testPocoDec);
+            var pocoDec = instanceDec.Deserialize(serializedDec);
+            Assert.IsTrue(testPocoDec.A.Length.Equals(pocoDec.A.Length) && testPocoDec.A[0] == pocoDec.A[0] && testPocoDec.A[1] == pocoDec.A[1]);
+        }
+
+
         [TestInitialize]
         public void Init()
         {
@@ -144,6 +162,10 @@ namespace Altus.Suffūz.Tests
             var builder = new ILSerializerBuilder();
             builder.CreateSerializerType<SimplePOCO>();
             builder.CreateSerializerType<NDateTime>();
+            builder.CreateSerializerType<Array<int>>();
+            builder.CreateSerializerType<Array<double>>();
+            builder.CreateSerializerType<Array<long>>();
+            builder.CreateSerializerType<Array<decimal>>();
             builder.SaveAssembly();
 #endif
         }

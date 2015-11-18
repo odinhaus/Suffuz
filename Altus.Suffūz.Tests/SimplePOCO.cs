@@ -119,4 +119,10 @@ namespace Altus.Suffūz.Tests
         [BinarySerializable(0)]
         public DateTime? A { get; set; }
     }
+
+    public class Array<T>
+    {
+        [BinarySerializable(0)]
+        public T[] A { get; set; }
+    }
 }
