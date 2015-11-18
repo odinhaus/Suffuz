@@ -317,10 +317,14 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 SerializeDateTimeArrayElement(methodCode, value, i, elemType);
             }
-            //else
-            //{
-            //    throw new NotSupportedException();
-            //}
+            else if (elemType == typeof(DateTime?))
+            {
+                SerializeNullableDateTimeArrayElement(methodCode, value, i, elemType);
+            }
+            else
+            {
+                throw new NotSupportedException();
+            }
 
             // increment i
             methodCode.Emit(OpCodes.Ldloc, i);
@@ -335,6 +339,47 @@ namespace Altus.Suffūz.Serialization.Binary
 
 
             methodCode.MarkLabel(noValue);
+            methodCode.Emit(OpCodes.Nop);
+        }
+
+        private void SerializeNullableDateTimeArrayElement(ILGenerator methodCode, LocalBuilder array, LocalBuilder i, Type elemType)
+        {
+            var value = methodCode.DeclareLocal(elemType);
+            var date = methodCode.DeclareLocal(typeof(DateTime));
+            var binaryDate = methodCode.DeclareLocal(typeof(long));
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var writeValue = methodCode.DeclareLocal(typeof(bool));
+            var dontWrite = methodCode.DefineLabel();
+
+            methodCode.Emit(OpCodes.Ldloc, array);
+            methodCode.Emit(OpCodes.Ldloc, i);
+            methodCode.Emit(OpCodes.Ldelem, elemType);
+            methodCode.Emit(OpCodes.Stloc, value);
+            methodCode.Emit(OpCodes.Ldloca, value);
+
+            methodCode.Emit(OpCodes.Call, elemType.GetProperty("HasValue").GetGetMethod());
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc_2);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(bool) }));
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_1);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, writeValue);
+            methodCode.Emit(OpCodes.Ldloc, writeValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontWrite);
+
+            methodCode.Emit(OpCodes.Ldloca, value);
+            methodCode.Emit(OpCodes.Call, elemType.GetProperty("Value").GetGetMethod());
+            methodCode.Emit(OpCodes.Stloc, date);
+            methodCode.Emit(OpCodes.Ldloca, date);
+            methodCode.Emit(OpCodes.Call, typeof(DateTime).GetMethod("ToBinary", BindingFlags.Public | BindingFlags.Instance));
+            methodCode.Emit(OpCodes.Stloc, binaryDate);
+            methodCode.Emit(OpCodes.Ldloc_2); // binary writer
+            methodCode.Emit(OpCodes.Ldloc, binaryDate);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(long) }));
+
+            methodCode.MarkLabel(dontWrite);
             methodCode.Emit(OpCodes.Nop);
         }
 
@@ -892,8 +937,12 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 DeserializeDateTimeArrayElement(methodCode, array, i, elemType);
             }
-            //else
-            //    throw new NotSupportedException();
+            else if (elemType == typeof(DateTime?))
+            {
+                DeserializeNullableDateTimeArrayElement(methodCode, array, i, elemType);
+            }
+            else
+                throw new NotSupportedException();
 
             // check iteration count
             methodCode.Emit(OpCodes.Ldloc, i);
@@ -919,6 +968,37 @@ namespace Altus.Suffūz.Serialization.Binary
             }
 
             methodCode.MarkLabel(nullValue);
+            methodCode.Emit(OpCodes.Nop);
+        }
+
+        private void DeserializeNullableDateTimeArrayElement(ILGenerator methodCode, LocalBuilder array, LocalBuilder i, Type elemType)
+        {
+            var binaryDate = methodCode.DeclareLocal(typeof(long));
+            var isNull = methodCode.DeclareLocal(typeof(bool));
+            var readValue = methodCode.DeclareLocal(typeof(bool));
+            var dontRead = methodCode.DefineLabel();
+
+            methodCode.Emit(OpCodes.Ldloc_1); // binary reader
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
+            methodCode.Emit(OpCodes.Stloc, isNull);
+            methodCode.Emit(OpCodes.Ldloc, isNull);
+            methodCode.Emit(OpCodes.Ldc_I4_1);
+            methodCode.Emit(OpCodes.Ceq);
+            methodCode.Emit(OpCodes.Stloc, readValue);
+            methodCode.Emit(OpCodes.Ldloc, readValue);
+            methodCode.Emit(OpCodes.Brfalse_S, dontRead);
+
+            methodCode.Emit(OpCodes.Ldloc, array);
+            methodCode.Emit(OpCodes.Ldloc, i);
+            methodCode.Emit(OpCodes.Ldloc_1); // binary reader
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt64"));
+            methodCode.Emit(OpCodes.Stloc, binaryDate);
+            methodCode.Emit(OpCodes.Ldloc, binaryDate); // object to write
+            methodCode.Emit(OpCodes.Call, typeof(DateTime).GetMethod("FromBinary", BindingFlags.Public | BindingFlags.Static));
+            methodCode.Emit(OpCodes.Newobj, typeof(DateTime?).GetConstructor(new Type[] { typeof(DateTime) }));
+            methodCode.Emit(OpCodes.Stelem, elemType);
+
+            methodCode.MarkLabel(dontRead);
             methodCode.Emit(OpCodes.Nop);
         }
 
