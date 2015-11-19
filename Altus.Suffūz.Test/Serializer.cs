@@ -25,7 +25,7 @@ namespace Altus.Suffūz.Protocols
             using (MemoryStream ms = new MemoryStream())
             {
                 BinaryWriter br = new BinaryWriter(ms);
-                this.SerializeType(typed.Payload, br);
+                
 
                 br.Write(typed.PayloadType == null ? "" : typed.PayloadType);
                 br.Write(typed.ReturnType == null ? "" : typed.ReturnType);
@@ -41,7 +41,7 @@ namespace Altus.Suffūz.Protocols
                 BinaryReader br = new BinaryReader(ms);
                 BinarySerializer_RoutablePayload typed = new BinarySerializer_RoutablePayload();
                 if (br.BaseStream.Position >= br.BaseStream.Length) return typed;
-                typed.Payload = (System.Object)this.DeserializeType(br);
+                
                 if (br.BaseStream.Position >= br.BaseStream.Length) return typed;
                 typed.PayloadType = br.ReadString();
                 if (br.BaseStream.Position >= br.BaseStream.Length) return typed;
@@ -99,42 +99,22 @@ namespace Altus.Suffūz.Protocols
         {
             return Deserialize(StreamHelper.GetBytes(inputSource));
         }
-
-        protected object DeserializeType(BinaryReader br)
-        {
-            return _BinarySerializer.Deserialize(br);
-        }
-
-        protected void SerializeType(object source, BinaryWriter br)
-        {
-            _BinarySerializer.Serialize(source, br);
-        }
     }
 
     public class Testing
     {
         protected byte[] OnSeserialize(object obj1)
         {
-            var time = (Array<int?>)obj1;
+            var time = (ComplexPOCO)obj1;
             using (MemoryStream stream = new MemoryStream())
             {
                 BinaryWriter writer = new BinaryWriter(stream);
-                int?[] a = time.A;
+                var a = time.SimplePOCO;
                 bool hasValue = a != null;
                 writer.Write(hasValue);
                 if (hasValue)
                 {
-                    int count = a.Length;
-                    writer.Write(count);
-                    for(int i = 0; i < count; i++)
-                    {
-                        var value = a[i];
-                        writer.Write(value.HasValue);
-                        if (value.HasValue)
-                        {
-                            writer.Write(value.Value);
-                        }
-                    }
+                    _BinarySerializer.Serialize(typeof(SimplePOCO), a, writer);
                 }
                 return stream.ToArray();
             }
@@ -142,27 +122,18 @@ namespace Altus.Suffūz.Protocols
 
         protected object OnDeserialize(byte[] buffer1, Type type)
         {
-            Array<int?> serializer;
+            ComplexPOCO serializer;
             using (MemoryStream stream = new MemoryStream(buffer1))
             {
                 BinaryReader reader = new BinaryReader(stream);
-                serializer = new Array<int?>();
+                serializer = new ComplexPOCO();
                 if (reader.BaseStream.Position >= reader.BaseStream.Length)
                 {
                     return serializer;
                 }
                 if (reader.ReadBoolean())
                 {
-                    int count = reader.ReadInt32();
-                    int?[] a = new int?[count];
-                    for(int i = 0; i < count; i++)
-                    {
-                        if (reader.ReadBoolean())
-                        {
-                            a[i] = reader.ReadInt32();
-                        }
-                    }
-                    serializer.A = a;
+                    serializer.SimplePOCO = (SimplePOCO)_BinarySerializer.Deserialize(typeof(SimplePOCO), reader);
                 }
             }
             return serializer;

@@ -58,6 +58,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\Altus.Suffūz.Tests\ComplexPOCO.cs">
+      <Link>ComplexPOCO.cs</Link>
+    </Compile>
     <Compile Include="..\Altus.Suffūz.Tests\SimplePOCO.cs">
       <Link>SimplePOCO.cs</Link>
     </Compile>

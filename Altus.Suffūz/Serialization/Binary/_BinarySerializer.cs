@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -11,22 +12,18 @@ namespace Altus.Suffūz.Serialization.Binary
     {
         static Dictionary<Type, ISerializer> _serializers = new Dictionary<Type, ISerializer>();
 
-        public static void Serialize(object source, BinaryWriter bw)
+        public static void Serialize(Type targetType, object source, BinaryWriter bw)
         {
-            if (source == null)
+            bw.Write(source != null);
+            if (source != null)
             {
-                bw.Write(SerializationContext.Instance.TextEncoding.GetBytes("<null>"));
-            }
-            else
-            {
-                Type t = source.GetType();
-                string tname = t.AssemblyQualifiedName;
-                if (typeof(ISerializer).IsAssignableFrom(t))
+                string tname = targetType.AssemblyQualifiedName;
+                if (typeof(ISerializer).IsAssignableFrom(targetType))
                 {
-                    Type baseType = t.BaseType;
+                    Type baseType = targetType.BaseType;
                     Type serializerGen = typeof(ISerializer<>);
                     Type serializerSpec = serializerGen.MakeGenericType(baseType);
-                    if (serializerSpec.IsAssignableFrom(t))
+                    if (serializerSpec.IsAssignableFrom(targetType))
                     {
                         tname = baseType.AssemblyQualifiedName;
                     }
@@ -37,88 +34,100 @@ namespace Altus.Suffūz.Serialization.Binary
                 {
                     try
                     {
-                        serializer = _serializers[t];
+                        serializer = _serializers[targetType];
                     }
                     catch
                     {
-                        serializer = App.Resolve<ISerializationContext>().GetSerializer(t, StandardFormats.BINARY);
                         try
                         {
-                            _serializers.Add(t, serializer);
+                            serializer = App.Resolve<ISerializationContext>().GetSerializer(targetType, StandardFormats.BINARY);
+                        }
+                        catch
+                        {
+                            try
+                            {
+                                serializer = new ILSerializerBuilder().CreateSerializerType(targetType);
+                            }
+                            catch { }
+                        }
+                        try
+                        {
+                            _serializers.Add(targetType, serializer);
                         }
                         catch { }
                     }
                 }
-                if (serializer == null) throw (new System.Runtime.Serialization.SerializationException("Serializer not found for type \"" + tname + "\" supporting the " + StandardFormats.BINARY + " format."));
-                if (t.IsArray)
+
+                if (serializer == null)
+                    throw (new System.Runtime.Serialization.SerializationException("Serializer not found for type \"" + tname + "\" supporting the " + StandardFormats.BINARY + " format."));
+
+                byte[] data = serializer.Serialize(source);
+                if (targetType == source.GetType())
                 {
-                    bw.Write(((Array)source).Length);
-                    foreach (object item in (Array)source)
-                    {
-                        byte[] data = serializer.Serialize(source);
-                        bw.Write(tname);
-                        bw.Write(data.Length);
-                        bw.Write(data);
-                    }
+                    bw.Write(true);
                 }
                 else
                 {
-                    byte[] data = serializer.Serialize(source);
+                    bw.Write(false);
                     bw.Write(tname);
-                    bw.Write(data.Length);
-                    bw.Write(data);
                 }
+                bw.Write(data.Length);
+                bw.Write(data);
+                
             }
         }
 
-        public static object Deserialize(BinaryReader br)
+        public static object Deserialize(Type targetType, BinaryReader br)
         {
-            string tname = br.ReadString();
-            if (tname.Equals("<null>", StringComparison.InvariantCultureIgnoreCase))
+            var isNotNull = br.ReadBoolean();
+            if (!isNotNull) return null;
+
+            var isTargetType = br.ReadBoolean();
+            string tname = null;
+            Type t = targetType;
+
+            if (!isTargetType)
             {
-                return null;
+                tname = br.ReadString();
+                t = TypeHelper.GetType(tname);
             }
-            else
+
+            if (t == null)
+                throw (new System.Runtime.Serialization.SerializationException("Type not found: " + tname));
+
+            ISerializer serializer = null;
+            lock (_serializers)
             {
-                Type t = TypeHelper.GetType(tname);
-                if (t == null)
-                    throw (new System.Runtime.Serialization.SerializationException("Type not found: " + tname));
-                ISerializer serializer = null;
-                lock (_serializers)
+                try
+                {
+                    serializer = _serializers[t];
+                }
+                catch
                 {
                     try
                     {
-                        serializer = _serializers[t];
+                        serializer = App.Resolve<ISerializationContext>().GetSerializer(t, StandardFormats.BINARY);
                     }
                     catch
                     {
-                        serializer = App.Resolve<ISerializationContext>().GetSerializer(t, StandardFormats.BINARY);
                         try
                         {
-                            _serializers.Add(t, serializer);
+                            serializer = new ILSerializerBuilder().CreateSerializerType(t);
                         }
                         catch { }
                     }
-                }
-                if (serializer == null) throw (new System.Runtime.Serialization.SerializationException("Serializer not found for type \"" + tname + "\" supporting the " + StandardFormats.BINARY + " format."));
-
-                if (t.IsArray)
-                {
-                    int count = br.ReadInt32();
-                    Array list = (Array)Activator.CreateInstance(t, count);
-
-                    for (int i = 0; i < count; i++)
+                    try
                     {
-                        list.SetValue(serializer.Deserialize(br.ReadBytes(br.ReadInt32()), t), i);
+                        _serializers.Add(t, serializer);
                     }
-
-                    return list;
-                }
-                else
-                {
-                    return serializer.Deserialize(br.ReadBytes(br.ReadInt32()), t);
+                    catch { }
                 }
             }
+            if (serializer == null) throw (new System.Runtime.Serialization.SerializationException("Serializer not found for type \"" + tname + "\" supporting the " + StandardFormats.BINARY + " format."));
+
+                
+            return serializer.Deserialize(br.ReadBytes(br.ReadInt32()), t);
+            
         }
     }
 }

@@ -1,8 +1,11 @@
 ﻿using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Serialization;
 using System.Diagnostics;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 
 namespace Altus.Suffūz.Tests
 {
@@ -209,25 +212,17 @@ namespace Altus.Suffūz.Tests
         }
 
         [TestMethod]
-        public void CanSerializeByteArrayArrays()
-        {
-            var builder = new ILSerializerBuilder();
-            var instance = builder.CreateSerializerType<Array<DateTime?>>();
-            var testPoco = new Array<DateTime?>() { A = new DateTime?[] { DateTime.Now, null, DateTime.Now.AddDays(1) } };
-            var serialized = instance.Serialize(testPoco);
-            var poco = instance.Deserialize(serialized);
-            Assert.IsTrue(testPoco.A.Length.Equals(poco.A.Length));
-            Assert.IsTrue(testPoco.A[0].Equals(poco.A[0]));
-            Assert.IsTrue(testPoco.A[1].Equals(poco.A[1]));
-            Assert.IsTrue(testPoco.A[2].Equals(poco.A[2]));
-        }
-
-        [TestMethod]
         public void CanSerializeComplexMembers()
         {
             var builder = new ILSerializerBuilder();
             var instance = builder.CreateSerializerType<ComplexPOCO>();
-            var testPoco = new ComplexPOCO() { SimplePOCO = new SimplePOCO() { A = true } };
+            var testPoco = new ComplexPOCO()
+            {
+                SimplePOCO = new SimplePOCO() { A = true },
+                ListOfInt = new List<int>() { 1, 3, 2 },
+                IEnumerableOfSimplePOCO = (new SimplePOCO[] { new SimplePOCO() { B = 5 } }).AsEnumerable(),
+                CollectionOfSimplePOCO = new ObservableCollection<SimplePOCO>() { new SimplePOCO() { L = 3.2d } },
+            };
             var serialized = instance.Serialize(testPoco);
             var poco = instance.Deserialize(serialized);
             Assert.IsTrue(testPoco.SimplePOCO.A.Equals(poco.SimplePOCO.A));

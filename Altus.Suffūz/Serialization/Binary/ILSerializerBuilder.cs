@@ -20,25 +20,31 @@ namespace Altus.Suffūz.Serialization.Binary
         private static ModuleBuilder _modBuilder;
         private static AssemblyBuilder _asmBuilder;
         private static Dictionary<string, Func<ISerializer>> _typeCache = new Dictionary<string, Func<ISerializer>>();
-        //private static ISymbolDocumentWriter _symbolDocWriter;
 
         static ILSerializerBuilder()
         {
             _asmBuilder = Thread.GetDomain().DefineDynamicAssembly(_asmName, AssemblyBuilderAccess.RunAndSave);
             _modBuilder = _asmBuilder.DefineDynamicModule(_asmName.Name + ".dll", true);
-            //_symbolDocWriter = _modBuilder.DefineDocument(_asmName.Name + ".pdb", Guid.Empty, Guid.Empty, Guid.Empty);
-            //var caBuilder = new CustomAttributeBuilder(
-            //     typeof(DebuggableAttribute).GetConstructor(new Type[] { typeof(DebuggableAttribute.DebuggingModes) }),
-            //    new object[] {
-            //        DebuggableAttribute.DebuggingModes.DisableOptimizations |
-            //        DebuggableAttribute.DebuggingModes.Default });
-            //_asmBuilder.SetCustomAttribute(caBuilder);
-
         }
+
         public ISerializer CreateSerializerType(Type type)
         {
             Func<ISerializer> activator = null;
-            lock(_typeCache)
+
+            if (PrimitiveSerializer.IsPrimitive(type))
+            {
+                return new PrimitiveSerializer();
+            }
+            else if (IListSerializer.IsListType(type))
+            {
+                return new IListSerializer();
+            }
+            else if (IEnumerableSerializer.IsIEnumerableType(type))
+            {
+                return new IEnumerableSerializer();
+            }
+
+            lock (_typeCache)
             {
                 if (!_typeCache.TryGetValue(type.AssemblyQualifiedName, out activator))
                 {
@@ -94,11 +100,11 @@ namespace Altus.Suffūz.Serialization.Binary
             ImplementSupportsFormat(typeBuilder, interfaceType);
             ImplementSupportsType(typeBuilder, interfaceType);
 
-            var serializeType = ImplementSerializeType(typeBuilder, interfaceType);
-            var deserializeType = ImplementDeserializeType(typeBuilder, interfaceType);
+            //var serializeType = ImplementSerializeType(typeBuilder, interfaceType);
+            //var deserializeType = ImplementDeserializeType(typeBuilder, interfaceType);
 
-            var onSerialize = ImplementOnSerialize(typeBuilder, interfaceType, serializeType);
-            var onDeserialize = ImplementOnDeserialize(typeBuilder, interfaceType, ctor, deserializeType);
+            var onSerialize = ImplementOnSerialize(typeBuilder, interfaceType);
+            var onDeserialize = ImplementOnDeserialize(typeBuilder, interfaceType, ctor);
 
             
             ImplementSerialize(typeBuilder, interfaceType, onSerialize);
@@ -194,8 +200,48 @@ namespace Altus.Suffūz.Serialization.Binary
                     {
                         SerializeArray(typeBuilder, interfaceType, methodCode, member);
                     }
+                    else
+                    {
+                        SerializeObject(typeBuilder, interfaceType, methodCode, member);
+                    }
                 }
             }
+        }
+
+        private void SerializeObject(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
+        {
+            var type = MemberType(member);
+            var value = methodCode.DeclareLocal(type);
+            var hasValue = methodCode.DeclareLocal(typeof(bool));
+            var noValue = methodCode.DefineLabel();
+            methodCode.Emit(OpCodes.Ldloc_0); // object to read
+            if (member is FieldInfo)
+            {
+                methodCode.Emit(OpCodes.Ldfld, (FieldInfo)member);
+            }
+            else
+            {
+                methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetGetMethod());
+            }
+            methodCode.Emit(OpCodes.Stloc, value);
+            methodCode.Emit(OpCodes.Ldloc, value);
+            methodCode.Emit(OpCodes.Ldnull);
+            methodCode.Emit(OpCodes.Cgt_Un);
+            methodCode.Emit(OpCodes.Stloc, hasValue);
+            methodCode.Emit(OpCodes.Ldloc_2); // binary writer
+            methodCode.Emit(OpCodes.Ldloc, hasValue);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(bool) }));
+            methodCode.Emit(OpCodes.Ldloc, hasValue);
+            methodCode.Emit(OpCodes.Brfalse, noValue); // the array is null, don't write anything else
+
+            methodCode.Emit(OpCodes.Ldtoken, type);
+            methodCode.Emit(OpCodes.Call, typeof(Type).GetMethod("GetTypeFromHandle", BindingFlags.Public | BindingFlags.Static));
+            methodCode.Emit(OpCodes.Ldloc, value);
+            methodCode.Emit(OpCodes.Ldloc_2); // binary writer
+            methodCode.Emit(OpCodes.Call, typeof(_BinarySerializer).GetMethod("Serialize", BindingFlags.Public | BindingFlags.Static));
+
+            methodCode.MarkLabel(noValue);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private void SerializeArray(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
@@ -840,8 +886,43 @@ namespace Altus.Suffūz.Serialization.Binary
                     {
                         DeserializeArray(typeBuilder, interfaceType, methodCode, member);
                     }
+                    else
+                    {
+                        DeserializeObject(typeBuilder, interfaceType, methodCode, member);
+                    }
                 }
             }
+        }
+
+        private void DeserializeObject(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
+        {
+            var type = MemberType(member);
+            var elemType = type.GetElementType();
+            var nullValue = methodCode.DefineLabel();
+            
+            // check if array is null
+            methodCode.Emit(OpCodes.Ldloc_1);
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
+            methodCode.Emit(OpCodes.Brfalse, nullValue);
+
+            
+            methodCode.Emit(OpCodes.Ldloc_2); // object to write
+            methodCode.Emit(OpCodes.Ldtoken, type);
+            methodCode.Emit(OpCodes.Call, typeof(Type).GetMethod("GetTypeFromHandle", BindingFlags.Public | BindingFlags.Static));
+            methodCode.Emit(OpCodes.Ldloc_1);
+            methodCode.Emit(OpCodes.Call, typeof(_BinarySerializer).GetMethod("Deserialize", BindingFlags.Public | BindingFlags.Static));
+            methodCode.Emit(OpCodes.Castclass, type);
+            if (member is FieldInfo)
+            {
+                methodCode.Emit(OpCodes.Stfld, (FieldInfo)member);
+            }
+            else
+            {
+                methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetSetMethod());
+            }
+
+            methodCode.MarkLabel(nullValue);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private void DeserializeArray(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
@@ -1731,7 +1812,7 @@ namespace Altus.Suffūz.Serialization.Binary
             return ctorBuilder;
         }
 
-        private MethodInfo ImplementOnSerialize(TypeBuilder typeBuilder, Type interfaceType, MethodInfo serializeType)
+        private MethodInfo ImplementOnSerialize(TypeBuilder typeBuilder, Type interfaceType)
         {
             /*
 
@@ -1839,7 +1920,7 @@ namespace Altus.Suffūz.Serialization.Binary
             return methodBuilder;
         }
 
-        private MethodInfo ImplementOnDeserialize(TypeBuilder typeBuilder, Type interfaceType, ConstructorInfo ctor, MethodInfo deserializeType)
+        private MethodInfo ImplementOnDeserialize(TypeBuilder typeBuilder, Type interfaceType, ConstructorInfo ctor)
         {
             /*
 
@@ -2307,96 +2388,96 @@ namespace Altus.Suffūz.Serialization.Binary
                     ));
         }
 
-        private MethodInfo ImplementDeserializeType(TypeBuilder typeBuilder, Type interfaceType)
-        {
-            /*
+        //private MethodInfo ImplementDeserializeType(TypeBuilder typeBuilder, Type interfaceType)
+        //{
+        //    /*
 
-            C# ------------------------------------------------------------------------------
-            protected object DeserializeType(BinaryReader br)
-            {
-                return _BinarySerializer.Deserialize(br);
-            }
+        //    C# ------------------------------------------------------------------------------
+        //    protected object DeserializeType(BinaryReader br)
+        //    {
+        //        return _BinarySerializer.Deserialize(br);
+        //    }
 
-            IL ------------------------------------------------------------------------------
-            .method family hidebysig instance object 
-            DeserializeType(class [mscorlib]System.IO.BinaryReader 'br') cil managed
-            {
-              // Code size       12 (0xc)
-              .maxstack  1
-              .locals init ([0] object V_0)
-              IL_0000:  nop
-              IL_0001:  ldarg.1
-              IL_0002:  call       object ['Altus.Suffūz']'Altus.Suffūz.Serialization.Binary'._BinarySerializer::Deserialize(class [mscorlib]System.IO.BinaryReader)
-              IL_0007:  stloc.0
-              IL_0008:  br.s       IL_000a
-              IL_000a:  ldloc.0
-              IL_000b:  ret
-            } // end of method BinarySerializer_RoutablePayload::DeserializeType
+        //    IL ------------------------------------------------------------------------------
+        //    .method family hidebysig instance object 
+        //    DeserializeType(class [mscorlib]System.IO.BinaryReader 'br') cil managed
+        //    {
+        //      // Code size       12 (0xc)
+        //      .maxstack  1
+        //      .locals init ([0] object V_0)
+        //      IL_0000:  nop
+        //      IL_0001:  ldarg.1
+        //      IL_0002:  call       object ['Altus.Suffūz']'Altus.Suffūz.Serialization.Binary'._BinarySerializer::Deserialize(class [mscorlib]System.IO.BinaryReader)
+        //      IL_0007:  stloc.0
+        //      IL_0008:  br.s       IL_000a
+        //      IL_000a:  ldloc.0
+        //      IL_000b:  ret
+        //    } // end of method BinarySerializer_RoutablePayload::DeserializeType
 
-            */
+        //    */
 
-            var name = "DeserializeType";
-            var methodBuilder = typeBuilder.DefineMethod(name,
-                MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.NewSlot | MethodAttributes.HideBySig | MethodAttributes.Final,
-                typeof(object),
-                new Type[] { typeof(object), typeof(BinaryWriter) }
-                );
-            var methodCode = methodBuilder.GetILGenerator();
-            var exit = methodCode.DefineLabel();
+        //    var name = "DeserializeType";
+        //    var methodBuilder = typeBuilder.DefineMethod(name,
+        //        MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.NewSlot | MethodAttributes.HideBySig | MethodAttributes.Final,
+        //        typeof(object),
+        //        new Type[] { typeof(object), typeof(BinaryWriter) }
+        //        );
+        //    var methodCode = methodBuilder.GetILGenerator();
+        //    var exit = methodCode.DefineLabel();
 
-            methodCode.DeclareLocal(typeof(object));
-            methodCode.Emit(OpCodes.Ldarg_1);
-            methodCode.Emit(OpCodes.Call, typeof(_BinarySerializer).GetMethod("Deserialize", BindingFlags.Public | BindingFlags.Static));
-            methodCode.Emit(OpCodes.Stloc_0);
-            methodCode.Emit(OpCodes.Br, exit);
-            methodCode.MarkLabel(exit);
-            methodCode.Emit(OpCodes.Ldloc_0);
-            methodCode.Emit(OpCodes.Ret);
+        //    methodCode.DeclareLocal(typeof(object));
+        //    methodCode.Emit(OpCodes.Ldarg_1);
+        //    methodCode.Emit(OpCodes.Call, typeof(_BinarySerializer).GetMethod("Deserialize", BindingFlags.Public | BindingFlags.Static));
+        //    methodCode.Emit(OpCodes.Stloc_0);
+        //    methodCode.Emit(OpCodes.Br, exit);
+        //    methodCode.MarkLabel(exit);
+        //    methodCode.Emit(OpCodes.Ldloc_0);
+        //    methodCode.Emit(OpCodes.Ret);
 
-            return methodBuilder;
-        }
+        //    return methodBuilder;
+        //}
 
-        private MethodInfo ImplementSerializeType(TypeBuilder typeBuilder, Type interfaceType)
-        {
-            /*
-            C#
-            protected void SerializeType(object source, BinaryWriter br)
-            {
-                BinarySerializerBuilder._BinarySerializer.Serialize(source, br);
-            }
+        //private MethodInfo ImplementSerializeType(TypeBuilder typeBuilder, Type interfaceType)
+        //{
+        //    /*
+        //    C#
+        //    protected void SerializeType(object source, BinaryWriter br)
+        //    {
+        //        BinarySerializerBuilder._BinarySerializer.Serialize(source, br);
+        //    }
 
-            IL --------------------------------------------------------------------------------
-            .method family hidebysig instance void  SerializeType(object source,
-                                                      class [mscorlib]System.IO.BinaryWriter 'br') cil managed
-            {
-              // Code size       10 (0xa)
-              .maxstack  8
-              IL_0000:  nop
-              IL_0001:  ldarg.1
-              IL_0002:  ldarg.2
-              IL_0003:  call       void ['Altus.Suffūz']'Altus.Suffūz.Serialization.Binary'.BinarySerializerBuilder/_BinarySerializer::Serialize(object,
-                                                                                                                                                   class [mscorlib]System.IO.BinaryWriter)
-              IL_0008:  nop
-              IL_0009:  ret
-            } // end of method BinarySerializer_RoutablePayload::SerializeType
+        //    IL --------------------------------------------------------------------------------
+        //    .method family hidebysig instance void  SerializeType(object source,
+        //                                              class [mscorlib]System.IO.BinaryWriter 'br') cil managed
+        //    {
+        //      // Code size       10 (0xa)
+        //      .maxstack  8
+        //      IL_0000:  nop
+        //      IL_0001:  ldarg.1
+        //      IL_0002:  ldarg.2
+        //      IL_0003:  call       void ['Altus.Suffūz']'Altus.Suffūz.Serialization.Binary'.BinarySerializerBuilder/_BinarySerializer::Serialize(object,
+        //                                                                                                                                           class [mscorlib]System.IO.BinaryWriter)
+        //      IL_0008:  nop
+        //      IL_0009:  ret
+        //    } // end of method BinarySerializer_RoutablePayload::SerializeType
 
-            */
-            var name = "SerializeType";
-            var methodBuilder = typeBuilder.DefineMethod(name,
-                MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.NewSlot | MethodAttributes.HideBySig | MethodAttributes.Final,
-                typeof(void),
-                new Type[] { typeof(object), typeof(BinaryWriter) }
-                );
-            var methodCode = methodBuilder.GetILGenerator();
-            var exit = methodCode.DefineLabel();
+        //    */
+        //    var name = "SerializeType";
+        //    var methodBuilder = typeBuilder.DefineMethod(name,
+        //        MethodAttributes.Public | MethodAttributes.Virtual | MethodAttributes.NewSlot | MethodAttributes.HideBySig | MethodAttributes.Final,
+        //        typeof(void),
+        //        new Type[] { typeof(object), typeof(BinaryWriter) }
+        //        );
+        //    var methodCode = methodBuilder.GetILGenerator();
+        //    var exit = methodCode.DefineLabel();
 
-            methodCode.Emit(OpCodes.Ldarg_1);
-            methodCode.Emit(OpCodes.Ldarg_2);
-            methodCode.Emit(OpCodes.Call, typeof(_BinarySerializer).GetMethod("Serialize", BindingFlags.Public | BindingFlags.Static));
-            methodCode.Emit(OpCodes.Ret);
+        //    methodCode.Emit(OpCodes.Ldarg_1);
+        //    methodCode.Emit(OpCodes.Ldarg_2);
+        //    methodCode.Emit(OpCodes.Call, typeof(_BinarySerializer).GetMethod("Serialize", BindingFlags.Public | BindingFlags.Static));
+        //    methodCode.Emit(OpCodes.Ret);
 
-            return methodBuilder;
-        }
+        //    return methodBuilder;
+        //}
 
         private void ImplementSupportsType(TypeBuilder typeBuilder, Type interfaceType)
         {
