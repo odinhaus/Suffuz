@@ -165,6 +165,51 @@ namespace Altus.Suffūz.Tests
         }
 
         [TestMethod]
+        public void CanSerializeEnumArrays()
+        {
+            var builder = new ILSerializerBuilder();
+            var instanceInt = builder.CreateSerializerType<Array<AnEnum>>();
+            var testPocoInt = new Array<AnEnum>() { A = new AnEnum[] { AnEnum.Dog, AnEnum.Fish } };
+            var serializedInt = instanceInt.Serialize(testPocoInt);
+            var pocoInt = instanceInt.Deserialize(serializedInt);
+            Assert.IsTrue(testPocoInt.A.Length.Equals(pocoInt.A.Length) && testPocoInt.A[0] == pocoInt.A[0] && testPocoInt.A[1] == pocoInt.A[1]);
+        }
+
+        [TestMethod]
+        public void CanSerializeNullableEnumArrays()
+        {
+            var builder = new ILSerializerBuilder();
+            var instanceInt = builder.CreateSerializerType<Array<AnEnum?>>();
+            var testPocoInt = new Array<AnEnum?>() { A = new AnEnum?[] { AnEnum.Dog, AnEnum.Fish } };
+            var serializedInt = instanceInt.Serialize(testPocoInt);
+            var pocoInt = instanceInt.Deserialize(serializedInt);
+            Assert.IsTrue(testPocoInt.A.Length.Equals(pocoInt.A.Length) && testPocoInt.A[0] == pocoInt.A[0] && testPocoInt.A[1] == pocoInt.A[1]);
+        }
+
+        [TestMethod]
+        public void CanSerializeLongEnumArrays()
+        {
+            var builder = new ILSerializerBuilder();
+            var instanceInt = builder.CreateSerializerType<Array<ALongEnum>>();
+            var testPocoInt = new Array<ALongEnum>() { A = new ALongEnum[] { ALongEnum.l1, ALongEnum.l3 } };
+            var serializedInt = instanceInt.Serialize(testPocoInt);
+            var pocoInt = instanceInt.Deserialize(serializedInt);
+            Assert.IsTrue(testPocoInt.A.Length.Equals(pocoInt.A.Length) && testPocoInt.A[0] == pocoInt.A[0] && testPocoInt.A[1] == pocoInt.A[1]);
+        }
+
+        [TestMethod]
+        public void CanSerializeNullableLongEnumArrays()
+        {
+            var builder = new ILSerializerBuilder();
+            var instanceInt = builder.CreateSerializerType<Array<ALongEnum?>>();
+            var testPocoInt = new Array<ALongEnum?>() { A = new ALongEnum?[] { ALongEnum.l1, ALongEnum.l3 } };
+            var serializedInt = instanceInt.Serialize(testPocoInt);
+            var pocoInt = instanceInt.Deserialize(serializedInt);
+            Assert.IsTrue(testPocoInt.A.Length.Equals(pocoInt.A.Length) && testPocoInt.A[0] == pocoInt.A[0] && testPocoInt.A[1] == pocoInt.A[1]);
+        }
+
+
+        [TestMethod]
         public void CanSerializeStringArrays()
         {
             var builder = new ILSerializerBuilder();

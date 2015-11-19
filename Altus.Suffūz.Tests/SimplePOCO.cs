@@ -14,6 +14,13 @@ namespace Altus.Suffūz.Tests
         Fish
     }
 
+    public enum ALongEnum : long
+    {
+        l1 = long.MaxValue,
+        l2 = 0,
+        l3 = long.MinValue
+    }
+
     public class SimplePOCO
     {
         [BinarySerializable(0)]
