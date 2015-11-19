@@ -45,6 +45,7 @@ namespace Altus.Suffūz.Tests
                 O = "Foo".ToCharArray(),
                 P = DateTime.Now,
                 Q = "foo",
+                R = AnEnum.Fish,
                 nA = true
             };
 
@@ -68,6 +69,7 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(testPoco.O.Length.Equals(poco.O.Length) && poco.O[0] == 'F' && poco.O[1] == 'o' && poco.O[2] == 'o');
             Assert.IsTrue(testPoco.P.Equals(poco.P));
             Assert.IsTrue(testPoco.Q.Equals(poco.Q));
+            Assert.IsTrue(testPoco.R.Equals(poco.R));
 
             testPoco = new SimplePOCO()
             {

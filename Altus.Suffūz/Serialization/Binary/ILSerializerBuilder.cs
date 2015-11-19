@@ -771,6 +771,7 @@ namespace Altus.Suffūz.Serialization.Binary
 
         private void SerializeValueType(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
         {
+            var type = MemberType(member);
             methodCode.Emit(OpCodes.Ldloc_2); // binary writer
             methodCode.Emit(OpCodes.Ldloc_0); // object to read
             if (member is FieldInfo)
@@ -781,7 +782,14 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 methodCode.Emit(OpCodes.Callvirt, ((PropertyInfo)member).GetGetMethod());
             }
-            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { MemberType(member) }));
+            if (type.IsEnum)
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(int) }));
+            }
+            else
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { type }));
+            }
         }
 
         private void SerializeNullableValueType(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, MemberInfo member)
@@ -1548,6 +1556,11 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadDecimal"));
             }
+            else if (type.IsEnum)
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt32"));
+            }
+
             if (member is FieldInfo)
             {
                 methodCode.Emit(OpCodes.Stfld, (FieldInfo)member);
@@ -1747,6 +1760,7 @@ namespace Altus.Suffūz.Serialization.Binary
                 || type == typeof(float)
                 || type == typeof(double)
                 || type == typeof(decimal)
+                || type.IsEnum
                 ;
         }
 

@@ -7,6 +7,13 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Tests
 {
+    public enum AnEnum
+    {
+        Dog,
+        Cat, 
+        Fish
+    }
+
     public class SimplePOCO
     {
         [BinarySerializable(0)]
@@ -59,6 +66,9 @@ namespace Altus.Suffūz.Tests
 
         [BinarySerializable(16)]
         public string Q { get; set; }
+
+        [BinarySerializable(16)]
+        public AnEnum R { get; set; }
 
 
         [BinarySerializable(1000)]

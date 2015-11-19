@@ -21,14 +21,12 @@ namespace Altus.Suffūz.Protocols
     {
         protected byte[] OnSerialize(object source)
         {
-            RoutablePayload typed = (RoutablePayload)source;
+            var typed = (SimplePOCO)source;
             using (MemoryStream ms = new MemoryStream())
             {
                 BinaryWriter br = new BinaryWriter(ms);
-                
 
-                br.Write(typed.PayloadType == null ? "" : typed.PayloadType);
-                br.Write(typed.ReturnType == null ? "" : typed.ReturnType);
+                br.Write((int)typed.R);
 
                 return ms.ToArray();
             }
@@ -39,13 +37,9 @@ namespace Altus.Suffūz.Protocols
             using (MemoryStream ms = new MemoryStream(source))
             {
                 BinaryReader br = new BinaryReader(ms);
-                BinarySerializer_RoutablePayload typed = new BinarySerializer_RoutablePayload();
-                if (br.BaseStream.Position >= br.BaseStream.Length) return typed;
-                
-                if (br.BaseStream.Position >= br.BaseStream.Length) return typed;
-                typed.PayloadType = br.ReadString();
-                if (br.BaseStream.Position >= br.BaseStream.Length) return typed;
-                typed.ReturnType = br.ReadString();
+                var typed = new SimplePOCO();
+
+                typed.R = (AnEnum)br.ReadInt32();
 
                 return typed;
             }
