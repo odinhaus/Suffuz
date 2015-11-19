@@ -196,6 +196,11 @@ namespace Altus.Suffūz
                     i.Equals(interfaceType) || (i.IsConstructedGenericType && i.GetGenericTypeDefinition().Equals(interfaceType)));
         }
 
+        public static bool IsTypeOrSubtypeOf<T>(this Type type)
+        {
+            return type == typeof(T) || type.IsSubclassOf(typeof(T));
+        }
+
         #endregion Public
 
         #region Private

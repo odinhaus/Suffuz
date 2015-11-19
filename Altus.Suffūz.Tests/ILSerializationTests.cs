@@ -6,6 +6,9 @@ using Altus.Suffūz.Serialization;
 using System.Diagnostics;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using Altus.Suffūz.Protocols;
+using Altus.Suffūz.Messages;
+using Altus.Suffūz.Routing;
 
 namespace Altus.Suffūz.Tests
 {
@@ -228,6 +231,26 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(testPoco.SimplePOCO.A.Equals(poco.SimplePOCO.A));
         }
 
+        [TestMethod]
+        public void CanSerializeRoutablePayload()
+        {
+            var builder = new ILSerializerBuilder();
+            var instance = builder.CreateSerializerType<RoutablePayload>();
+            var testPoco = new RoutablePayload()
+            {
+                Payload = new NominateExecutionRequest()
+                {
+                    Nominator = "Some text here",
+                    Request = NoArgs.Empty,
+                    ScalarResults = true
+                },
+                PayloadType = "SomeTypeName",
+                ReturnType = "SomeTypeName"
+            };
+            var serialized = instance.Serialize(testPoco);
+            var poco = instance.Deserialize(serialized);
+        }
+
         static bool _beenHere = false;
         [TestInitialize]
         public void Init()
@@ -235,20 +258,23 @@ namespace Altus.Suffūz.Tests
 #if (DEBUG)
             if (!_beenHere)
             {
-                var builder = new ILSerializerBuilder();
-                builder.CreateSerializerType<SimplePOCO>();
-                builder.CreateSerializerType<NDateTime>();
-                builder.CreateSerializerType<Array<int>>();
-                builder.CreateSerializerType<Array<double>>();
-                builder.CreateSerializerType<Array<long>>();
-                builder.CreateSerializerType<Array<decimal>>();
-                builder.CreateSerializerType<Array<string>>();
-                builder.CreateSerializerType<Array<DateTime>>();
-                builder.CreateSerializerType<Array<int?>>();
-                builder.CreateSerializerType<Array<decimal?>>();
-                builder.CreateSerializerType<Array<DateTime?>>();
-                builder.CreateSerializerType<ComplexPOCO>();
-                builder.SaveAssembly();
+                //var builder = new ILSerializerBuilder();
+                //builder.CreateSerializerType<SimplePOCO>();
+                //builder.CreateSerializerType<NDateTime>();
+                //builder.CreateSerializerType<Array<int>>();
+                //builder.CreateSerializerType<Array<double>>();
+                //builder.CreateSerializerType<Array<long>>();
+                //builder.CreateSerializerType<Array<decimal>>();
+                //builder.CreateSerializerType<Array<string>>();
+                //builder.CreateSerializerType<Array<DateTime>>();
+                //builder.CreateSerializerType<Array<int?>>();
+                //builder.CreateSerializerType<Array<decimal?>>();
+                //builder.CreateSerializerType<Array<DateTime?>>();
+                //builder.CreateSerializerType<ComplexPOCO>();
+                //builder.CreateSerializerType<RoutablePayload>();
+                //builder.CreateSerializerType<NominateExecutionRequest>();
+                //builder.CreateSerializerType<NoArgs>();
+                //builder.SaveAssembly();
                 _beenHere = true;
             }
 #endif

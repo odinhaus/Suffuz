@@ -288,6 +288,8 @@ namespace Altus.Suffūz.Protocols.Udp
                     // so we strip it here, and hold it
                     deferredPayload = ((NominateExecutionRequest)(object)request.Payload).Request;
                     ((NominateExecutionRequest)(object)request.Payload).Request = NoArgs.Empty;
+                    ((NominateExecutionRequest)(object)request.Payload).IsPayloadDeferred = true;
+                    ((NominateExecutionRequest)(object)request.Payload).RequestType = deferredPayload.GetType().AssemblyQualifiedName;
                 }
 
                 var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
@@ -615,7 +617,7 @@ namespace Altus.Suffūz.Protocols.Udp
             object payload = message.Payload;
             Func<NominateResponse, bool> capacityPredicate = null;
 
-            if (payloadType == typeof(RoutablePayload))
+            if (payloadType.IsTypeOrSubtypeOf<RoutablePayload>())
             {
                 payloadType = TypeHelper.GetType(((RoutablePayload)payload).PayloadType);
                 responseType = TypeHelper.GetType(((RoutablePayload)payload).ReturnType);
@@ -693,9 +695,16 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             requestType = payloadType;
 
-            if (requestType.Equals(typeof(NominateExecutionRequest)))
+            if (requestType.IsTypeOrSubtypeOf<NominateExecutionRequest>())
             {
-                requestType = ((NominateExecutionRequest)payload).Request.GetType();
+                if (((NominateExecutionRequest)payload).IsPayloadDeferred)
+                {
+                    requestType = TypeHelper.GetType(((NominateExecutionRequest)payload).RequestType);
+                }
+                else
+                {
+                    requestType = ((NominateExecutionRequest)payload).Request.GetType();
+                }
                 if (requestType.Implements(typeof(ISerializer<>)))
                 {
                     requestType = requestType.BaseType;

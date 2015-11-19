@@ -43,6 +43,10 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 return new IEnumerableSerializer();
             }
+            else if (type == typeof(object))
+            {
+                return new ObjectSerializer();
+            }
 
             lock (_typeCache)
             {

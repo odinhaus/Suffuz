@@ -17,13 +17,19 @@ namespace Altus.Suffūz.Serialization.Binary
             bw.Write(source != null);
             if (source != null)
             {
-                string tname = targetType.AssemblyQualifiedName;
+                var type = targetType;
+                if (targetType == typeof(object) && source.GetType() != typeof(object))
+                {
+                    type = source.GetType();
+                }
+
+                string tname = type.AssemblyQualifiedName;
                 if (typeof(ISerializer).IsAssignableFrom(targetType))
                 {
-                    Type baseType = targetType.BaseType;
+                    Type baseType = type.BaseType;
                     Type serializerGen = typeof(ISerializer<>);
                     Type serializerSpec = serializerGen.MakeGenericType(baseType);
-                    if (serializerSpec.IsAssignableFrom(targetType))
+                    if (serializerSpec.IsAssignableFrom(type))
                     {
                         tname = baseType.AssemblyQualifiedName;
                     }
@@ -34,25 +40,25 @@ namespace Altus.Suffūz.Serialization.Binary
                 {
                     try
                     {
-                        serializer = _serializers[targetType];
+                        serializer = _serializers[type];
                     }
                     catch
                     {
                         try
                         {
-                            serializer = App.Resolve<ISerializationContext>().GetSerializer(targetType, StandardFormats.BINARY);
+                            serializer = App.Resolve<ISerializationContext>().GetSerializer(type, StandardFormats.BINARY);
                         }
                         catch
                         {
                             try
                             {
-                                serializer = new ILSerializerBuilder().CreateSerializerType(targetType);
+                                serializer = new ILSerializerBuilder().CreateSerializerType(type);
                             }
                             catch { }
                         }
                         try
                         {
-                            _serializers.Add(targetType, serializer);
+                            _serializers.Add(type, serializer);
                         }
                         catch { }
                     }

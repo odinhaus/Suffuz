@@ -14,6 +14,10 @@ namespace Altus.Suffūz.Messages
         [BinarySerializable(1)]
         public object Request { get; set; }
         [BinarySerializable(2)]
+        public string RequestType { get; set; }
+        [BinarySerializable(3)]
         public bool ScalarResults { get; set; }
+        [BinarySerializable(4)]
+        public bool IsPayloadDeferred { get; set; }
     }
 }

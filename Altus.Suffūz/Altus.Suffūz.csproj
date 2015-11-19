@@ -97,6 +97,7 @@
     <Compile Include="Serialization\Binary\IEnumerableSerializer.cs" />
     <Compile Include="Serialization\Binary\IListSerializer.cs" />
     <Compile Include="Serialization\Binary\ILSerializerBuilder.cs" />
+    <Compile Include="Serialization\Binary\ObjectSerializer.cs" />
     <Compile Include="Serialization\Binary\PrimitiveSerializer.cs" />
     <Compile Include="Serialization\Binary\_BinarySerializer.cs" />
     <Compile Include="Serialization\ContentTypesSection.cs" />
