@@ -113,6 +113,7 @@ namespace Altus.Suffūz.Tests
                 nL = 1,
                 nM = 1,
                 nP = DateTime.Now,
+                nR = AnEnum.Dog
             };
 
             var serialized = instance.Serialize(testPoco);
@@ -132,6 +133,7 @@ namespace Altus.Suffūz.Tests
             Assert.IsTrue(testPoco.nL.Equals(poco.nL));
             Assert.IsTrue(testPoco.nM.Equals(poco.nM));
             Assert.IsTrue(testPoco.nP.Equals(poco.nP));
+            Assert.IsTrue(testPoco.nR.Equals(poco.nR));
         }
 
         [TestMethod]

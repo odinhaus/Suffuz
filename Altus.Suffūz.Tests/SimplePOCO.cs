@@ -113,6 +113,9 @@ namespace Altus.Suffūz.Tests
         [BinarySerializable(10015)]
         public DateTime? nP { get; set; }
 
+        [BinarySerializable(10016)]
+        public AnEnum? nR { get; set; }
+
         public bool ArraysEqual<T>(T[] a, T[] b)
         {
             if (a.Length != b.Length) return false;

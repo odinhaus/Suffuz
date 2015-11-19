@@ -825,6 +825,7 @@ namespace Altus.Suffūz.Serialization.Binary
             var isNull = methodCode.DeclareLocal(typeof(bool));
             var writeValue = methodCode.DeclareLocal(typeof(bool));
             var dontWrite = methodCode.DefineLabel();
+            var valueType = type.GetGenericArguments()[0];
 
             methodCode.Emit(OpCodes.Ldloc_0); // object to read
             if (member is FieldInfo)
@@ -851,7 +852,14 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Ldloc_2); // binary writer
             methodCode.Emit(OpCodes.Ldloca, value);
             methodCode.Emit(OpCodes.Call, type.GetProperty("Value").GetGetMethod());
-            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { type.GetGenericArguments()[0] }));
+            if (valueType.IsEnum)
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { typeof(int) }));
+            }
+            else
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", new Type[] { valueType }));
+            }
             methodCode.MarkLabel(dontWrite);
             methodCode.Emit(OpCodes.Nop);
         }
@@ -1597,6 +1605,7 @@ namespace Altus.Suffūz.Serialization.Binary
             var isNull = methodCode.DeclareLocal(typeof(bool));
             var readValue = methodCode.DeclareLocal(typeof(bool));
             var dontRead = methodCode.DefineLabel();
+            var valueType = type.GetGenericArguments()[0];
 
             methodCode.Emit(OpCodes.Ldloc_1); // binary reader
             methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
@@ -1610,71 +1619,63 @@ namespace Altus.Suffūz.Serialization.Binary
 
             methodCode.Emit(OpCodes.Ldloc_2); // object to write
             methodCode.Emit(OpCodes.Ldloc_1); // binary reader
-            if (type == typeof(bool?))
+            if (valueType == typeof(bool))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadBoolean"));
-                methodCode.Emit(OpCodes.Newobj, typeof(bool?).GetConstructor(new Type[] { typeof(bool) }));
             }
-            else if (type == typeof(byte?))
+            else if (valueType == typeof(byte))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadByte"));
-                methodCode.Emit(OpCodes.Newobj, typeof(byte?).GetConstructor(new Type[] { typeof(byte) }));
             }
-            else if (type == typeof(sbyte?))
+            else if (valueType == typeof(sbyte))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadSByte"));
-                methodCode.Emit(OpCodes.Newobj, typeof(sbyte?).GetConstructor(new Type[] { typeof(sbyte) }));
             }
-            else if (type == typeof(char?))
+            else if (valueType == typeof(char))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadChar"));
-                methodCode.Emit(OpCodes.Newobj, typeof(char?).GetConstructor(new Type[] { typeof(char) }));
             }
-            else if (type == typeof(short?))
+            else if (valueType == typeof(short))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt16"));
-                methodCode.Emit(OpCodes.Newobj, typeof(short?).GetConstructor(new Type[] { typeof(short) }));
             }
-            else if (type == typeof(ushort?))
+            else if (valueType == typeof(ushort))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadUInt16"));
-                methodCode.Emit(OpCodes.Newobj, typeof(ushort?).GetConstructor(new Type[] { typeof(ushort) }));
             }
-            else if (type == typeof(int?))
+            else if (valueType == typeof(int))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt32"));
-                methodCode.Emit(OpCodes.Newobj, typeof(int?).GetConstructor(new Type[] { typeof(int) }));
             }
-            else if (type == typeof(uint?))
+            else if (valueType == typeof(uint))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadUInt32"));
-                methodCode.Emit(OpCodes.Newobj, typeof(uint?).GetConstructor(new Type[] { typeof(uint) }));
             }
-            else if (type == typeof(long?))
+            else if (valueType == typeof(long))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt64"));
-                methodCode.Emit(OpCodes.Newobj, typeof(long?).GetConstructor(new Type[] { typeof(long) }));
             }
-            else if (type == typeof(ulong?))
+            else if (valueType == typeof(ulong))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadUInt64"));
-                methodCode.Emit(OpCodes.Newobj, typeof(ulong?).GetConstructor(new Type[] { typeof(ulong) }));
             }
-            else if (type == typeof(float?))
+            else if (valueType == typeof(float))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadSingle"));
-                methodCode.Emit(OpCodes.Newobj, typeof(float?).GetConstructor(new Type[] { typeof(float) }));
             }
-            else if (type == typeof(double?))
+            else if (valueType == typeof(double))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadDouble"));
-                methodCode.Emit(OpCodes.Newobj, typeof(double?).GetConstructor(new Type[] { typeof(double) }));
             }
-            else if (type == typeof(decimal?))
+            else if (valueType == typeof(decimal))
             {
                 methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadDecimal"));
-                methodCode.Emit(OpCodes.Newobj, typeof(decimal?).GetConstructor(new Type[] { typeof(decimal) }));
             }
+            else if (valueType.IsEnum)
+            {
+                methodCode.Emit(OpCodes.Callvirt, typeof(BinaryReader).GetMethod("ReadInt32"));
+            }
+            methodCode.Emit(OpCodes.Newobj, type.GetConstructor(new Type[] { valueType }));
 
             if (member is FieldInfo)
             {
@@ -1783,6 +1784,7 @@ namespace Altus.Suffūz.Serialization.Binary
                 || type == typeof(float?)
                 || type == typeof(double?)
                 || type == typeof(decimal?)
+                || (type.IsGenericType && type.Implements(typeof(Nullable<>)) && type.GetGenericArguments()[0].IsEnum)
                 ;
         }
 
