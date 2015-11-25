@@ -66,7 +66,7 @@ namespace Altus.Suffūz.Test
                 c.For<IServiceRouter>().Use<ServiceRouter>().Singleton();
                 // use the mapped channels above
                 c.For<IChannelService>().Use<MulticastChannelService>(channelService).Singleton();
-                c.For<IBinarySerializerBuilder>().Use<BinarySerializerBuilder>().Singleton();
+                c.For<IBinarySerializerBuilder>().Use<ILSerializerBuilder>().Singleton();
                 c.For<ISerializer>().Use<ComplexSerializer>();
             }));
         }

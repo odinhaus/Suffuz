@@ -97,7 +97,7 @@ namespace Altus.Suffūz.Protocols.Udp
             }
             _lock = _locks[mcastGroup.ToString()];
             this.TextEncoding = Encoding.Unicode;
-            this.Cleaner = new Timer(new TimerCallback(CleanInboundOrphans), null, 1000, 1000);
+            ThreadPool.QueueUserWorkItem(new WaitCallback(CleanInboundOrphans), null);
             this._router = App.Resolve<IServiceRouter>();
         }
 
@@ -135,13 +135,12 @@ namespace Altus.Suffūz.Protocols.Udp
             }
             _lock = _locks[mcastGroup.ToString()];
             this.TextEncoding = Encoding.Unicode;
-            this.Cleaner = new Timer(new TimerCallback(CleanInboundOrphans), null, 1000, 1000);
+            ThreadPool.QueueUserWorkItem(new WaitCallback(CleanInboundOrphans), null);
             this._router = App.Resolve<IServiceRouter>();
         }
 
         private DataReceivedHandler DataReceivedHandler;
 
-        private System.Threading.Timer Cleaner;
         private void CleanInboundOrphans(object state)
         {
             Guid[] orphans = new Guid[0];
@@ -161,6 +160,9 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 this._udpInboundMessages.Remove(orphans[i]);
             }
+
+            Thread.Sleep(2000);
+            ThreadPool.QueueUserWorkItem(new WaitCallback(CleanInboundOrphans), null);
         }
 
         public void Send(byte[] data)
@@ -514,17 +516,8 @@ namespace Altus.Suffūz.Protocols.Udp
 
                 if (msg != null && msg.IsComplete)
                 {
-                    try
-                    {
-                        ProcessCompletedInboundUdpMessage(msg);
-                    }
-                    finally
-                    {
-                        lock (_udpInboundMessages)
-                        {
-                            _udpInboundMessages.Remove(segment.MessageId);
-                        }
-                    }
+                    _udpInboundMessages.Remove(segment.MessageId);
+                    ProcessCompletedInboundUdpMessage(msg);
                 }
             }
         }
@@ -546,10 +539,7 @@ namespace Altus.Suffūz.Protocols.Udp
                     else
                     {
                         msg = new UdpMessage(segment.Connection, segment);
-                        lock (_udpInboundMessages)
-                        {
-                            _udpInboundMessages.Add(msg.MessageId, msg);
-                        }
+                        _udpInboundMessages.Add(msg.MessageId, msg);
                     }
                 }
                 catch
@@ -559,17 +549,8 @@ namespace Altus.Suffūz.Protocols.Udp
 
                 if (msg != null && msg.IsComplete)
                 {
-                    try
-                    {
-                        ProcessCompletedInboundUdpMessage(msg);
-                    }
-                    finally
-                    {
-                        lock (_udpInboundMessages)
-                        {
-                            _udpInboundMessages.Remove(segment.MessageId);
-                        }
-                    }
+                    _udpInboundMessages.Remove(segment.MessageId);
+                    ProcessCompletedInboundUdpMessage(msg);
                 }
             }
         }
@@ -814,11 +795,6 @@ namespace Altus.Suffūz.Protocols.Udp
                     this.LeaveGroup();
                     this.Socket.Close();
                     this.Socket.Dispose();
-                    if (this.Cleaner != null)
-                    {
-                        this.Cleaner.Dispose();
-                        this.Cleaner = null;
-                    }
                     OnDisconnected();
                 }
                 catch { }

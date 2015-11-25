@@ -26,10 +26,11 @@ namespace Altus.Suffūz.Objects.Tests
 
             // create a new instance, or update an existing instance using the provided ctor, and supplied key
             // subscribe to updates on the instance
-            var stateClass3 = Observe<StateClass>
+            var stateClass3 = (StateClass)Observe<StateClass>
                                             .From("mychannel")
                                             .As(() => new StateClass() { RgbColor = 1234, Size = 3 }, "globalkey")
                                             .Subscribe(this);
+            stateClass3.Size = 3;
         }
 
         public void OnCompleted()
