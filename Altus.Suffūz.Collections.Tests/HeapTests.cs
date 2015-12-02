@@ -14,9 +14,10 @@ namespace Altus.Suffūz.Collections.Tests
         public void CanCreateHeap()
         {
             var fileName = "Heap.loh";
+            File.Delete(fileName);
             using (var heap = new Heap(fileName, 1024 * 64))
             {
-                Assert.IsTrue(heap.Next == 12);
+                Assert.IsTrue(heap.Next == 20);
                 Assert.IsTrue(heap.First == 0);
                 Assert.IsTrue(heap.Last == 0);
             }
@@ -27,6 +28,7 @@ namespace Altus.Suffūz.Collections.Tests
         public void CanWriteObjectHeap()
         {
             var fileName = "Heap.loh";
+            File.Delete(fileName);
             using (var heap = new Heap(fileName, 1024 * 64))
             {
                 var item = new CustomItem() { A = 12, B = "Foo" };
@@ -34,9 +36,9 @@ namespace Altus.Suffūz.Collections.Tests
                 var address1 = heap.Write(item);
                 var address2 = heap.Write(item);
 
-                Assert.IsTrue(heap.Next == 40);
-                Assert.IsTrue(heap.First == 12);
-                Assert.IsTrue(heap.Last == 26);
+                Assert.IsTrue(heap.Next == 72);
+                Assert.IsTrue(heap.First == 20);
+                Assert.IsTrue(heap.Last == 46);
             }
             File.Delete(fileName);
         }
@@ -210,6 +212,7 @@ namespace Altus.Suffūz.Collections.Tests
         public void CanCompactHeap()
         {
             var fileName = "Heap.loh";
+            File.Delete(fileName);
             using (var heap = new Heap(fileName))
             {
                 var key = heap.Write(14);
