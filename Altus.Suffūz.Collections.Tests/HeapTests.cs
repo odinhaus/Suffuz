@@ -16,11 +16,9 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
-            using (var heap = new Heap(fileName, 1024 * 64))
+            using (var heap = new PersistentHeap(fileName, 1024 * 64))
             {
-                Assert.IsTrue(heap.Next == 20);
-                Assert.IsTrue(heap.First == 0);
-                Assert.IsTrue(heap.Last == 0);
+                Assert.IsTrue(heap.Length == 20);
             }
             File.Delete(fileName);
         }
@@ -30,16 +28,12 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
-            using (var heap = new Heap(fileName, 1024 * 64))
+            using (var heap = new PersistentHeap(fileName, 1024 * 64))
             {
                 var item = new CustomItem() { A = 12, B = "Foo" };
 
                 var address1 = heap.Write(item);
                 var address2 = heap.Write(item);
-
-                Assert.IsTrue(heap.Next == 72);
-                Assert.IsTrue(heap.First == 20);
-                Assert.IsTrue(heap.Last == 46);
             }
             File.Delete(fileName);
         }
@@ -48,7 +42,7 @@ namespace Altus.Suffūz.Collections.Tests
         public void CanReadObjectHeap()
         {
             var fileName = "Heap.loh";
-            using (var heap = new Heap(fileName, 1024 * 64))
+            using (var heap = new PersistentHeap(fileName, 1024 * 64))
             {
                 var itemA = new CustomItem() { A = 12, B = "A" };
                 var itemB = new CustomItem() { A = 22, B = "B" };
@@ -75,13 +69,13 @@ namespace Altus.Suffūz.Collections.Tests
             ulong address1 = 0;
             ulong address2 = 0;
 
-            using (var heap = new Heap(fileName, 1024 * 64))
+            using (var heap = new PersistentHeap(fileName, 1024 * 64))
             {
                 address1 = heap.Write(itemA);
                 address2 = heap.Write(itemB);
             }
 
-            using (var heap = new Heap(fileName, 1024 * 128))
+            using (var heap = new PersistentHeap(fileName, 1024 * 128))
             {
                 var item1 = (CustomItem)heap.Read(address1);
                 var item2 = (CustomItem)heap.Read(address2);
@@ -101,9 +95,10 @@ namespace Altus.Suffūz.Collections.Tests
             var count = 1000000;
             var sw = new Stopwatch();
             var item = new CustomItem() { A = 12, B = "some text here" };
+            File.Delete(fileName);
             using (var scope = new FlushScope())
             {
-                using (var heap = new Heap(fileName))
+                using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 100))
                 {
                     var addresses = new ulong[count];
                     sw.Start();
@@ -152,9 +147,10 @@ namespace Altus.Suffūz.Collections.Tests
             float writeRate, readRate, loadRate, enumerateRate;
             var count = 1000000;
             var sw = new Stopwatch();
+            File.Delete(fileName);
             using (var scope = new FlushScope())
             {
-                using (var heap = new Heap(fileName))
+                using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 100))
                 {
                     var addresses = new ulong[count];
                     sw.Start();
@@ -200,7 +196,8 @@ namespace Altus.Suffūz.Collections.Tests
         public void CanRemoveItem()
         {
             var fileName = "Heap.loh";
-            using (var heap = new Heap(fileName))
+            File.Delete(fileName);
+            using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 100))
             {
                 var address = heap.Write(14);
                 heap.Free(address);
@@ -214,7 +211,7 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
-            using (var heap = new Heap(fileName))
+            using (var heap = new PersistentHeap(fileName))
             {
                 var key = heap.Write(14);
                 heap.Free(key);
@@ -226,13 +223,13 @@ namespace Altus.Suffūz.Collections.Tests
                 key = heap.Write(new CustomItem() { A = 14, B = "Some crzy text" });
                 key = heap.Write(new CustomItem() { A = 14, B = "Some more crzy text" });
                 heap.Free(key);
-                var heapSize = heap.Next;
+                var heapSize = heap.Length;
                 heap.Compact();
                 Assert.IsTrue(heap.Read<int>(2) == 15);
                 Assert.IsTrue(heap.Read<int>(3) == 16);
                 Assert.IsTrue(heap.Read<bool>(5) == true);
                 Assert.IsTrue(heap.Read<CustomItem>(6).B == "Some crzy text");
-                Assert.IsTrue(heapSize - heap.Next == 84);
+                Assert.IsTrue(heapSize - heap.Length == 84);
             }
             File.Delete(fileName);
         }
@@ -242,7 +239,7 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
-            using (var heap = new Heap(fileName))
+            using (var heap = new PersistentHeap(fileName))
             {
                 var sw = new Stopwatch();
                 var count = 1000;
@@ -275,7 +272,7 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
-            using (var heap = new Heap<CustomItem>(fileName))
+            using (var heap = new PersistentHeap<CustomItem>(fileName))
             {
                 using (var scope = new FlushScope())
                 {
@@ -297,7 +294,7 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
-            using (var heap = new Heap<CustomItem>(fileName))
+            using (var heap = new PersistentHeap<CustomItem>(fileName))
             {
                 var key = heap.Write(new CustomItem() { A = 100, B = "Some text" });
                 var length = heap.Length;

@@ -48,16 +48,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CollectionBase.cs" />
+    <Compile Include="PersistentCollectionBase.cs" />
     <Compile Include="FlushScope.cs" />
-    <Compile Include="Dictionary.cs" />
-    <Compile Include="Heap.cs" />
+    <Compile Include="PersistentDictionary.cs" />
+    <Compile Include="PersistentHeap.cs" />
     <Compile Include="IFlush.cs" />
     <Compile Include="IO\BytePointerAdapter.cs" />
     <Compile Include="IO\MemoryMappedViewAccessorEx.cs" />
     <Compile Include="IO\SparseFile.cs" />
     <Compile Include="IO\StreamEx.cs" />
-    <Compile Include="List.cs" />
+    <Compile Include="PersistentList.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

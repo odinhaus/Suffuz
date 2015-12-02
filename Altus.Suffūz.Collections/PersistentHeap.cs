@@ -11,13 +11,13 @@ using Altus.Suffūz.Serialization.Binary;
 
 namespace Altus.Suffūz.Collections
 {
-    public class Heap<TValue> : Heap, IEnumerable<TValue>
+    public class PersistentHeap<TValue> : PersistentHeap, ICollection<TValue>, IEnumerable<TValue>
     {
-        public Heap() : base()
+        public PersistentHeap() : base()
         {
         }
 
-        public Heap(string filePath, int maxSize = 1024 * 1024 * 1024) : base(filePath, maxSize)
+        public PersistentHeap(string filePath, int maxSize = 1024 * 1024 * 1024) : base(filePath, maxSize)
         {
 
         }
@@ -66,9 +66,49 @@ namespace Altus.Suffūz.Collections
                 yield return (TValue)en.Current;
             }
         }
+
+        public bool IsReadOnly
+        {
+            get
+            {
+                return false;
+            }
+        }
+
+        void ICollection<TValue>.Add(TValue item)
+        {
+            this.Write(item);
+        }
+
+        public bool Contains(TValue item)
+        {
+            ulong key;
+            return base.Contains(item, out key);
+        }
+
+        public void CopyTo(TValue[] array, int arrayIndex)
+        {
+            var i = 0;
+            foreach(var x in this)
+            {
+                array[arrayIndex + i] = x;
+                i++;
+            }
+        }
+
+        bool ICollection<TValue>.Remove(TValue item)
+        {
+            ulong key;
+            if (base.Contains(item, out key))
+            {
+                base.Free(key);
+                return true;
+            }
+            return false;
+        }
     }
 
-    public unsafe class Heap : CollectionBase
+    public unsafe class PersistentHeap : PersistentCollectionBase
     {
         int HEAD_ROOM;
         const int HEADER_LENGTH = 4 + 4 + 4 + 8;
@@ -90,7 +130,7 @@ namespace Altus.Suffūz.Collections
         /// <summary>
         /// Create a new heap using a system generated file location, and DEFAULT_HEAP_SIZE (10Mb)
         /// </summary>
-        public Heap() : base()
+        public PersistentHeap() : base()
         {
         }
         /// <summary>
@@ -98,7 +138,7 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         /// <param name="filePath"></param>
         /// <param name="maxSize"></param>
-        public Heap(string filePath, int maxSize = DEFAULT_HEAP_SIZE) : base(filePath, maxSize)
+        public PersistentHeap(string filePath, int maxSize = DEFAULT_HEAP_SIZE) : base(filePath, maxSize)
         {
             
         }
@@ -114,8 +154,44 @@ namespace Altus.Suffūz.Collections
             }
         }
 
+        public override int Count
+        {
+            get
+            {
+                lock(SyncRoot)
+                {
+                    return _addresses.Count;
+                }
+            }
+        }
+
+        public virtual IEnumerable<ulong> AllKeys
+        {
+            get
+            {
+                lock (SyncRoot)
+                {
+                    return _addresses.Keys;
+                }
+            }
+        }
+
         protected MemoryMappedViewAccessor MMVA { get; private set; }
         protected FileStream TypesFile { get; private set; }
+
+        /// <summary>
+        /// Frees all items in the heap
+        /// </summary>
+        public virtual void Clear()
+        {
+            using (var scope = new FlushScope())
+            {
+                foreach (var key in AllKeys.ToArray())
+                {
+                    Free(key);
+                }
+            }
+        }
 
         /// <summary>
         /// Writes the item into the next available free location on the heap, and returns a key for that location which can be used for 
@@ -237,7 +313,13 @@ namespace Altus.Suffūz.Collections
             lock(SyncRoot)
             {
                 var address = _addresses[key];
-                _ptr.Write(address, false);
+
+                using (var scope = new FlushScope())
+                {
+                    scope.Enlist(this);
+                    _ptr.Write(address, false);
+                }
+
                 if (address == First)
                 {
                     var newFirst = GetNext(address, true);
@@ -313,6 +395,22 @@ namespace Altus.Suffūz.Collections
                 LoadIndices();
                 UpdateHeaders();
             }
+        }
+
+        public virtual bool Contains(object item, out ulong key)
+        {
+            var en = _addresses.GetEnumerator();
+            while(en.MoveNext())
+            {
+                if (en.Current.Value.Equals(item))
+                {
+                    key = en.Current.Key;
+                    return true;
+                }
+            }
+
+            key = 0;
+            return false;
         }
 
         /// <summary>
@@ -507,10 +605,14 @@ namespace Altus.Suffūz.Collections
                 MMVA.Dispose();
                 MMVA = null;
             }
+            _ptr = null;
+            _filePtr = (byte*)IntPtr.Zero;
         }
 
         protected override void OnDisposeManagedResources()
         {
+            _isInitialized = false;
+
             ReleaseViewAccessor();
 
             if (TypesFile != null)
@@ -520,6 +622,8 @@ namespace Altus.Suffūz.Collections
                 TypesFile.Dispose();
                 TypesFile = null;
             }
+
+            base.OnDisposeManagedResources();
         }
     }
 }

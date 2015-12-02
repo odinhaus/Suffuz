@@ -12,16 +12,16 @@ using Altus.Suffūz.Serialization.Binary;
 
 namespace Altus.Suffūz.Collections
 {
-    public class List<TValue> : IList<TValue>, IDisposable
+    public class PersistentList<TValue> : IList<TValue>, IDisposable
     {
         private System.Collections.Generic.List<Page> _pages = new System.Collections.Generic.List<Page>();
 
-        public List() : this(Path.GetTempFileName())
+        public PersistentList() : this(Path.GetTempFileName())
         {
 
         }
 
-        public List(string filePath, int maxFileSize = 1024 * 1024 * 1024)
+        public PersistentList(string filePath, int maxFileSize = 1024 * 1024 * 1024)
         {
             var serializationCtx = App.Resolve<ISerializationContext>();
             if (serializationCtx == null)
@@ -187,7 +187,7 @@ namespace Altus.Suffūz.Collections
             byte* _filePtr;
             BytePointerAdapter _ptr;
 
-            public Page(List<TValue> list, MemoryMappedFile mmf, int offset)
+            public Page(PersistentList<TValue> list, MemoryMappedFile mmf, int offset)
             {
                 List = list;
                 Offset = offset + PAGE_COUNT_HEADER;
@@ -215,7 +215,7 @@ namespace Altus.Suffūz.Collections
                 }
             }
 
-            public List<TValue> List { get; private set; }
+            public PersistentList<TValue> List { get; private set; }
             public int Offset { get; private set; }
             public MemoryMappedFile MMF { get; private set; }
             public MemoryMappedViewAccessor MMVA { get; private set; }

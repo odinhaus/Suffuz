@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Collections
 {
-    public abstract class CollectionBase : IEnumerable, IDisposable, IFlush
+    public abstract class PersistentCollectionBase : ICollection, IEnumerable, IDisposable, IFlush
     {
         static System.Collections.Generic.Dictionary<Type, ISerializer> _serializers = new System.Collections.Generic.Dictionary<Type, ISerializer>();
         /// <summary>
@@ -20,17 +20,25 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         public const int DEFAULT_HEAP_SIZE = 1024 * 1024 * 10;
 
-        protected CollectionBase() : this(Path.GetTempFileName())
+        protected PersistentCollectionBase() : this(Path.GetTempFileName())
         {
         }
 
-        protected CollectionBase(string filePath, int maxSize = DEFAULT_HEAP_SIZE)
+        protected PersistentCollectionBase(string filePath, int maxSize = DEFAULT_HEAP_SIZE)
         {
             SyncRoot = new object();
+            First = Next = Last = 0;
+            MaximumSize = maxSize;
+            Initialize(filePath, maxSize);
+        }
+
+        private void Initialize(string filePath, int maxSize)
+        {
+            MaximumSize = maxSize;
+            FilePath = filePath;
             File = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
             var isNew = File.Length == 0;
-            First = Next = Last = 0;
-
+            
             if (File.Length == 0)
             {
                 File.SetLength(maxSize);
@@ -87,9 +95,44 @@ namespace Altus.Suffūz.Collections
         protected MemoryMappedFile MMF { get; private set; }
         public object SyncRoot { get; private set; }
 
-        public int First { get; protected set; }
-        public int Next { get; protected set; }
-        public int Last { get; protected set; }
+        public abstract int Count { get; }
+
+        protected int First { get; set; }
+        protected int Next { get; set; }
+        protected int Last { get; set; }
+
+        public bool IsSynchronized
+        {
+            get
+            {
+                return true;
+            }
+        }
+
+        public void CopyTo(Array array, int index)
+        {
+            var en = GetEnumerator();
+            var i = 0;
+            while(en.MoveNext())
+            {
+                array.SetValue(en.Current, index + i);
+                i++;
+            }
+        }
+
+        public virtual void Grow(int capacityToAdd)
+        {
+            if (FlushScope.Current != null)
+            {
+                throw new InvalidOperationException("You cannot call Grow inside a pending FlushScope.");
+            }
+
+            lock(SyncRoot)
+            {
+                OnDisposeManagedResources();
+                Initialize(FilePath, MaximumSize + capacityToAdd);
+            }
+        }
 
         public abstract void Flush();
         public abstract IEnumerator GetEnumerator();
@@ -132,21 +175,6 @@ namespace Altus.Suffūz.Collections
                 // and unmanaged resources.
                 if (disposing)
                 {
-                    Flush();
-
-                    if (this.MMF != null)
-                    {
-                        this.MMF.Dispose();
-                        this.MMF = null;
-                    }
-
-                    if (this.File != null)
-                    {
-                        this.File.Close();
-                        this.File.Dispose();
-                        this.File = null;
-                    }
-
                     // Dispose subclass managed resources.
                     this.OnDisposeManagedResources();
                 }
@@ -163,10 +191,25 @@ namespace Altus.Suffūz.Collections
         }
 
         /// <summary>
-        /// Dispose managed resources
+        /// Dispose managed resources.  Overridden implementations MUST call base.OnDisposeManagedResources() to prevent 
+        /// handle locking and memory leaks.
         /// </summary>
         protected virtual void OnDisposeManagedResources()
         {
+            Flush();
+
+            if (this.MMF != null)
+            {
+                this.MMF.Dispose();
+                this.MMF = null;
+            }
+
+            if (this.File != null)
+            {
+                this.File.Close();
+                this.File.Dispose();
+                this.File = null;
+            }
         }
 
         /// <summary>

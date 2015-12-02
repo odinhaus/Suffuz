@@ -114,13 +114,13 @@ namespace Altus.Suffūz.Collections.IO
         /// </summary>
         /// <param name="fs"></param>
         /// <returns></returns>
-        public static List<FILE_ALLOCATED_RANGE_BUFFER> QueryAllocatedRanges(FileStream fs)
+        public static PersistentList<FILE_ALLOCATED_RANGE_BUFFER> QueryAllocatedRanges(FileStream fs)
         {
             FILE_ALLOCATED_RANGE_BUFFER _queryRange;
             _queryRange._offset = 0;
             _queryRange._length = fs.Length;
             FILE_ALLOCATED_RANGE_BUFFER[] _ranges = new FILE_ALLOCATED_RANGE_BUFFER[64];
-            List<FILE_ALLOCATED_RANGE_BUFFER> _resultList = new List<FILE_ALLOCATED_RANGE_BUFFER>();
+            PersistentList<FILE_ALLOCATED_RANGE_BUFFER> _resultList = new PersistentList<FILE_ALLOCATED_RANGE_BUFFER>();
             bool _br = false;
             int _bytesReturned;
             int _errNumber;
