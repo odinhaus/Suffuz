@@ -1,6 +1,7 @@
 ﻿using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -220,6 +221,98 @@ namespace Altus.Suffūz.Collections.Tests
             }
             File.Delete(fileName);
             File.Delete(keyName);
+        }
+
+        [TestMethod]
+        public void FailsPerfCharacteristicsWithoutFlushScope()
+        {
+            var fileName = "Dictionary.dic";
+            var keyName = Path.GetFileNameWithoutExtension(fileName) + "_keys.bin";
+            File.Delete(fileName);
+            File.Delete(keyName);
+            CustomItem item = new CustomItem() { A = 10, B = "some text" };
+            using (var heap = new PersistentDictionary<string, CustomItem>(fileName))
+            {
+                var sw = new Stopwatch();
+                var count = 1000;
+                sw.Start();
+                for (int i = 0; i < count; i++)
+                {
+                    heap.Add(i.ToString(), item);
+                }
+                sw.Stop();
+                var writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+
+                
+                sw.Start();
+                for (int i = 0; i < count; i++)
+                {
+                    item = heap[i.ToString()];
+                }
+                sw.Stop();
+                var readRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+
+                Assert.Inconclusive("Write Rate: {0}, Read Rate: {1}", writeRate, readRate);
+            }
+
+            File.Delete(fileName);
+            File.Delete(keyName);
+        }
+
+        [TestMethod]
+        public void MeetsPerfCharacteristicsComplex()
+        {
+            var fileName = "Dictionary.dic";
+            var keyName = Path.GetFileNameWithoutExtension(fileName) + "_keys.bin";
+            File.Delete(fileName);
+            File.Delete(keyName);
+            float writeRate, readRate, loadRate, enumerateRate;
+            var count = 1000000;
+            var sw = new Stopwatch();
+            var item = new CustomItem() { A = 12, B = "some text here" };
+            using (var scope = new FlushScope())
+            {
+                using (var heap = new PersistentDictionary<string, CustomItem>(fileName, 1024 * 1024 * 100))
+                {
+                    var addresses = new ulong[count];
+                    sw.Start();
+                    for (int i = 0; i < count; i++)
+                    {
+                        heap.Add(i.ToString(), item);
+                    }
+                    sw.Stop();
+                    writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+
+                    sw.Reset();
+                    sw.Start();
+                    for (int i = 0; i < count; i++)
+                    {
+                        item = heap[i.ToString()];
+                    }
+                    sw.Stop();
+                    readRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+
+                    sw.Reset();
+                    sw.Start();
+                    foreach (var thing in heap)
+                    {
+                    }
+                    sw.Stop();
+                    enumerateRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+                }
+            }
+
+            sw.Start();
+            using (var scope = new FlushScope())
+            {
+                sw.Stop();
+            }
+            loadRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+
+            File.Delete(fileName);
+            File.Delete(keyName);
+
+            Assert.Inconclusive("Write Rate: {0}, Read Rate: {1}, Load Rate: {2}, Enumerate Rate: {3}", writeRate, readRate, loadRate, enumerateRate);
         }
     }
 }

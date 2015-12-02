@@ -1,4 +1,6 @@
-﻿using Altus.Suffūz.Diagnostics;
+﻿using Altus.Suffūz.Collections;
+using Altus.Suffūz.Collections.Tests;
+using Altus.Suffūz.Diagnostics;
 using Altus.Suffūz.Messages;
 using Altus.Suffūz.Protocols;
 using Altus.Suffūz.Protocols.Udp;
@@ -9,6 +11,7 @@ using Altus.Suffūz.Tests;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -23,11 +26,67 @@ namespace Altus.Suffūz
         static void Main(string[] args)
         {
             //PerfTest();
-
+            CollectionPerfTest();
+            Console.Read();
             ConfigureApp();
             ConfigureRoutes();
             OpenChannels();
             DoIt();
+        }
+
+        private static void CollectionPerfTest()
+        {
+            var fileName = "Dictionary.dic";
+            var keyName = Path.GetFileNameWithoutExtension(fileName) + "_keys.bin";
+            File.Delete(fileName);
+            File.Delete(keyName);
+            float writeRate, readRate, loadRate, enumerateRate;
+            var count = 1000000;
+            var sw = new Stopwatch();
+            var item = new CustomItem() { A = 12, B = "some text here" };
+            using (var scope = new FlushScope())
+            {
+                using (var heap = new PersistentDictionary<string, CustomItem>(fileName, 1024 * 1024 * 1000))
+                {
+                    var addresses = new ulong[count];
+                    sw.Start();
+                    for (int i = 0; i < count; i++)
+                    {
+                        heap.Add(i.ToString(), item);
+                    }
+                    sw.Stop();
+                    writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+
+                    sw.Reset();
+                    sw.Start();
+                    for (int i = 0; i < count; i++)
+                    {
+                        item = heap[i.ToString()];
+                    }
+                    sw.Stop();
+                    readRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+
+                    sw.Reset();
+                    sw.Start();
+                    foreach (var thing in heap)
+                    {
+                    }
+                    sw.Stop();
+                    enumerateRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+                }
+            }
+
+            sw.Start();
+            using (var scope = new FlushScope())
+            {
+                sw.Stop();
+            }
+            loadRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+
+            File.Delete(fileName);
+            File.Delete(keyName);
+
+            Console.WriteLine("Write Rate: {0}, Read Rate: {1}, Load Rate: {2}, Enumerate Rate: {3}", writeRate, readRate, loadRate, enumerateRate);
         }
 
         private static void PerfTest()
