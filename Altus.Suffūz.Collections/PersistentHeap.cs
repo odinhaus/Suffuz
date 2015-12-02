@@ -180,15 +180,35 @@ namespace Altus.Suffūz.Collections
         protected FileStream TypesFile { get; private set; }
 
         /// <summary>
-        /// Frees all items in the heap
+        /// Frees all items in the heap without compacting the heap
         /// </summary>
-        public virtual void Clear()
+        public override void Clear()
         {
-            using (var scope = new FlushScope())
+            Clear(false);
+        }
+
+        /// <summary>
+        /// Frees all items in the heap, optionally compacting the heap when done
+        /// </summary>
+        /// <param name="compact"></param>
+        public override void Clear(bool compact)
+        {
+            if (compact)
             {
-                foreach (var key in AllKeys.ToArray())
+                OnDisposeManagedResources();
+                // just delete the File and start over
+                System.IO.File.Delete(FilePath);
+                First = Next = Last = 0;
+                Initialize(FilePath, MaximumSize);
+            }
+            else
+            {
+                using (var scope = new FlushScope())
                 {
-                    Free(key);
+                    foreach (var key in AllKeys.ToArray())
+                    {
+                        Free(key);
+                    }
                 }
             }
         }
@@ -622,6 +642,8 @@ namespace Altus.Suffūz.Collections
                 TypesFile.Dispose();
                 TypesFile = null;
             }
+
+            _addresses.Clear();
 
             base.OnDisposeManagedResources();
         }

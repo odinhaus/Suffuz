@@ -156,5 +156,70 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(keyName);
         }
 
+        [TestMethod]
+        public void CanClear()
+        {
+            var fileName = "Dictionary.dic";
+            var keyName = Path.GetFileNameWithoutExtension(fileName) + "_keys.bin";
+            File.Delete(fileName);
+            File.Delete(keyName);
+            using (var dictionary = new PersistentDictionary<string, CustomItem>(fileName, 1024 * 64))
+            {
+                try
+                {
+                    using (var scope = new FlushScope())
+                    {
+                        var i = 0;
+                        while (true)
+                        {
+                            dictionary.Add("some key " + i.ToString(), new CustomItem() { A = 10, B = "some text" });
+                            i++;
+                        }
+                    }
+                }
+                catch (OutOfMemoryException)
+                {
+                    dictionary.Clear();
+                }
+
+                Assert.IsTrue(dictionary.Count == 0);
+                Assert.IsTrue(dictionary.Length > 20);
+            }
+            File.Delete(fileName);
+            File.Delete(keyName);
+        }
+
+        [TestMethod]
+        public void CanClearAndCompact()
+        {
+            var fileName = "Dictionary.dic";
+            var keyName = Path.GetFileNameWithoutExtension(fileName) + "_keys.bin";
+            File.Delete(fileName);
+            File.Delete(keyName);
+            using (var dictionary = new PersistentDictionary<string, CustomItem>(fileName, 1024 * 64))
+            {
+                try
+                {
+                    using (var scope = new FlushScope())
+                    {
+                        var i = 0;
+                        while (true)
+                        {
+                            dictionary.Add("some key " + i.ToString(), new CustomItem() { A = 10, B = "some text" });
+                            i++;
+                        }
+                    }
+                }
+                catch (OutOfMemoryException)
+                {
+                    dictionary.Clear(true);
+                }
+
+                Assert.IsTrue(dictionary.Count == 0);
+                Assert.IsTrue(dictionary.Length == 20);
+            }
+            File.Delete(fileName);
+            File.Delete(keyName);
+        }
     }
 }

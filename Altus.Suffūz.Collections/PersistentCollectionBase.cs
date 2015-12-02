@@ -32,7 +32,7 @@ namespace Altus.Suffūz.Collections
             Initialize(filePath, maxSize);
         }
 
-        private void Initialize(string filePath, int maxSize)
+        protected void Initialize(string filePath, int maxSize)
         {
             MaximumSize = maxSize;
             FilePath = filePath;
@@ -64,6 +64,8 @@ namespace Altus.Suffūz.Collections
         }
 
         protected abstract void Initialize(bool isNewFile, string filePath, int maxSize);
+        public abstract void Clear();
+        public abstract void Clear(bool compact);
 
 
         protected virtual ISerializer GetSerializer(Type itemType)

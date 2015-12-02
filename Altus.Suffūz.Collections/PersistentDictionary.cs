@@ -143,11 +143,14 @@ namespace Altus.Suffūz.Collections
 
         public override void Clear()
         {
-            using (var scope = new FlushScope())
-            {
-                _keys.Clear();
-                base.Clear();
-            }
+            _keys.Clear();
+            base.Clear();
+        }
+
+        public override void Clear(bool compact)
+        {
+            _keys.Clear(compact);
+            base.Clear(compact);
         }
 
         public bool Contains(KeyValuePair<TKey, TValue> item)
