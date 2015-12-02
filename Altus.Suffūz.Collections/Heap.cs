@@ -11,6 +11,63 @@ using Altus.Suffūz.Serialization.Binary;
 
 namespace Altus.Suffūz.Collections
 {
+    public class Heap<TValue> : Heap, IEnumerable<TValue>
+    {
+        public Heap() : base()
+        {
+        }
+
+        public Heap(string filePath, int maxSize = 1024 * 1024 * 1024) : base(filePath, maxSize)
+        {
+
+        }
+
+        protected override void CheckTypeTable(Type type)
+        {
+            if (type != typeof(TValue))
+                throw new InvalidCastException(string.Format("The type {0} is not supported by this Heap.", type.Name));
+        }
+
+        public virtual ulong Write(TValue item)
+        {
+            return base.Write(item);
+        }
+
+        public virtual ulong OverwriteUnsafe(TValue item, ulong key)
+        {
+            return base.OverwriteUnsafe(item, key);
+        }
+
+        public virtual new TValue Read(ulong key)
+        {
+            return base.Read<TValue>(key);
+        }
+
+        protected override void LoadTypes()
+        {
+            // do nothing - only one type
+        }
+
+        protected override Type GetCodeType(int code)
+        {
+            return typeof(TValue);
+        }
+
+        protected override int GetTypeCode(Type type)
+        {
+            return 1;
+        }
+
+        public new IEnumerator<TValue> GetEnumerator()
+        {
+            var en = base.GetEnumerator();
+            while(en.MoveNext())
+            {
+                yield return (TValue)en.Current;
+            }
+        }
+    }
+
     public unsafe class Heap : CollectionBase
     {
         int HEAD_ROOM;
@@ -21,27 +78,52 @@ namespace Altus.Suffūz.Collections
         const int ITEM_TYPE = 13;
         const int ITEM_DATA = 17;
 
+
+        bool _isInitialized = false;
         private byte* _filePtr;
         private BytePointerAdapter _ptr;
         private ulong _index = 0;
+        System.Collections.Generic.Dictionary<ulong, int> _addresses = new System.Collections.Generic.Dictionary<ulong, int>();
+        System.Collections.Generic.Dictionary<int, Type> _typesByCode = new System.Collections.Generic.Dictionary<int, Type>();
+        System.Collections.Generic.Dictionary<Type, int> _codesByType = new System.Collections.Generic.Dictionary<Type, int>();
 
+        /// <summary>
+        /// Create a new heap using a system generated file location, and DEFAULT_HEAP_SIZE (10Mb)
+        /// </summary>
         public Heap() : base()
         {
         }
-
-        public Heap(string filePath, int maxSize = 1024 * 1024 * 1024) : base(filePath, maxSize)
+        /// <summary>
+        /// Create a new heap using a supplied file path and optional maximum capacity
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <param name="maxSize"></param>
+        public Heap(string filePath, int maxSize = DEFAULT_HEAP_SIZE) : base(filePath, maxSize)
         {
             
         }
 
-        public MemoryMappedViewAccessor MMVA { get; private set; }
-        public bool IsDirty { get; private set; }
-        public FileStream TypesFile { get; private set; }
+        /// <summary>
+        /// Returns the current commited length of the heap in bytes
+        /// </summary>
+        public int Length
+        {
+            get
+            {
+                return Next;
+            }
+        }
 
-        System.Collections.Generic.Dictionary<ulong, int> _addresses = new System.Collections.Generic.Dictionary<ulong, int>();
-        System.Collections.Generic.Dictionary<int, Type> _typesByCode = new System.Collections.Generic.Dictionary<int, Type>();
-        System.Collections.Generic.Dictionary<Type, int> _codesByType = new System.Collections.Generic.Dictionary<Type, int>();
-        public ulong Write(object item)
+        protected MemoryMappedViewAccessor MMVA { get; private set; }
+        protected FileStream TypesFile { get; private set; }
+
+        /// <summary>
+        /// Writes the item into the next available free location on the heap, and returns a key for that location which can be used for 
+        /// subsequent Read, Free and OverwriteUnsafe calls.
+        /// </summary>
+        /// <param name="item"></param>
+        /// <returns></returns>
+        public virtual ulong Write(object item)
         {
             var bytes = GetSerializer(item.GetType()).Serialize(item);
 
@@ -66,7 +148,7 @@ namespace Altus.Suffūz.Collections
                     _ptr.Write(Next + ITEM_ISVALID, true); // record is valid
                     _ptr.Write(Next + ITEM_INDEX, _index); // index
                     _ptr.Write(Next + ITEM_LENGTH, bytes.Length); // length of bytes
-                    _ptr.Write(Next + ITEM_TYPE, _codesByType[itemType]); // type index
+                    _ptr.Write(Next + ITEM_TYPE, GetTypeCode(itemType)); // type index
                     _ptr.Write(Next + ITEM_DATA, bytes); // bytes
                     Last = Next;
                     Next += ITEM_DATA + bytes.Length;
@@ -74,13 +156,48 @@ namespace Altus.Suffūz.Collections
                 }
                 
                 CheckHeadRoom();
-                IsDirty = true;
                 _addresses.Add(_index, Last);
                 return _index;
             }
         }
 
-        public object Read(ulong key)
+        /// <summary>
+        /// Allows the caller to overwrite the address pointed to by key with item.  This call does not do any bounds checking, so 
+        /// it is imperative that the caller is certain that the serialized size of item is exactly the same as the existing item at key, 
+        /// otherwise this call can corrupt the heap.
+        /// </summary>
+        /// <param name="item"></param>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public virtual ulong OverwriteUnsafe(object item, ulong key)
+        {
+            var bytes = GetSerializer(item.GetType()).Serialize(item);
+            var address = _addresses[key];
+
+            lock (SyncRoot)
+            {
+                var itemType = item.GetType();
+                CheckTypeTable(itemType);
+
+                using (var scope = new FlushScope())
+                {
+                    scope.Enlist(this);
+                    _ptr.Write(address + ITEM_ISVALID, true); // record is valid
+                    _ptr.Write(address + ITEM_INDEX, _index); // index
+                    _ptr.Write(address + ITEM_LENGTH, bytes.Length); // length of bytes
+                    _ptr.Write(address + ITEM_TYPE, GetTypeCode(itemType)); // type index
+                    _ptr.Write(address + ITEM_DATA, bytes); // bytes
+                }
+                return key;
+            }
+        }
+
+        /// <summary>
+        /// Reads an item from the heap at the location given by key
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public virtual object Read(ulong key)
         {
             byte[] bytes;
             Type itemType;
@@ -92,19 +209,30 @@ namespace Altus.Suffūz.Collections
                 {
                     var len = _ptr.ReadInt32(address + ITEM_LENGTH);
                     bytes = _ptr.ReadBytes(address + ITEM_DATA, len);
-                    itemType = _typesByCode[_ptr.ReadInt32(address + ITEM_TYPE)];
+                    itemType = GetCodeType(_ptr.ReadInt32(address + ITEM_TYPE));
                 }
                 else return null;
             }
             return GetSerializer(itemType).Deserialize(bytes, itemType);
         }
 
-        public TValue Read<TValue>(ulong key)
+        /// <summary>
+        /// Reads an item from the heap at the location given by key
+        /// </summary>
+        /// <typeparam name="TValue"></typeparam>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public virtual TValue Read<TValue>(ulong key)
         {
             return (TValue)Read(key);
         }
 
-        public void InValidate(ulong key)
+        /// <summary>
+        /// Marks the item at key as being free to be compacted.  Prevents future reading of the item from the heap, but does not 
+        /// actually remove the item from the heap allocation.  Only Compact() will release the freed locations on the heap.
+        /// </summary>
+        /// <param name="key"></param>
+        public virtual void Free(ulong key)
         {
             lock(SyncRoot)
             {
@@ -124,7 +252,11 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        public void Compact()
+        /// <summary>
+        /// Reclaims and compresses the heap to include only those items that have not been freed.  This will also shrink the size of the 
+        /// heap on disk in 64kb chunks.
+        /// </summary>
+        public virtual void Compact()
         {
             lock(SyncRoot)
             {
@@ -183,6 +315,10 @@ namespace Altus.Suffūz.Collections
             }
         }
 
+        /// <summary>
+        /// Enumerates all valid items in the heap.
+        /// </summary>
+        /// <returns></returns>
         public override IEnumerator GetEnumerator()
         {
             lock(SyncRoot)
@@ -194,6 +330,9 @@ namespace Altus.Suffūz.Collections
             }
         }
 
+        /// <summary>
+        /// Forces the heap to flush unwritten contents to disk.
+        /// </summary>
         public override void Flush()
         {
             if (MMVA != null)
@@ -202,7 +341,16 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        bool _isInitialized = false;
+        protected virtual int GetTypeCode(Type type)
+        {
+            return _codesByType[type];
+        }
+
+        protected virtual Type GetCodeType(int code)
+        {
+            return _typesByCode[code];
+        }
+
         protected override void Initialize(bool isNewFile, string filePath, int maxSize)
         {
             if (!_isInitialized)
@@ -224,7 +372,7 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        protected void LoadTypes()
+        protected virtual void LoadTypes()
         {
             lock(SyncRoot)
             {
@@ -245,7 +393,7 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        protected void CreateView()
+        protected virtual void CreateView()
         {
             var size = Math.Min(Next + HEAD_ROOM + HEADER_LENGTH, File.Length);
 
@@ -254,7 +402,7 @@ namespace Altus.Suffūz.Collections
             _ptr = new BytePointerAdapter(ref _filePtr, 0, size);
         }
 
-        protected void LoadIndices()
+        protected virtual void LoadIndices()
         {
             var address = HEADER_LENGTH;
             ulong key;
@@ -275,7 +423,7 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        protected int GetNext(int address, bool isValid)
+        protected virtual int GetNext(int address, bool isValid)
         {
             lock(SyncRoot)
             {
@@ -292,7 +440,7 @@ namespace Altus.Suffūz.Collections
             else return -1;
         }
 
-        protected void UpdateHeaders()
+        protected virtual void UpdateHeaders()
         {
             lock (SyncRoot)
             {
@@ -307,7 +455,7 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        protected void ReadHeaders()
+        protected virtual void ReadHeaders()
         {
             lock (SyncRoot)
             {
@@ -320,7 +468,7 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        protected void CheckTypeTable(Type type)
+        protected virtual void CheckTypeTable(Type type)
         {
             lock(SyncRoot)
             {
@@ -338,7 +486,7 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        protected void CheckHeadRoom()
+        protected virtual void CheckHeadRoom()
         {
             if (MMVA.Capacity - Next < (int)((float)HEAD_ROOM * 0.1f))
             {
@@ -350,7 +498,7 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        protected void ReleaseViewAccessor()
+        protected virtual void ReleaseViewAccessor()
         {
             if (MMVA != null)
             {

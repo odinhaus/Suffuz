@@ -14,11 +14,17 @@ namespace Altus.Suffūz.Collections
 {
     public abstract class CollectionBase : IEnumerable, IDisposable, IFlush
     {
+        static System.Collections.Generic.Dictionary<Type, ISerializer> _serializers = new System.Collections.Generic.Dictionary<Type, ISerializer>();
+        /// <summary>
+        /// Default heap size in bytes (10 Mb)
+        /// </summary>
+        public const int DEFAULT_HEAP_SIZE = 1024 * 1024 * 10;
+
         protected CollectionBase() : this(Path.GetTempFileName())
         {
         }
 
-        protected CollectionBase(string filePath, int maxSize = 1024 * 1024 * 1024)
+        protected CollectionBase(string filePath, int maxSize = DEFAULT_HEAP_SIZE)
         {
             SyncRoot = new object();
             File = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
@@ -51,7 +57,7 @@ namespace Altus.Suffūz.Collections
 
         protected abstract void Initialize(bool isNewFile, string filePath, int maxSize);
 
-        System.Collections.Generic.Dictionary<Type, ISerializer> _serializers = new System.Collections.Generic.Dictionary<Type, ISerializer>();
+
         protected virtual ISerializer GetSerializer(Type itemType)
         {
             ISerializer s;
@@ -77,8 +83,8 @@ namespace Altus.Suffūz.Collections
 
         public int MaximumSize { get; private set; }
         public string FilePath { get; private set; }
-        public FileStream File { get; private set; }
-        public MemoryMappedFile MMF { get; private set; }
+        protected FileStream File { get; private set; }
+        protected MemoryMappedFile MMF { get; private set; }
         public object SyncRoot { get; private set; }
 
         public int First { get; protected set; }
@@ -86,6 +92,7 @@ namespace Altus.Suffūz.Collections
         public int Last { get; protected set; }
 
         public abstract void Flush();
+        public abstract IEnumerator GetEnumerator();
 
         #region IDisposable Members
         bool disposed = false;
@@ -168,8 +175,6 @@ namespace Altus.Suffūz.Collections
         protected virtual void OnDisposeUnmanagedResources()
         {
         }
-
-        public abstract IEnumerator GetEnumerator();
 
         #endregion
     }

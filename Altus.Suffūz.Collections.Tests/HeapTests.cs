@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using System.IO;
 using System.Diagnostics;
@@ -202,7 +203,7 @@ namespace Altus.Suffūz.Collections.Tests
             using (var heap = new Heap(fileName))
             {
                 var address = heap.Write(14);
-                heap.InValidate(address);
+                heap.Free(address);
                 var value = (int)heap.Read(address);
             }
             File.Delete(fileName);
@@ -216,15 +217,15 @@ namespace Altus.Suffūz.Collections.Tests
             using (var heap = new Heap(fileName))
             {
                 var key = heap.Write(14);
-                heap.InValidate(key);
+                heap.Free(key);
                 key = heap.Write(15);
                 key = heap.Write(16);   
                 key = heap.Write(17);
-                heap.InValidate(key);
+                heap.Free(key);
                 key = heap.Write(true);
                 key = heap.Write(new CustomItem() { A = 14, B = "Some crzy text" });
                 key = heap.Write(new CustomItem() { A = 14, B = "Some more crzy text" });
-                heap.InValidate(key);
+                heap.Free(key);
                 var heapSize = heap.Next;
                 heap.Compact();
                 Assert.IsTrue(heap.Read<int>(2) == 15);
@@ -240,7 +241,7 @@ namespace Altus.Suffūz.Collections.Tests
         public void FailsPerfCharacteristicsWithoutFlushScope()
         {
             var fileName = "Heap.loh";
-
+            File.Delete(fileName);
             using (var heap = new Heap(fileName))
             {
                 var sw = new Stopwatch();
@@ -263,6 +264,51 @@ namespace Altus.Suffūz.Collections.Tests
                 var readRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
 
                 Assert.Inconclusive("Write Rate: {0}, Read Rate: {1}", writeRate, readRate);
+            }
+
+            File.Delete(fileName);
+        }
+
+
+        [TestMethod]
+        public void CanLinqToGenericHeap()
+        {
+            var fileName = "Heap.loh";
+            File.Delete(fileName);
+            using (var heap = new Heap<CustomItem>(fileName))
+            {
+                using (var scope = new FlushScope())
+                {
+                    for (int i = 0; i < 10000; i++)
+                    {
+                        heap.Write(new CustomItem() { A = i, B = "Some text" });
+                    }
+                }
+
+                var results = heap.Where(i => i.A < 10);
+                Assert.IsTrue(results.Count() == 10);
+            }
+
+            File.Delete(fileName);
+        }
+
+        [TestMethod]
+        public void CanOverwriteHeapItem()
+        {
+            var fileName = "Heap.loh";
+            File.Delete(fileName);
+            using (var heap = new Heap<CustomItem>(fileName))
+            {
+                var key = heap.Write(new CustomItem() { A = 100, B = "Some text" });
+                var length = heap.Length;
+                var current = heap.Read(key);
+                var key2 = heap.OverwriteUnsafe(new CustomItem() { A = 200, B = "Some text" }, key);
+                var edited = heap.Read(key2);
+                var editedLength = heap.Length;
+
+                Assert.IsTrue(key == key2);
+                Assert.IsTrue(current.A == 100 && edited.A == 200);
+                Assert.IsTrue(length == editedLength);
             }
 
             File.Delete(fileName);
