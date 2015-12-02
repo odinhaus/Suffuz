@@ -34,12 +34,14 @@ namespace Altus.Suffūz
 
         public static X Resolve<X>()
         {
-            return Container.Resolve<X>();
+            try { return Container.Resolve<X>(); }
+            catch { return default(X); }
         }
 
         public static IEnumerable<X> ResolveAll<X>()
         {
-            return Container.ResolveAll<X>();
+            try { return Container.ResolveAll<X>(); }
+            catch { return new X[0]; }
         }
     }
 }
