@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Collections
 {
-    public class PersistentDictionary<TKey, TValue> : PersistentHeap<TValue>, IDictionary<TKey, TValue>
+    public class PersistentDictionary<TKey, TValue> : PersistentHeap<TValue>, IDictionary<TKey, TValue>, IPersistentDictionary<TKey, TValue>
     {
         PersistentHeap<KVP> _keys;
         Dictionary<TKey, KVP> _keyToValueKey;

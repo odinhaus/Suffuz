@@ -48,6 +48,9 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="IPersistentCollection.cs" />
+    <Compile Include="IPersistentDictionary.cs" />
+    <Compile Include="IPersistentHeap.cs" />
     <Compile Include="PersistentCollectionBase.cs" />
     <Compile Include="FlushScope.cs" />
     <Compile Include="PersistentDictionary.cs" />

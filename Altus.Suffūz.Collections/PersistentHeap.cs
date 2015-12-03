@@ -11,7 +11,7 @@ using Altus.Suffūz.Serialization.Binary;
 
 namespace Altus.Suffūz.Collections
 {
-    public class PersistentHeap<TValue> : PersistentHeap, ICollection<TValue>, IEnumerable<TValue>
+    public class PersistentHeap<TValue> : PersistentHeap, ICollection<TValue>, IEnumerable<TValue>, IPersistentHeap<TValue>
     {
         public PersistentHeap() : base()
         {
@@ -67,14 +67,6 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        public bool IsReadOnly
-        {
-            get
-            {
-                return false;
-            }
-        }
-
         void ICollection<TValue>.Add(TValue item)
         {
             this.Write(item);
@@ -108,7 +100,7 @@ namespace Altus.Suffūz.Collections
         }
     }
 
-    public unsafe class PersistentHeap : PersistentCollectionBase
+    public unsafe class PersistentHeap : PersistentCollectionBase, IPersistentHeap
     {
         int HEAD_ROOM;
         const int HEADER_LENGTH = 4 + 4 + 4 + 8;
@@ -173,6 +165,14 @@ namespace Altus.Suffūz.Collections
                 {
                     return _addresses.Keys;
                 }
+            }
+        }
+
+        public bool IsReadOnly
+        {
+            get
+            {
+                return false;
             }
         }
 

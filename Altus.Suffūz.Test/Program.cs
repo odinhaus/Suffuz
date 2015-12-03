@@ -26,8 +26,8 @@ namespace Altus.Suffūz
         static void Main(string[] args)
         {
             //PerfTest();
-            CollectionPerfTest();
-            Console.Read();
+            //CollectionPerfTest();
+            //Console.Read();
             ConfigureApp();
             ConfigureRoutes();
             OpenChannels();

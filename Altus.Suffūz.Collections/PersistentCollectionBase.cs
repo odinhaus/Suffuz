@@ -12,9 +12,10 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Collections
 {
-    public abstract class PersistentCollectionBase : ICollection, IEnumerable, IDisposable, IFlush
+    public abstract class PersistentCollectionBase : ICollection, IEnumerable, IDisposable, IFlush, IPersistentCollection
     {
         static System.Collections.Generic.Dictionary<Type, ISerializer> _serializers = new System.Collections.Generic.Dictionary<Type, ISerializer>();
+        static Dictionary<string, PersistentCollectionBase> _shares = new Dictionary<string, PersistentCollectionBase>();
         /// <summary>
         /// Default heap size in bytes (10 Mb)
         /// </summary>
