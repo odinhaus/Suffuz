@@ -290,6 +290,29 @@ namespace Altus.Suffūz.Collections.Tests
         }
 
         [TestMethod]
+        public void CanAutoGrowHeap()
+        {
+            var fileName = "Heap.loh";
+            File.Delete(fileName);
+            using (var heap = new PersistentHeap<CustomItem>(fileName, 1024))
+            {
+                heap.AutoGrowSize = 1024;
+                using (var scope = new FlushScope())
+                {
+                    for (int i = 0; i < 10000; i++)
+                    {
+                        var size = heap.MaximumSize;
+                        heap.Write(new CustomItem() { A = i, B = "Some text" });
+                        if (heap.MaximumSize > size)
+                            break;
+                    }
+                }
+            }
+
+            File.Delete(fileName);
+        }
+
+        [TestMethod]
         public void CanOverwriteHeapItem()
         {
             var fileName = "Heap.loh";
@@ -308,6 +331,82 @@ namespace Altus.Suffūz.Collections.Tests
                 Assert.IsTrue(length == editedLength);
             }
 
+            File.Delete(fileName);
+        }
+
+        [TestMethod]
+        public void CanOpenMultipleHeapsConcurrently()
+        {
+            var heaps = new List<PersistentHeap<CustomItem>>();
+            var count = 200;
+            for (int i = 0; i < count; i++)
+            {
+                heaps.Add(new PersistentHeap<CustomItem>("temp" + i, 1024 * 64));
+            }
+
+            var key0 = heaps[0].Write(new CustomItem());
+            var keyLast = heaps.Last().Write(new CustomItem());
+
+            using (var scope = new FlushScope())
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    heaps[i].Write(new CustomItem());
+                }
+            }
+
+            for (int i = 0; i < count; i++)
+            {
+                heaps[i].Dispose();
+            }
+        }
+
+
+        [TestMethod]
+        public void CanRandomAccessLargeHeapQuickly()
+        {
+            var fileName = "Heap.loh";
+            File.Delete(fileName);
+            using (var heap = new PersistentHeap<ComplexPOCO>(fileName))
+            {
+                heap.AutoGrowSize = 1024 * 1024;
+                var simplePOCO1 = new SimplePOCO()
+                {
+                    Q = "some POCO1"
+                };
+                var simplePOCO2 = new SimplePOCO()
+                {
+                    Q = "some POCO2"
+                };
+                var complexPOCO = new ComplexPOCO()
+                {
+                    SimplePOCO = simplePOCO1,
+                    ListOfInt = new List<int> { 1, 2, 3, 4 },
+                    CollectionOfSimplePOCO = new System.Collections.ObjectModel.ObservableCollection<SimplePOCO> { simplePOCO1, simplePOCO2 },
+                    IEnumerableOfSimplePOCO = new SimplePOCO[] { simplePOCO1, simplePOCO2 }
+                };
+
+                for(int i = 0; i < 10000; i++)
+                {
+                    heap.Write(complexPOCO);
+                }
+            }
+
+            var sw = new Stopwatch();
+            var rnd = new Random(1000);
+            var readRate = 0f;
+            using (var heap = new PersistentHeap<ComplexPOCO>(fileName))
+            {
+                var count = 10000f;
+                sw.Start();
+                for(int i = 0; i < count; i++)
+                {
+                    heap.Read((ulong)rnd.Next(1, 10000));
+                }
+                sw.Stop();
+                readRate = count / (sw.ElapsedMilliseconds / 1000f);
+            }
+            Assert.Inconclusive("Read Rate: {0}", readRate);
             File.Delete(fileName);
         }
     }

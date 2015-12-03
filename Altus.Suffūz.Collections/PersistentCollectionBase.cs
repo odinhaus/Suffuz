@@ -67,6 +67,7 @@ namespace Altus.Suffūz.Collections
         protected abstract void Initialize(bool isNewFile, string filePath, int maxSize);
         public abstract void Clear();
         public abstract void Clear(bool compact);
+        public abstract void Compact();
 
 
         protected virtual ISerializer GetSerializer(Type itemType)
@@ -97,6 +98,15 @@ namespace Altus.Suffūz.Collections
         protected FileStream File { get; private set; }
         protected MemoryMappedFile MMF { get; private set; }
         public object SyncRoot { get; private set; }
+        public virtual int Length { get { return Next; } }
+        /// <summary>
+        /// Setting this to a non-zero value allows the collection to automatically grow in size when an OutOfMemory condition occurs.
+        /// </summary>
+        public int AutoGrowSize { get; set; }
+        /// <summary>
+        /// Setting this value to true will cause the collection to be compacted first before it is Grown.
+        /// </summary>
+        public bool CompactBeforeGrow { get; set; }
 
         public abstract int Count { get; }
 
@@ -125,15 +135,26 @@ namespace Altus.Suffūz.Collections
 
         public virtual void Grow(int capacityToAdd)
         {
-            if (FlushScope.Current != null)
+            //if (FlushScope.Current != null)
+            //{
+            //    throw new InvalidOperationException("You cannot call Grow inside a pending FlushScope.");
+            //}
+
+            if (CompactBeforeGrow)
             {
-                throw new InvalidOperationException("You cannot call Grow inside a pending FlushScope.");
+                var currentSize = Next;
+                Compact();
+                var delta = currentSize - Next;
+                capacityToAdd -= delta;
             }
 
-            lock(SyncRoot)
+            if (capacityToAdd > 0)
             {
-                OnDisposeManagedResources();
-                Initialize(FilePath, MaximumSize + capacityToAdd);
+                lock (SyncRoot)
+                {
+                    OnDisposeManagedResources();
+                    Initialize(FilePath, MaximumSize + capacityToAdd);
+                }
             }
         }
 

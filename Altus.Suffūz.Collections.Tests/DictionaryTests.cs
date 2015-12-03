@@ -314,5 +314,69 @@ namespace Altus.Suffūz.Collections.Tests
 
             Assert.Inconclusive("Write Rate: {0}, Read Rate: {1}, Load Rate: {2}, Enumerate Rate: {3}", writeRate, readRate, loadRate, enumerateRate);
         }
+
+        [TestMethod]
+        public void CanShareHeap()
+        {
+            var fileName = "Dictionary.dic";
+            var keyName1 = Path.GetFileNameWithoutExtension(fileName) + "_keys1.bin";
+            var keyName2 = Path.GetFileNameWithoutExtension(fileName) + "_keys2.bin";
+            var keyName3 = Path.GetFileNameWithoutExtension(fileName) + "_keys3.bin";
+            var heapName = "Heap.loh";
+            File.Delete(fileName);
+            File.Delete(keyName1);
+            File.Delete(keyName2);
+            File.Delete(keyName3);
+            File.Delete(heapName);
+
+            float writeRate, readRate;
+            var sw = new Stopwatch();
+
+            using (var heap = new PersistentHeap(heapName))
+            {
+                using (PersistentDictionary<string, CustomItem>
+                    dictionary1 = new PersistentDictionary<string, CustomItem>(keyName1, heap),
+                    dictionary2 = new PersistentDictionary<string, CustomItem>(keyName2, heap))
+                {
+                    using (PersistentDictionary<string, int>
+                        dictionary3 = new PersistentDictionary<string, int>(keyName3, heap))
+                    {
+                        var count = 10000f;
+                        sw.Start();
+                        using (var scope = new FlushScope())
+                        {
+                            for (int i = 0; i < count; i++)
+                            {
+                                dictionary1.Add(i.ToString(), new CustomItem() { A = i, B = "1 some text" });
+                                dictionary2.Add(i.ToString(), new CustomItem() { A = i, B = "1 some text" });
+                                dictionary3.Add(i.ToString(), i);
+                            }
+                        }
+                        sw.Stop();
+                        writeRate = (3f * count) / (sw.ElapsedMilliseconds / 1000f);
+                        sw.Reset();
+
+                        sw.Start();
+                        for (int i = 0; i < count; i++)
+                        {
+                            var d1 = dictionary1[i.ToString()];
+                            var d2 = dictionary2[i.ToString()];
+                            var d3 = dictionary3[i.ToString()];
+                        }
+                        sw.Stop();
+                        readRate = (3f * count) / (sw.ElapsedMilliseconds / 1000f);
+                        sw.Reset();
+                    }
+                }
+            }
+
+            File.Delete(fileName);
+            File.Delete(keyName1);
+            File.Delete(keyName2);
+            File.Delete(keyName3);
+            File.Delete(heapName);
+
+            Assert.Inconclusive("Write Rate: {0}, Read Rate: {1}", writeRate, readRate);
+        }
     }
 }

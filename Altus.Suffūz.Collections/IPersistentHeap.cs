@@ -7,7 +7,6 @@ namespace Altus.Suffūz.Collections
     {
         IEnumerable<ulong> AllKeys { get; }
         int Length { get; }
-        void Compact();
         bool Contains(object item, out ulong key);
         void Free(ulong key);
         ulong OverwriteUnsafe(object item, ulong key);

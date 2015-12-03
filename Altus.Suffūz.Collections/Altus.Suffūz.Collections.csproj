@@ -48,11 +48,13 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="IManagePersistentCollections.cs" />
     <Compile Include="IPersistentCollection.cs" />
     <Compile Include="IPersistentDictionary.cs" />
     <Compile Include="IPersistentHeap.cs" />
     <Compile Include="PersistentCollectionBase.cs" />
     <Compile Include="FlushScope.cs" />
+    <Compile Include="PersistentCollectionManager.cs" />
     <Compile Include="PersistentDictionary.cs" />
     <Compile Include="PersistentHeap.cs" />
     <Compile Include="IFlush.cs" />

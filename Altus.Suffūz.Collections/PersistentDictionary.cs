@@ -9,28 +9,41 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Collections
 {
-    public class PersistentDictionary<TKey, TValue> : PersistentHeap<TValue>, IDictionary<TKey, TValue>, IPersistentDictionary<TKey, TValue>
+    public class PersistentDictionary<TKey, TValue> : IDictionary<TKey, TValue>, IPersistentDictionary<TKey, TValue>
     {
         PersistentHeap<KVP> _keys;
+        IPersistentHeap _values;
         Dictionary<TKey, KVP> _keyToValueKey;
 
         public PersistentDictionary() : base()
         {
         }
 
-        public PersistentDictionary(string filePath, int maxSize = 1024 * 1024 * 10, bool allowOverwrites = false) : base(filePath, maxSize)
+        public PersistentDictionary(string filePath, int maxSize = 1024 * 1024 * 10, bool allowOverwrites = false)
         {
             AllowOverwrites = allowOverwrites;
+            Initialize(true, filePath, maxSize);
         }
 
-        protected override void Initialize(bool isNewFile, string filePath, int maxSize)
+        public PersistentDictionary(string indexFilePath, IPersistentHeap valueHeap, bool allowOverwrites = false)
         {
-            var keyFile = Path.GetFileNameWithoutExtension(filePath) + "_keys";
-            _keys = new PersistentHeap<KVP>(Path.ChangeExtension(keyFile, "bin"), maxSize);
+            AllowOverwrites = allowOverwrites;
+            _values = valueHeap;
+            Initialize(false, indexFilePath, valueHeap.MaximumSize);
+        }
+
+        protected void Initialize(bool isNewFile, string filePath, int maxSize)
+        {
+            OwnsHeap = isNewFile;
+            var keyFile = isNewFile ? Path.ChangeExtension(Path.GetFileNameWithoutExtension(filePath) + "_keys", "bin") : filePath;
+            _keys = new PersistentHeap<KVP>(keyFile, maxSize);
+            if (isNewFile)
+            {
+                _values = new PersistentHeap<TValue>(filePath, maxSize);
+            }
             _keyToValueKey = new Dictionary<TKey, KVP>();
 
             LoadDictionary();
-            base.Initialize(isNewFile, filePath, maxSize);
         }
 
         private void LoadDictionary()
@@ -114,6 +127,26 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         public bool AllowOverwrites { get; private set; }
 
+        public object SyncRoot { get { return _values.SyncRoot; } }
+
+        public int Count { get { lock (SyncRoot) { return _keyToValueKey.Count; } } }
+
+        public bool IsReadOnly { get { return false; } }
+
+        public int AutoGrowSize { get; set; }
+
+        public bool CompactBeforeGrow { get; set; }
+
+        public string FilePath { get; private set; }
+
+        public int MaximumSize { get { return _values.MaximumSize; } }
+
+        public bool IsSynchronized { get { return true; } }
+
+        public int Length { get { return _values.Length; } }
+
+        public bool OwnsHeap { get; private set; }
+
         public void Add(KeyValuePair<TKey, TValue> item)
         {
             Add(item.Key, item.Value);
@@ -141,16 +174,27 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        public override void Clear()
+        public virtual void Clear()
         {
-            _keys.Clear();
-            base.Clear();
+            Clear(false);
         }
 
-        public override void Clear(bool compact)
+        public virtual void Clear(bool compact)
         {
+            if (OwnsHeap)
+            {
+                _values.Clear(compact);
+            }
+            else
+            {
+                foreach (var key in _keyToValueKey.Values)
+                {
+                    Free(key.ValueKey);
+                }
+            }
+
             _keys.Clear(compact);
-            base.Clear(compact);
+            _keyToValueKey.Clear();
         }
 
         public bool Contains(KeyValuePair<TKey, TValue> item)
@@ -218,25 +262,73 @@ namespace Altus.Suffūz.Collections
             return false;
         }
 
-        public override void Compact()
+        
+
+        public virtual void Compact()
         {
-            base.Compact();
+            if (_values != null)
+            {
+                _values.Compact();
+            }
             if (_keys != null)
             {
                 _keys.Compact();
             }
         }
 
-        public override void Flush()
+        public virtual void Flush()
         {
-            base.Flush();
+            if (_values != null)
+            {
+                _values.Flush();
+            }
             if (_keys != null)
             {
                 _keys.Flush();
             }
         }
 
-        IEnumerator<KeyValuePair<TKey, TValue>> IEnumerable<KeyValuePair<TKey, TValue>>.GetEnumerator()
+        public void Grow(int capacityToAdd)
+        {
+            _values.Grow(capacityToAdd);
+            _keys.Grow(capacityToAdd);
+        }
+
+        public void CopyTo(Array array, int index)
+        {
+            var i = 0;
+            foreach(var kvp in this)
+            {
+                array.SetValue(kvp, index + i);
+            }
+        }
+
+        protected virtual TValue Read(ulong key)
+        {
+            return _values.Read<TValue>(key);
+        }
+
+        protected virtual ulong OverwriteUnsafe(TValue value, ulong key)
+        {
+            return _values.OverwriteUnsafe(value, key);
+        }
+
+        protected virtual ulong Write(TValue value)
+        {
+            return _values.Write(value);
+        }
+
+        protected virtual void Free(ulong key)
+        {
+            _values.Free(key);
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return this.GetEnumerator();
+        }
+
+        public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
         {
             var en = _keyToValueKey.GetEnumerator();
             while(en.MoveNext())
@@ -245,7 +337,66 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        protected override void OnDisposeManagedResources()
+        #region IDisposable Members
+        bool disposed = false;
+
+        // Implement IDisposable.
+        // Do not make this method virtual.
+        // A derived class should not be able to override this method.
+        public void Dispose()
+        {
+            Dispose(true);
+            // This object will be cleaned up by the Dispose method.
+            // Therefore, you should call GC.SupressFinalize to
+            // take this object off the finalization queue 
+            // and prevent finalization code for this object
+            // from executing a second time.
+            GC.SuppressFinalize(this);
+        }
+
+        public event EventHandler Disposing;
+        public event EventHandler Disposed;
+        //========================================================================================================//
+        // Dispose(bool disposing) executes in two distinct scenarios.
+        // If disposing equals true, the method has been called directly
+        // or indirectly by a user's code. Managed and unmanaged resources
+        // can be disposed.
+        // If disposing equals false, the method has been called by the 
+        // runtime from inside the finalizer and you should not reference 
+        // other objects. Only unmanaged resources can be disposed.
+        private void Dispose(bool disposing)
+        {
+            // Check to see if Dispose has already been called.
+            if (!this.disposed)
+            {
+                if (this.Disposing != null)
+                    this.Disposing(this, new EventArgs());
+                // If disposing equals true, dispose all managed 
+                // and unmanaged resources.
+                if (disposing)
+                {
+                    // Dispose subclass managed resources.
+                    this.OnDisposeManagedResources();
+                }
+
+                // Call the appropriate methods to clean up 
+                // unmanaged resources here.
+                // If disposing is false, 
+                // only the following code is executed.
+                this.OnDisposeUnmanagedResources();
+                if (this.Disposed != null)
+                    this.Disposed(this, new EventArgs());
+            }
+            disposed = true;
+        }
+
+        /// <summary>
+        /// Dispose unmanaged (native resources)
+        /// </summary>
+        protected virtual void OnDisposeUnmanagedResources()
+        {
+        }
+        protected virtual void OnDisposeManagedResources()
         {
             if (_keys != null)
             {
@@ -253,14 +404,22 @@ namespace Altus.Suffūz.Collections
                 _keys = null;
             }
 
+            if (_values != null)
+            {
+                _values.Dispose();
+                _values = null;
+            }
+
             if (_keyToValueKey != null)
             {
                 _keyToValueKey.Clear();
                 _keyToValueKey = null;
             }
-
-            base.OnDisposeManagedResources();
         }
+        #endregion
+
+
+
 
         public class KVP
         {

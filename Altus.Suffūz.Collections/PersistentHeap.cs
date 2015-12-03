@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Collections;
 using Altus.Suffūz.Serialization.Binary;
+using System.Threading;
 
 namespace Altus.Suffūz.Collections
 {
@@ -41,11 +42,6 @@ namespace Altus.Suffūz.Collections
         public virtual new TValue Read(ulong key)
         {
             return base.Read<TValue>(key);
-        }
-
-        protected override void LoadTypes()
-        {
-            // do nothing - only one type
         }
 
         protected override Type GetCodeType(int code)
@@ -110,14 +106,16 @@ namespace Altus.Suffūz.Collections
         const int ITEM_TYPE = 13;
         const int ITEM_DATA = 17;
 
+        static int COUNTER = 0;
+        static object GlobalSyncRoot = new object();
 
         bool _isInitialized = false;
         private byte* _filePtr;
         private BytePointerAdapter _ptr;
         private ulong _index = 0;
         System.Collections.Generic.Dictionary<ulong, int> _addresses = new System.Collections.Generic.Dictionary<ulong, int>();
-        System.Collections.Generic.Dictionary<int, Type> _typesByCode = new System.Collections.Generic.Dictionary<int, Type>();
-        System.Collections.Generic.Dictionary<Type, int> _codesByType = new System.Collections.Generic.Dictionary<Type, int>();
+        static System.Collections.Generic.Dictionary<int, Type> _typesByCode = new System.Collections.Generic.Dictionary<int, Type>();
+        static System.Collections.Generic.Dictionary<Type, int> _codesByType = new System.Collections.Generic.Dictionary<Type, int>();
 
         /// <summary>
         /// Create a new heap using a system generated file location, and DEFAULT_HEAP_SIZE (10Mb)
@@ -132,18 +130,7 @@ namespace Altus.Suffūz.Collections
         /// <param name="maxSize"></param>
         public PersistentHeap(string filePath, int maxSize = DEFAULT_HEAP_SIZE) : base(filePath, maxSize)
         {
-            
-        }
-
-        /// <summary>
-        /// Returns the current commited length of the heap in bytes
-        /// </summary>
-        public int Length
-        {
-            get
-            {
-                return Next;
-            }
+            Interlocked.Increment(ref COUNTER);
         }
 
         public override int Count
@@ -177,7 +164,7 @@ namespace Altus.Suffūz.Collections
         }
 
         protected MemoryMappedViewAccessor MMVA { get; private set; }
-        protected FileStream TypesFile { get; private set; }
+        protected static FileStream TypesFile { get; private set; }
 
         /// <summary>
         /// Frees all items in the heap without compacting the heap
@@ -234,7 +221,14 @@ namespace Altus.Suffūz.Collections
                 }
                 else if (Next + ITEM_DATA + bytes.Length > File.Length)
                 {
-                    throw new OutOfMemoryException("There is no more room at the end of the heap to process this request.  Try compacting the heap to free up more room.");
+                    if (AutoGrowSize > 0)
+                    {
+                        this.Grow(AutoGrowSize);
+                    }
+                    else
+                    {
+                        throw new OutOfMemoryException("There is no more room at the end of the heap to process this request.  Try compacting the heap to free up more room.");
+                    }
                 }
 
                 _index++;
@@ -358,7 +352,7 @@ namespace Altus.Suffūz.Collections
         /// Reclaims and compresses the heap to include only those items that have not been freed.  This will also shrink the size of the 
         /// heap on disk in 64kb chunks.
         /// </summary>
-        public virtual void Compact()
+        public override void Compact()
         {
             lock(SyncRoot)
             {
@@ -474,7 +468,14 @@ namespace Altus.Suffūz.Collections
             if (!_isInitialized)
             {
                 HEAD_ROOM = (int)((float)maxSize * 0.2f);
-                TypesFile = new FileStream(Path.ChangeExtension(filePath, "types"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+                lock(GlobalSyncRoot)
+                {
+                    if (TypesFile == null)
+                    {
+                        TypesFile = new FileStream("Type_List.bin", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+                        LoadTypes();
+                    }
+                }
 
                 ReadHeaders();
                 if (Next == 0)
@@ -484,15 +485,14 @@ namespace Altus.Suffūz.Collections
 
                 CreateView();
                 LoadIndices();
-                LoadTypes();
                 UpdateHeaders();
                 _isInitialized = true;
             }
         }
 
-        protected virtual void LoadTypes()
+        protected static void LoadTypes()
         {
-            lock(SyncRoot)
+            lock(GlobalSyncRoot)
             {
                 TypesFile.Seek(0, SeekOrigin.Begin);
                 _typesByCode.Clear();
@@ -635,15 +635,17 @@ namespace Altus.Suffūz.Collections
 
             ReleaseViewAccessor();
 
-            if (TypesFile != null)
-            {
-                TypesFile.Flush();
-                TypesFile.Close();
-                TypesFile.Dispose();
-                TypesFile = null;
-            }
-
             _addresses.Clear();
+
+            lock(GlobalSyncRoot)
+            {
+                if (Interlocked.Decrement(ref COUNTER) == 0)
+                {
+                    TypesFile.Flush();
+                    TypesFile.Dispose();
+                    TypesFile = null;
+                }
+            }
 
             base.OnDisposeManagedResources();
         }

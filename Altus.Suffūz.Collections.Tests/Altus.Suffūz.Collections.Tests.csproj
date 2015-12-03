@@ -52,11 +52,13 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="ComplexPOCO.cs" />
     <Compile Include="CustomItem.cs" />
     <Compile Include="DictionaryTests.cs" />
     <Compile Include="ListTests.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="HeapTests.cs" />
+    <Compile Include="SimplePOCO.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Altus.Suffūz.Collections\Altus.Suffūz.Collections.csproj">
