@@ -17,7 +17,7 @@ namespace Altus.Suffūz
     {
         public static TResponse Execute<TRequest, TResponse>(this Get<TRequest, TResponse> request, int timeout = -1, params string[] recipients)
         {
-            var channelService = App.Resolve<IChannelService>();
+            var channelService = App.ResolveAll<IChannelService>().First(c => c.CanCreate(request.ChannelName));
             var channel = channelService.Create(request.ChannelName);
             if (recipients == null || recipients.Length == 0)
             {
@@ -88,7 +88,7 @@ namespace Altus.Suffūz
 
             public IEnumerable<TResponse> Execute(int timeout = -1, params string[] recipients)
             {
-                var channelService = App.Resolve<IChannelService>();
+                var channelService = App.ResolveAll<IChannelService>().First(c => c.CanCreate(_request.ChannelName));
                 var channel = channelService.Create(_request.ChannelName);
                 if (recipients == null || recipients.Length == 0)
                 {
@@ -139,7 +139,7 @@ namespace Altus.Suffūz
 
             public TResponse Execute(int timeout = -1, params string[] recipients)
             {
-                var channelService = App.Resolve<IChannelService>();
+                var channelService = App.ResolveAll<IChannelService>().First(c => c.CanCreate(_request.ChannelName));
                 var channel = channelService.Create(_request.ChannelName);
                 if (recipients == null || recipients.Length == 0)
                 {

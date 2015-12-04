@@ -105,5 +105,19 @@ namespace Altus.Suffūz.Serialization
                 return ToString(s.Serialize(instance));
             }
         }
+
+        public void SetSerializer<TObject, TSerializer>(string format) where TSerializer : ISerializer<TObject>, new()
+        {
+            SetSerializer(typeof(TObject), typeof(TSerializer), format);
+        }
+
+        public void SetSerializer(Type objectType, Type serializerType, string format)
+        {
+            lock(_serializers)
+            {
+                string key = format + "::" + objectType.AssemblyQualifiedName;
+                _serializers[key] = Activator.CreateInstance(serializerType) as ISerializer;
+            }
+        }
     }
 }

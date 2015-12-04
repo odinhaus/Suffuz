@@ -10,5 +10,7 @@ namespace Altus.Suffūz.Collections
     {
         TCollection GetOrCreate<TCollection>(string fileName, Func<string, TCollection> creator) 
             where TCollection : IPersistentCollection;
+
+        IPersistentHeap GlobalHeap { get; }
     }
 }

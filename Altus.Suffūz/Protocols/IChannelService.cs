@@ -10,5 +10,6 @@ namespace Altus.Suffūz.Protocols
     {
         IChannel Create(string channelName);
         ServiceLevels AvailableServiceLevels { get; }
+        bool CanCreate(string channelName);
     }
 }

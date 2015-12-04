@@ -60,6 +60,16 @@ namespace Altus.Suffūz.Collections
             return 1;
         }
 
+        ISerializer _serializer = null;
+        protected override ISerializer GetSerializer(Type itemType)
+        {
+            if (_serializer == null)
+            {
+                _serializer = base.GetSerializer(itemType);
+            }
+            return _serializer;
+        }
+
         public new IEnumerator<TValue> GetEnumerator()
         {
             var en = base.GetEnumerator();
@@ -405,45 +415,48 @@ namespace Altus.Suffūz.Collections
                     var delta = 0;
                     var block = 0;
                     First = Last = 0;
-                    while (address != -1)
+                    using (var scope = new FlushScope())
                     {
-                        address = GetNext(address, false); // first deleted block address
-                        if (address > 0)
+                        while (address != -1)
                         {
-                            // get next valid address after deleted address
-                            var nextValidStart = GetNext(address, true);
-                            if (nextValidStart == -1)
+                            address = GetNext(address, false); // first deleted block address
+                            if (address > 0)
                             {
-                                // if -1, we don't have any valid addresses,
-                                // so there's no data copying to do
-                                // just wipe it
-                                // but we need to include the length of the final item
-                                Next = address;
-                                break;
-                            }
-                            else
-                            {
-                                // get next invalid address after next valid address
-                                var nextInvalidStart = GetNext(nextValidStart, false);
-                                if (nextInvalidStart == -1)
+                                // get next valid address after deleted address
+                                var nextValidStart = GetNext(address, true);
+                                if (nextValidStart == -1)
                                 {
-                                    // we're compacted all the way to the end, so set to Capacity
-                                    nextInvalidStart = Next;
+                                    // if -1, we don't have any valid addresses,
+                                    // so there's no data copying to do
+                                    // just wipe it
+                                    // but we need to include the length of the final item
+                                    Next = address;
+                                    break;
                                 }
+                                else
+                                {
+                                    // get next invalid address after next valid address
+                                    var nextInvalidStart = GetNext(nextValidStart, false);
+                                    if (nextInvalidStart == -1)
+                                    {
+                                        // we're compacted all the way to the end, so set to Capacity
+                                        nextInvalidStart = Next;
+                                    }
 
-                                delta = nextValidStart - address; // distance block will move
-                                block = nextInvalidStart - nextValidStart; // length of block to move
-                                                                           // now move the block up
-                                for (int i = 0; i < block; i++)
-                                {
-                                    _ptr.Write(address + i, _ptr.ReadByte(address + delta + i));
+                                    delta = nextValidStart - address; // distance block will move
+                                    block = nextInvalidStart - nextValidStart; // length of block to move
+                                                                               // now move the block up
+                                    for (int i = 0; i < block; i++)
+                                    {
+                                        _ptr.Write(address + i, _ptr.ReadByte(address + delta + i));
+                                    }
+                                    // invalidate delta block
+                                    _ptr.Write(address + block + ITEM_ISVALID, false);
+                                    _ptr.Write(address + block + ITEM_INDEX, (ulong)0);
+                                    _ptr.Write(address + block + ITEM_TYPE, 0);
+                                    _ptr.Write(address + block + ITEM_LENGTH, delta - ITEM_DATA);
+                                    // repeat, now with valid data at address
                                 }
-                                // invalidate delta block
-                                _ptr.Write(address + block + ITEM_ISVALID, false);
-                                _ptr.Write(address + block + ITEM_INDEX, (ulong)0);
-                                _ptr.Write(address + block + ITEM_TYPE, 0);
-                                _ptr.Write(address + block + ITEM_LENGTH, delta - ITEM_DATA);
-                                // repeat, now with valid data at address
                             }
                         }
                     }

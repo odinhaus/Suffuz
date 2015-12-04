@@ -10,6 +10,8 @@ namespace Altus.Suffūz.Serialization
     {
         ISerializer<T> GetSerializer<T>(string format);
         ISerializer GetSerializer(Type type, string format);
+        void SetSerializer<TObject, TSerializer>(string format) where TSerializer : ISerializer<TObject>, new();
+        void SetSerializer(Type objectType, Type serializerType, string format);
         Encoding TextEncoding { get; set; }
     }
 }

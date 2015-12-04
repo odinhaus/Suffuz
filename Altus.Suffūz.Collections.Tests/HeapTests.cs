@@ -5,6 +5,7 @@ using System.IO;
 using System.Diagnostics;
 using System.Collections.Generic;
 using Altus.Suffūz.Collections.IO;
+using Altus.Suffūz.Serialization.Binary;
 
 namespace Altus.Suffūz.Collections.Tests
 {
@@ -232,6 +233,40 @@ namespace Altus.Suffūz.Collections.Tests
                 Assert.IsTrue(heapSize - heap.Length == 84);
             }
             File.Delete(fileName);
+        }
+
+        [TestMethod]
+        public void CanCompact500MbHeap()
+        {
+            var fileName = "Heap.loh";
+            File.Delete(fileName);
+            var rate = 0f;
+            var sw = new Stopwatch();
+            var count = 100000; // 1024 * 1024 * 500 / size;
+            ulong key = 0;
+            using (var heap = new PersistentHeap<byte[]>(fileName, 1024 * 1024 * 80 + 20 ))
+            {
+                heap.AutoGrowSize = 1024 * 1024;
+                using (var scope = new FlushScope())
+                {
+                    for(int i = 0; i < count; i++)
+                    {
+                        key = heap.Add(new byte[750]);
+                        if (i % 3 != 0)
+                        {
+                            heap.Free(key);
+                        }
+                    }
+                }
+                
+                sw.Start();
+                heap.Compact();
+                sw.Stop();
+                rate = ((float)count * 2f / 3f) / (sw.ElapsedMilliseconds / 1000f);
+            }
+
+            File.Delete(fileName);
+            Assert.Inconclusive("Compact Rate: {0}, Time: {1}", rate, sw.ElapsedMilliseconds);
         }
 
         [TestMethod]
