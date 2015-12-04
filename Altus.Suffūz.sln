@@ -13,8 +13,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffūz.Observables",
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffūz.Observables.Tests", "Altus.Suffūz.Observables.Tests\Altus.Suffūz.Observables.Tests.csproj", "{40289EEE-D806-48E5-BDC9-BDEB59F7B09C}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffūz.Collections", "Altus.Suffūz.Collections\Altus.Suffūz.Collections.csproj", "{EABD0B1C-6437-4F9A-A0A9-E8D893E45629}"
-EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffūz.Collections.Tests", "Altus.Suffūz.Collections.Tests\Altus.Suffūz.Collections.Tests.csproj", "{DE4F7C19-7C80-497A-AF21-A30558D9091B}"
 EndProject
 Global
@@ -43,10 +41,6 @@ Global
 		{40289EEE-D806-48E5-BDC9-BDEB59F7B09C}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{40289EEE-D806-48E5-BDC9-BDEB59F7B09C}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{40289EEE-D806-48E5-BDC9-BDEB59F7B09C}.Release|Any CPU.Build.0 = Release|Any CPU
-		{EABD0B1C-6437-4F9A-A0A9-E8D893E45629}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{EABD0B1C-6437-4F9A-A0A9-E8D893E45629}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{EABD0B1C-6437-4F9A-A0A9-E8D893E45629}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{EABD0B1C-6437-4F9A-A0A9-E8D893E45629}.Release|Any CPU.Build.0 = Release|Any CPU
 		{DE4F7C19-7C80-497A-AF21-A30558D9091B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{DE4F7C19-7C80-497A-AF21-A30558D9091B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{DE4F7C19-7C80-497A-AF21-A30558D9091B}.Release|Any CPU.ActiveCfg = Release|Any CPU

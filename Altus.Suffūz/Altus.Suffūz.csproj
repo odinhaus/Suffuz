@@ -46,6 +46,26 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App.cs" />
+    <Compile Include="Collections\FlushScope.cs" />
+    <Compile Include="Collections\IFlush.cs" />
+    <Compile Include="Collections\IManagePersistentCollections.cs" />
+    <Compile Include="Collections\IO\BytePointerAdapter.cs" />
+    <Compile Include="Collections\IO\MemoryMappedViewAccessorEx.cs" />
+    <Compile Include="Collections\IO\SparseFile.cs" />
+    <Compile Include="Collections\IO\StreamEx.cs" />
+    <Compile Include="Collections\IPersistentCollection.cs" />
+    <Compile Include="Collections\IPersistentDictionary.cs" />
+    <Compile Include="Collections\IPersistentHeap.cs" />
+    <Compile Include="Collections\IPersistentList.cs" />
+    <Compile Include="Collections\IPersistentQueue.cs" />
+    <Compile Include="Collections\IPersistentStack.cs" />
+    <Compile Include="Collections\PersistentCollectionBase.cs" />
+    <Compile Include="Collections\PersistentCollectionManager.cs" />
+    <Compile Include="Collections\PersistentDictionary.cs" />
+    <Compile Include="Collections\PersistentHeap.cs" />
+    <Compile Include="Collections\PersistentList.cs" />
+    <Compile Include="Collections\PersistentQueue.cs" />
+    <Compile Include="Collections\PersistentStack.cs" />
     <Compile Include="CostFunctions.cs" />
     <Compile Include="CurrentTime.cs" />
     <Compile Include="DependencyInjection\IResolveTypes.cs" />

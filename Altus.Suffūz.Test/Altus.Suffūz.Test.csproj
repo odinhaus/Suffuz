@@ -77,10 +77,6 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\Altus.Suffūz.Collections\Altus.Suffūz.Collections.csproj">
-      <Project>{eabd0b1c-6437-4f9a-a0a9-e8d893e45629}</Project>
-      <Name>Altus.Suffūz.Collections</Name>
-    </ProjectReference>
     <ProjectReference Include="..\Altus.Suffūz\Altus.Suffūz.csproj">
       <Project>{155e27ad-91ee-4d31-bf4b-4a215324fbb2}</Project>
       <Name>Altus.Suffūz</Name>
