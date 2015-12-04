@@ -52,6 +52,9 @@
     <Compile Include="IPersistentCollection.cs" />
     <Compile Include="IPersistentDictionary.cs" />
     <Compile Include="IPersistentHeap.cs" />
+    <Compile Include="IPersistentList.cs" />
+    <Compile Include="IPersistentQueue.cs" />
+    <Compile Include="IPersistentStack.cs" />
     <Compile Include="PersistentCollectionBase.cs" />
     <Compile Include="FlushScope.cs" />
     <Compile Include="PersistentCollectionManager.cs" />
@@ -63,6 +66,8 @@
     <Compile Include="IO\SparseFile.cs" />
     <Compile Include="IO\StreamEx.cs" />
     <Compile Include="PersistentList.cs" />
+    <Compile Include="PersistentStack.cs" />
+    <Compile Include="PersistentQueue.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>

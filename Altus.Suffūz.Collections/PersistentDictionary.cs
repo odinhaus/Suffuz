@@ -165,11 +165,11 @@ namespace Altus.Suffūz.Collections
                 {
                     Key = key
                 };
-                var keyKey = _keys.Write(kvp);
+                var keyKey = _keys.Add(kvp);
                 kvp.KeyKey = keyKey;
                 var valueKey = Write(value);
                 kvp.ValueKey = valueKey;
-                _keys.OverwriteUnsafe(kvp, keyKey);
+                _keys.WriteUnsafe(kvp, keyKey);
                 _keyToValueKey.Add(key, kvp);
             }
         }
@@ -310,12 +310,12 @@ namespace Altus.Suffūz.Collections
 
         protected virtual ulong OverwriteUnsafe(TValue value, ulong key)
         {
-            return _values.OverwriteUnsafe(value, key);
+            return _values.WriteUnsafe(value, key);
         }
 
         protected virtual ulong Write(TValue value)
         {
-            return _values.Write(value);
+            return _values.Add(value);
         }
 
         protected virtual void Free(ulong key)

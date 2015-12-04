@@ -32,8 +32,8 @@ namespace Altus.Suffūz.Collections.Tests
             {
                 var item = new CustomItem() { A = 12, B = "Foo" };
 
-                var address1 = heap.Write(item);
-                var address2 = heap.Write(item);
+                var address1 = heap.Add(item);
+                var address2 = heap.Add(item);
             }
             File.Delete(fileName);
         }
@@ -47,8 +47,8 @@ namespace Altus.Suffūz.Collections.Tests
                 var itemA = new CustomItem() { A = 12, B = "A" };
                 var itemB = new CustomItem() { A = 22, B = "B" };
 
-                var address1 = heap.Write(itemA);
-                var address2 = heap.Write(itemB);
+                var address1 = heap.Add(itemA);
+                var address2 = heap.Add(itemB);
 
                 var item1 = (CustomItem)heap.Read(address1);
                 var item2 = (CustomItem)heap.Read(address2);
@@ -71,8 +71,8 @@ namespace Altus.Suffūz.Collections.Tests
 
             using (var heap = new PersistentHeap(fileName, 1024 * 64))
             {
-                address1 = heap.Write(itemA);
-                address2 = heap.Write(itemB);
+                address1 = heap.Add(itemA);
+                address2 = heap.Add(itemB);
             }
 
             using (var heap = new PersistentHeap(fileName, 1024 * 128))
@@ -104,7 +104,7 @@ namespace Altus.Suffūz.Collections.Tests
                     sw.Start();
                     for (int i = 0; i < count; i++)
                     {
-                        addresses[i] = heap.Write(item);
+                        addresses[i] = heap.Add(item);
                     }
                     sw.Stop();
                     writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
@@ -156,7 +156,7 @@ namespace Altus.Suffūz.Collections.Tests
                     sw.Start();
                     for (int i = 0; i < count; i++)
                     {
-                        addresses[i] = heap.Write(i);
+                        addresses[i] = heap.Add(i);
                     }
                     sw.Stop();
                     writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
@@ -199,7 +199,7 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(fileName);
             using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 100))
             {
-                var address = heap.Write(14);
+                var address = heap.Add(14);
                 heap.Free(address);
                 var value = (int)heap.Read(address);
             }
@@ -213,15 +213,15 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(fileName);
             using (var heap = new PersistentHeap(fileName))
             {
-                var key = heap.Write(14);
+                var key = heap.Add(14);
                 heap.Free(key);
-                key = heap.Write(15);
-                key = heap.Write(16);   
-                key = heap.Write(17);
+                key = heap.Add(15);
+                key = heap.Add(16);   
+                key = heap.Add(17);
                 heap.Free(key);
-                key = heap.Write(true);
-                key = heap.Write(new CustomItem() { A = 14, B = "Some crzy text" });
-                key = heap.Write(new CustomItem() { A = 14, B = "Some more crzy text" });
+                key = heap.Add(true);
+                key = heap.Add(new CustomItem() { A = 14, B = "Some crzy text" });
+                key = heap.Add(new CustomItem() { A = 14, B = "Some more crzy text" });
                 heap.Free(key);
                 var heapSize = heap.Length;
                 heap.Compact();
@@ -247,7 +247,7 @@ namespace Altus.Suffūz.Collections.Tests
                 sw.Start();
                 for (int i = 0; i < count; i++)
                 {
-                    addresses[i] = heap.Write(i);
+                    addresses[i] = heap.Add(i);
                 }
                 sw.Stop();
                 var writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
@@ -278,7 +278,7 @@ namespace Altus.Suffūz.Collections.Tests
                 {
                     for (int i = 0; i < 10000; i++)
                     {
-                        heap.Write(new CustomItem() { A = i, B = "Some text" });
+                        heap.Add(new CustomItem() { A = i, B = "Some text" });
                     }
                 }
 
@@ -302,7 +302,7 @@ namespace Altus.Suffūz.Collections.Tests
                     for (int i = 0; i < 10000; i++)
                     {
                         var size = heap.MaximumSize;
-                        heap.Write(new CustomItem() { A = i, B = "Some text" });
+                        heap.Add(new CustomItem() { A = i, B = "Some text" });
                         if (heap.MaximumSize > size)
                             break;
                     }
@@ -319,10 +319,10 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(fileName);
             using (var heap = new PersistentHeap<CustomItem>(fileName))
             {
-                var key = heap.Write(new CustomItem() { A = 100, B = "Some text" });
+                var key = heap.Add(new CustomItem() { A = 100, B = "Some text" });
                 var length = heap.Length;
                 var current = heap.Read(key);
-                var key2 = heap.OverwriteUnsafe(new CustomItem() { A = 200, B = "Some text" }, key);
+                var key2 = heap.WriteUnsafe(new CustomItem() { A = 200, B = "Some text" }, key);
                 var edited = heap.Read(key2);
                 var editedLength = heap.Length;
 
@@ -344,14 +344,14 @@ namespace Altus.Suffūz.Collections.Tests
                 heaps.Add(new PersistentHeap<CustomItem>("temp" + i, 1024 * 64));
             }
 
-            var key0 = heaps[0].Write(new CustomItem());
-            var keyLast = heaps.Last().Write(new CustomItem());
+            var key0 = heaps[0].Add(new CustomItem());
+            var keyLast = heaps.Last().Add(new CustomItem());
 
             using (var scope = new FlushScope())
             {
                 for (int i = 0; i < count; i++)
                 {
-                    heaps[i].Write(new CustomItem());
+                    heaps[i].Add(new CustomItem());
                 }
             }
 
@@ -388,7 +388,7 @@ namespace Altus.Suffūz.Collections.Tests
 
                 for(int i = 0; i < 10000; i++)
                 {
-                    heap.Write(complexPOCO);
+                    heap.Add(complexPOCO);
                 }
             }
 

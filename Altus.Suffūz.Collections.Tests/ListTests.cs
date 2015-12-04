@@ -13,9 +13,9 @@ namespace Altus.Suffūz.Collections.Tests
         public void CanCreateNewSimpleListInstance()
         {
             var filePath = "";
-            using (var list = new Altus.Suffūz.Collections.PersistentList<int>())
+            using (var list = new PersistentList<int>())
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
             }
             File.Delete(filePath);
         }
@@ -25,14 +25,14 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var filePath = "IntList.bin";
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<int>(filePath))
+            using (var list = new PersistentList<int>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
             }
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<int>(filePath))
+            using (var list = new PersistentList<int>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
             }
 
             File.Delete(filePath);
@@ -43,16 +43,16 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var filePath = "IntList.bin";
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<int>(filePath))
+            using (var list = new PersistentList<int>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
                 var count = list.Count;
                 Assert.IsTrue(count == 0);
             }
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<int>(filePath))
+            using (var list = new PersistentList<int>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
                 var count = list.Count;
                 Assert.IsTrue(count == 0);
             }
@@ -65,9 +65,9 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var filePath = "IntList.bin";
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<int>(filePath))
+            using (var list = new PersistentList<int>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
                 var count = list.Count;
                 Assert.IsTrue(count == 0);
                 list.Add(5);
@@ -75,9 +75,9 @@ namespace Altus.Suffūz.Collections.Tests
                 Assert.IsTrue(count == 1);
             }
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<int>(filePath))
+            using (var list = new PersistentList<int>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
                 var count = list.Count;
                 Assert.IsTrue(count == 1);
             }
@@ -90,9 +90,9 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var filePath = "IntList.bin";
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<CustomItem>(filePath))
+            using (var list = new PersistentList<CustomItem>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
                 var count = list.Count;
                 Assert.IsTrue(count == 0);
                 list.Add(new CustomItem() { A = 24, B = "Foo" });
@@ -100,9 +100,9 @@ namespace Altus.Suffūz.Collections.Tests
                 Assert.IsTrue(count == 1);
             }
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<CustomItem>(filePath))
+            using (var list = new PersistentList<CustomItem>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
                 var count = list.Count;
                 Assert.IsTrue(count == 1);
             }
@@ -115,9 +115,9 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var filePath = "IntList.bin";
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<int>(filePath))
+            using (var list = new PersistentList<int>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
                 var count = list.Count;
                 Assert.IsTrue(count == 0);
                 list.Add(5);
@@ -125,9 +125,9 @@ namespace Altus.Suffūz.Collections.Tests
                 Assert.IsTrue(count == 1);
             }
 
-            using (var list = new Altus.Suffūz.Collections.PersistentList<int>(filePath))
+            using (var list = new PersistentList<int>(filePath))
             {
-                filePath = list.File.Name;
+                filePath = list.FilePath;
                 var count = list.Count;
                 Assert.IsTrue(count == 1);
                 var first = list.First();

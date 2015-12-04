@@ -17,6 +17,7 @@ namespace Altus.Suffūz.Collections
                 if (!_collections.TryGetValue(fileName, out collection))
                 {
                     collection = creator(fileName);
+                    _collections.Add(fileName, collection);
                 }
             }
             return (TCollection)collection;

@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using System.Collections;
 using Altus.Suffūz.Serialization.Binary;
 using System.Threading;
+using Altus.Suffūz.Serialization;
 
 namespace Altus.Suffūz.Collections
 {
@@ -29,14 +30,19 @@ namespace Altus.Suffūz.Collections
                 throw new InvalidCastException(string.Format("The type {0} is not supported by this Heap.", type.Name));
         }
 
-        public virtual ulong Write(TValue item)
+        public virtual ulong Add(TValue item)
         {
-            return base.Write(item);
+            return base.Add(item);
         }
 
-        public virtual ulong OverwriteUnsafe(TValue item, ulong key)
+        public virtual ulong Write(TValue item, ulong key)
         {
-            return base.OverwriteUnsafe(item, key);
+            return base.Write(item, key);
+        }
+
+        public virtual ulong WriteUnsafe(TValue item, ulong key)
+        {
+            return base.WriteUnsafe(item, key);
         }
 
         public virtual new TValue Read(ulong key)
@@ -65,7 +71,7 @@ namespace Altus.Suffūz.Collections
 
         void ICollection<TValue>.Add(TValue item)
         {
-            this.Write(item);
+            this.Add(item);
         }
 
         public bool Contains(TValue item)
@@ -98,13 +104,13 @@ namespace Altus.Suffūz.Collections
 
     public unsafe class PersistentHeap : PersistentCollectionBase, IPersistentHeap
     {
-        int HEAD_ROOM;
-        const int HEADER_LENGTH = 4 + 4 + 4 + 8;
-        const int ITEM_ISVALID = 0;
-        const int ITEM_INDEX = 1;
-        const int ITEM_LENGTH = 9;
-        const int ITEM_TYPE = 13;
-        const int ITEM_DATA = 17;
+        protected int HEAD_ROOM;
+        protected const int HEADER_LENGTH = 4 + 4 + 4 + 8;
+        protected const int ITEM_ISVALID = 0;
+        protected const int ITEM_INDEX = 1;
+        protected const int ITEM_LENGTH = 9;
+        protected const int ITEM_TYPE = 13;
+        protected const int ITEM_DATA = 17;
 
         static int COUNTER = 0;
         static object GlobalSyncRoot = new object();
@@ -113,9 +119,9 @@ namespace Altus.Suffūz.Collections
         private byte* _filePtr;
         private BytePointerAdapter _ptr;
         private ulong _index = 0;
-        System.Collections.Generic.Dictionary<ulong, int> _addresses = new System.Collections.Generic.Dictionary<ulong, int>();
-        static System.Collections.Generic.Dictionary<int, Type> _typesByCode = new System.Collections.Generic.Dictionary<int, Type>();
-        static System.Collections.Generic.Dictionary<Type, int> _codesByType = new System.Collections.Generic.Dictionary<Type, int>();
+        Dictionary<ulong, int> _addresses = new Dictionary<ulong, int>();
+        static Dictionary<int, Type> _typesByCode = new Dictionary<int, Type>();
+        static Dictionary<Type, int> _codesByType = new Dictionary<Type, int>();
 
         /// <summary>
         /// Create a new heap using a system generated file location, and DEFAULT_HEAP_SIZE (10Mb)
@@ -166,6 +172,8 @@ namespace Altus.Suffūz.Collections
         protected MemoryMappedViewAccessor MMVA { get; private set; }
         protected static FileStream TypesFile { get; private set; }
 
+        protected Dictionary<ulong, int> Addresses {  get { return _addresses; } }
+
         /// <summary>
         /// Frees all items in the heap without compacting the heap
         /// </summary>
@@ -206,7 +214,7 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         /// <param name="item"></param>
         /// <returns></returns>
-        public virtual ulong Write(object item)
+        public virtual ulong Add(object item)
         {
             var bytes = GetSerializer(item.GetType()).Serialize(item);
 
@@ -259,7 +267,7 @@ namespace Altus.Suffūz.Collections
         /// <param name="item"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public virtual ulong OverwriteUnsafe(object item, ulong key)
+        public virtual ulong WriteUnsafe(object item, ulong key)
         {
             var bytes = GetSerializer(item.GetType()).Serialize(item);
             var address = _addresses[key];
@@ -273,10 +281,44 @@ namespace Altus.Suffūz.Collections
                 {
                     scope.Enlist(this);
                     _ptr.Write(address + ITEM_ISVALID, true); // record is valid
-                    _ptr.Write(address + ITEM_INDEX, _index); // index
+                    _ptr.Write(address + ITEM_INDEX, key); // index
                     _ptr.Write(address + ITEM_LENGTH, bytes.Length); // length of bytes
                     _ptr.Write(address + ITEM_TYPE, GetTypeCode(itemType)); // type index
                     _ptr.Write(address + ITEM_DATA, bytes); // bytes
+                }
+                return key;
+            }
+        }
+
+        public virtual ulong Write(object item, ulong key)
+        {
+            var bytes = GetSerializer(item.GetType()).Serialize(item);
+            var address = _addresses[key];
+
+            lock (SyncRoot)
+            {
+                var itemType = item.GetType();
+                CheckTypeTable(itemType);
+
+                var length = _ptr.ReadInt32(address + ITEM_LENGTH);
+                var typeCode = GetTypeCode(itemType);
+                using (var scope = new FlushScope())
+                {
+                    if (length == bytes.Length
+                        && typeCode == _ptr.ReadInt32(address + ITEM_TYPE))
+                    {
+                        scope.Enlist(this);
+                        _ptr.Write(address + ITEM_ISVALID, true); // record is valid
+                        _ptr.Write(address + ITEM_INDEX, key); // index
+                        _ptr.Write(address + ITEM_LENGTH, bytes.Length); // length of bytes
+                        _ptr.Write(address + ITEM_TYPE, typeCode); // type index
+                        _ptr.Write(address + ITEM_DATA, bytes); // bytes
+                    }
+                    else
+                    {
+                        Free(key);
+                        key = Add(item);
+                    }
                 }
                 return key;
             }
@@ -356,58 +398,65 @@ namespace Altus.Suffūz.Collections
         {
             lock(SyncRoot)
             {
-                var end = MMVA.Capacity;
-                var address = HEADER_LENGTH;
-                var delta = 0;
-                var block = 0;
-                First = Last = 0;
-                while(address != -1)
+                if (Count > 0)
                 {
-                    address = GetNext(address, false); // first deleted block address
-                    if (address > 0)
+                    var end = MMVA.Capacity;
+                    var address = HEADER_LENGTH;
+                    var delta = 0;
+                    var block = 0;
+                    First = Last = 0;
+                    while (address != -1)
                     {
-                        // get next valid address after deleted address
-                        var nextValidStart = GetNext(address, true);
-                        if (nextValidStart == -1) 
+                        address = GetNext(address, false); // first deleted block address
+                        if (address > 0)
                         {
-                            // if -1, we don't have any valid addresses,
-                            // so there's no data copying to do
-                            // just wipe it
-                            // but we need to include the length of the final item
-                            Next = address;
-                            break;
-                        }
-                        else
-                        { 
-                            // get next invalid address after next valid address
-                            var nextInvalidStart = GetNext(nextValidStart, false);
-                            if (nextInvalidStart == -1)
+                            // get next valid address after deleted address
+                            var nextValidStart = GetNext(address, true);
+                            if (nextValidStart == -1)
                             {
-                                // we're compacted all the way to the end, so set to Capacity
-                                nextInvalidStart = Next;
+                                // if -1, we don't have any valid addresses,
+                                // so there's no data copying to do
+                                // just wipe it
+                                // but we need to include the length of the final item
+                                Next = address;
+                                break;
                             }
+                            else
+                            {
+                                // get next invalid address after next valid address
+                                var nextInvalidStart = GetNext(nextValidStart, false);
+                                if (nextInvalidStart == -1)
+                                {
+                                    // we're compacted all the way to the end, so set to Capacity
+                                    nextInvalidStart = Next;
+                                }
 
-                            delta = nextValidStart - address; // distance block will move
-                            block = nextInvalidStart - nextValidStart; // length of block to move
-                            // now move the block up
-                            for (int i = 0; i < block; i++)
-                            {
-                                _ptr.Write(address + i, _ptr.ReadByte(address + delta + i));
+                                delta = nextValidStart - address; // distance block will move
+                                block = nextInvalidStart - nextValidStart; // length of block to move
+                                                                           // now move the block up
+                                for (int i = 0; i < block; i++)
+                                {
+                                    _ptr.Write(address + i, _ptr.ReadByte(address + delta + i));
+                                }
+                                // invalidate delta block
+                                _ptr.Write(address + block + ITEM_ISVALID, false);
+                                _ptr.Write(address + block + ITEM_INDEX, (ulong)0);
+                                _ptr.Write(address + block + ITEM_TYPE, 0);
+                                _ptr.Write(address + block + ITEM_LENGTH, delta - ITEM_DATA);
+                                // repeat, now with valid data at address
                             }
-                            // invalidate delta block
-                            _ptr.Write(address + block + ITEM_ISVALID, false);
-                            _ptr.Write(address + block + ITEM_INDEX, (ulong)0);
-                            _ptr.Write(address + block + ITEM_TYPE, 0);
-                            _ptr.Write(address + block + ITEM_LENGTH, delta - ITEM_DATA);
-                            // repeat, now with valid data at address
                         }
                     }
+                    // wipe free space at end of file
+                    SparseFile.SetZero(File, Next, MMVA.Capacity - Next);
+                    // update new index values
+                    LoadIndices();
+                    UpdateHeaders();
                 }
-                // wipe free space at end of file
-                SparseFile.SetZero(File, Next, MMVA.Capacity - Next);
-                // update new index values
-                LoadIndices();
-                UpdateHeaders();
+                else
+                {
+                    Clear(true); // this will just kill the file and start over
+                }
             }
         }
 
@@ -455,6 +504,12 @@ namespace Altus.Suffūz.Collections
 
         protected virtual int GetTypeCode(Type type)
         {
+            if (type.Implements<ISerializer>() 
+                && type.Assembly.IsDynamic)
+            {
+                type = type.BaseType;
+            }
+
             return _codesByType[type];
         }
 
@@ -590,6 +645,11 @@ namespace Altus.Suffūz.Collections
         {
             lock(SyncRoot)
             {
+                if (type.Implements<ISerializer>() && type.Assembly.IsDynamic)
+                {
+                    type = type.BaseType;
+                }
+
                 if (!_codesByType.ContainsKey(type))
                 {
                     var index = _typesByCode.Keys.DefaultIfEmpty().Max() + 1;

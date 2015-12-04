@@ -15,11 +15,17 @@ namespace Altus.Suffūz.Collections
 
         public FlushScope()
         {
+            if (_scopes == null)
+                _scopes = new Stack<FlushScope>();
+
             _scopes.Push(this);
         }
 
         public void Enlist(IFlush flushable)
         {
+            if (_flushables == null)
+                _flushables = new System.Collections.Generic.List<IFlush>();
+
             if (!_flushables.Contains(flushable))
             {
                 _flushables.Add(flushable);
