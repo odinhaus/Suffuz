@@ -13,10 +13,18 @@ using System.Reflection;
 
 namespace Altus.Suffūz.Protocols
 {
+    [Flags]
+    public enum ServiceLevels : byte
+    {
+        Default = 1,
+        BestEffort = 2,
+        Guaranteed = 4
+    }
+
     [System.Serializable]
     public abstract class IdentifiedMessage
     {
-        public IdentifiedMessage(string payloadFormat)
+        public IdentifiedMessage(string payloadFormat, ulong sequenceNumber = 0)
         {
             this.Headers = new Dictionary<string, string>();
             this.Id = Guid.NewGuid().ToString();
@@ -25,8 +33,9 @@ namespace Altus.Suffūz.Protocols
             this.TTL = TimeSpan.FromSeconds(90);
             this.PayloadFormat = payloadFormat;
             this.CorrelationId = string.Empty;
+            this.SequenceNumber = sequenceNumber;
         }
-        public IdentifiedMessage(string payloadFormat, string id)
+        public IdentifiedMessage(string payloadFormat, string id, ulong sequenceNumber = 0)
         {
             this.Headers = new Dictionary<string, string>();
             this.Id = id;
@@ -36,6 +45,7 @@ namespace Altus.Suffūz.Protocols
             this.TTL = TimeSpan.FromSeconds(90);
             this.PayloadFormat = payloadFormat;
             this.CorrelationId = string.Empty;
+            this.SequenceNumber = sequenceNumber;
         }
 
         public string Id { get; set; }
@@ -50,6 +60,7 @@ namespace Altus.Suffūz.Protocols
         public ServiceType ServiceType { get; protected set; }
         public string ServiceUri { get; protected set; }
         public Dictionary<string, string> Headers { get; private set; }
+        public ulong SequenceNumber { get; protected set; }
 
         private object _payload;
         public object Payload
@@ -72,7 +83,7 @@ namespace Altus.Suffūz.Protocols
                 }
             }
         }
-        //public ServiceParameterCollection Parameters { get; private set; }
+
         public int StatusCode { get; set; }
         public Action Action { get; protected set; }
         string _payloadType = string.Empty;
@@ -142,16 +153,6 @@ namespace Altus.Suffūz.Protocols
             byte prefix = 1;
             prefix = (byte)(prefix | (MessageType << 1));
             uint originalLength = (uint)body.Length;
-            //bool compressed = body.Length > 20000;
-            //if (compressed)
-            //{
-            //    byte[] cBody = ZipBody(body);
-            //    if (cBody.Length < originalLength)
-            //    {
-            //        body = cBody;
-            //        prefix = (byte)(1 + (1 << 7));
-            //    }
-            //}
             byte[] dest = new byte[1 + 4 + body.Length];
             dest[0] = prefix;
             BitConverter.GetBytes(body.Length).CopyTo(dest, 1); // length prefixer
@@ -252,7 +253,6 @@ namespace Altus.Suffūz.Protocols
     public class Message : IdentifiedMessage
     {
         static byte[] _netId;
-        static string _empty21 = string.Empty.PadRight(21);
 
         static Message()
         {
@@ -272,9 +272,8 @@ namespace Altus.Suffūz.Protocols
         {
             Recipients = new string[0];
             Sender = "";
-            DeliveryGuaranteed = false;
+            ServiceLevel = ServiceLevels.Default;
             ServiceType = ServiceType.Directed;
-            ReceivedBy = _empty21;
         }
 
         public Message(string payloadFormat, string serviceUri, ServiceType type, string sender) : base(payloadFormat)
@@ -282,8 +281,7 @@ namespace Altus.Suffūz.Protocols
             ServiceType = type;
             Recipients = new string[0];
             Sender = sender;
-            DeliveryGuaranteed = false;
-            ReceivedBy = _empty21;
+            ServiceLevel = ServiceLevels.Default;
             ServiceUri = serviceUri;
         }
 
@@ -294,8 +292,7 @@ namespace Altus.Suffūz.Protocols
             ServiceType = type;
             Recipients = new string[0];
             Sender = sender;
-            DeliveryGuaranteed = false;
-            ReceivedBy = _empty21;
+            ServiceLevel = ServiceLevels.Default;
             ServiceUri = serviceUri;
         }
 
@@ -304,23 +301,21 @@ namespace Altus.Suffūz.Protocols
             return 1;
         }
 
-        internal string ReceivedBy { get; set; }
         public string[] Recipients { get; set; }
-        public bool DeliveryGuaranteed { get; set; }
+        public ServiceLevels ServiceLevel { get; set; }
 
         protected override void OnSerialize(Stream stream)
         {
             base.OnSerialize(stream);
 
             BinaryWriter br = new BinaryWriter(stream);
-            br.Write(ReceivedBy);
             br.Write(this.Recipients.Length);
             foreach (string r in Recipients)
             {
                 br.Write(r);
             }
             br.Write(Sender);
-            br.Write(DeliveryGuaranteed);
+            br.Write((byte)ServiceLevel);
         }
 
         protected override void OnDeserialize(Stream source)
@@ -328,7 +323,6 @@ namespace Altus.Suffūz.Protocols
             base.OnDeserialize(source);
 
             BinaryReader br = new BinaryReader(source);
-            this.ReceivedBy = br.ReadString().Trim();
             int rCount = br.ReadInt32();
             string[] recipients = new string[rCount];
             for (int i = 0; i < rCount; i++)
@@ -337,7 +331,7 @@ namespace Altus.Suffūz.Protocols
             }
             this.Recipients = recipients;
             this.Sender = br.ReadString();
-            this.DeliveryGuaranteed = br.ReadBoolean();
+            this.ServiceLevel = (ServiceLevels)br.ReadByte();
         }
     }
 }

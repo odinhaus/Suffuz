@@ -11,7 +11,7 @@ namespace Altus.Suffūz
     {
         IResolveTypes Initialize();
         string InstanceName { get; }
-        ulong InstanceId { get; }
+        ushort InstanceId { get; }
         byte[] InstanceCryptoKey { get; }
     }
 }

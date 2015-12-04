@@ -29,7 +29,7 @@ namespace Altus.Suffūz
 
         protected static IResolveTypes Container { get; set; }
         public static string InstanceName { get; protected set; }
-        public static ulong InstanceId { get; protected set; }
+        public static ushort InstanceId { get; protected set; }
         public static byte[] InstanceCryptoKey { get; protected set; }
 
         public static X Resolve<X>()

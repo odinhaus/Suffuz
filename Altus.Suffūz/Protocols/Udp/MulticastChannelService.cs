@@ -27,6 +27,15 @@ namespace Altus.Suffūz.Protocols.Udp
         }
 
         Dictionary<string, IChannel> _channels = new Dictionary<string, IChannel>();
+
+        public ServiceLevels AvailableServiceLevels
+        {
+            get
+            {
+                return ServiceLevels.Default;
+            }
+        }
+
         public IChannel Create(string uri)
         {
             IChannel channel;

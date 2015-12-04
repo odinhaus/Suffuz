@@ -1,19 +1,16 @@
-﻿using Altus.Suffūz.Diagnostics;
-using Altus.Suffūz.IO;
-using Altus.Suffūz.Routing;
-using Altus.Suffūz.Serialization;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
-using System.Runtime.Serialization;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
-using Altus.Suffūz.Messages;
 using System.Xml.Linq;
+using Altus.Suffūz.Diagnostics;
+using Altus.Suffūz.Routing;
+using Altus.Suffūz.Serialization;
+using Altus.Suffūz.Messages;
 
 namespace Altus.Suffūz.Protocols.Udp
 {
@@ -79,7 +76,7 @@ namespace Altus.Suffūz.Protocols.Udp
         public MulticastChannel(Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
         {
             this.DataReceivedHandler = new DataReceivedHandler(this.DefaultDataReceivedHandler);
-            this.ExcludeMessagesFromSelf = excludeMessagesFromSelf;
+            this.ExcludeSelf = excludeMessagesFromSelf;
             this.Socket = udpSocket;
             this.Socket.SendBufferSize = 8192 * 2;
             this.EndPoint = IPEndPointEx.LocalEndPoint(mcastGroup.Port, true);
@@ -117,7 +114,7 @@ namespace Altus.Suffūz.Protocols.Udp
             if (handler == null) throw new ArgumentException("DataReceivedHandler cannot be null.");
 
             this.DataReceivedHandler = handler;
-            this.ExcludeMessagesFromSelf = excludeMessagesFromSelf;
+            this.ExcludeSelf = excludeMessagesFromSelf;
             this.Socket = udpSocket;
             this.Socket.SendBufferSize = 8192 * 2;
             this.EndPoint = IPEndPointEx.LocalEndPoint(mcastGroup.Port, true); //new IPEndPoint(IPAddress.Any, mcastGroup.Port);
@@ -139,17 +136,17 @@ namespace Altus.Suffūz.Protocols.Udp
             this._router = App.Resolve<IServiceRouter>();
         }
 
-        private DataReceivedHandler DataReceivedHandler;
+        protected DataReceivedHandler DataReceivedHandler;
 
-        private void CleanInboundOrphans(object state)
+        protected virtual void CleanInboundOrphans(object state)
         {
-            Guid[] orphans = new Guid[0];
+            ulong[] orphans = new ulong[0];
             System.DateTime now = CurrentTime.Now;
-            lock (this._udpInboundMessages)
+            lock (this._messages)
             {
                 try
                 {
-                    orphans = this._udpInboundMessages
+                    orphans = this._messages
                         .Where(kvp => kvp.Value.UdpSegments.Length > 0 && kvp.Value.UdpSegments.Count(s => s.TimeToLive >= now) > 0)
                         .Select(kvp => kvp.Key).ToArray();
                 }
@@ -158,14 +155,14 @@ namespace Altus.Suffūz.Protocols.Udp
 
             for (int i = 0; i < orphans.Length; i++)
             {
-                this._udpInboundMessages.Remove(orphans[i]);
+                this._messages.Remove(orphans[i]);
             }
 
             Thread.Sleep(2000);
             ThreadPool.QueueUserWorkItem(new WaitCallback(CleanInboundOrphans), null);
         }
 
-        public void Send(byte[] data)
+        public virtual void Send(byte[] data)
         {
             lock (_lock)
             {
@@ -175,7 +172,7 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
-        public void Send(Message message)
+        public virtual void Send(Message message)
         {
             if (this.TextEncoding == null)
                 if (message.Encoding != null)
@@ -196,60 +193,26 @@ namespace Altus.Suffūz.Protocols.Udp
             }
 
             MsgSentRate.IncrementByFast(1);
-            this.ConnectionAspects = new Dictionary<string, object>();
         }
 
-        public void SendError(Message message, Exception ex)
+        public virtual void SendError(Message message, Exception ex)
         {
             throw (new NotImplementedException());
         }
 
         static Dictionary<string, MessageReceivedHandler> _receivers = new Dictionary<string, MessageReceivedHandler>();
-        //public ServiceOperation Call(string application, string objectPath, string operation, string format, TimeSpan timespan, params ServiceParameter[] parms)
-        //{
-        //    string uri = string.Format(
-        //        "udp://{0}/{1}/{2}({3})[{4}]",
-        //        this.McastEndPoint.ToString(),
-        //        application,
-        //        objectPath,
-        //        operation,
-        //        format);
-        //    ServiceOperation op = new ServiceOperation(OperationType.Request, ServiceType.RequestResponse, uri, parms);
 
-        //    IConnection connection = this;
-        //    Message msg = new Message(op);
-
-        //    Message resp = connection.Call(msg, timespan);
-
-        //    ISerializer serializer = App.Resolve<ISerializationContext>().GetSerializer(TypeHelper.GetType(resp.PayloadType), resp.PayloadFormat);
-        //    if (serializer == null)
-        //        throw (new SerializationException("Deserializer for " + resp.PayloadType + " in " + resp.PayloadFormat + " format could not be found."));
-        //    object value = serializer.Deserialize(StreamHelper.GetBytes(resp.PayloadStream), TypeHelper.GetType(resp.PayloadType));
-        //    if (value is ServiceOperation)
-        //    {
-        //        return value as ServiceOperation;
-        //    }
-        //    else if (value is ServiceParameterCollection)
-        //    {
-        //        ServiceOperation so = new ServiceOperation(resp, OperationType.Response);
-        //        so.Parameters.AddRange(value as ServiceParameterCollection);
-        //        return so;
-        //    }
-        //    else
-        //        throw (new InvalidOperationException("Return type not supported"));
-        //}
-
-        public Message Call(Message message)
+        public virtual Message Call(Message message)
         {
             return this.Call(message, 30000);
         }
 
-        public Message Call(Message message, int timespan)
+        public virtual Message Call(Message message, int timespan)
         {
             return this.Call(message, TimeSpan.FromMilliseconds(timespan));
         }
 
-        public Message Call(Message message, TimeSpan timespan)
+        public virtual Message Call(Message message, TimeSpan timespan)
         {
             AsyncRequest async = new AsyncRequest(message, timespan);
 
@@ -267,7 +230,7 @@ namespace Altus.Suffūz.Protocols.Udp
         }
 
 
-        public TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request)
+        public virtual TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request)
         {
             if (typeof(TResponse) == typeof(NoReturn))
             {
@@ -319,7 +282,7 @@ namespace Altus.Suffūz.Protocols.Udp
         }
 
 
-        public void Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request, Func<TResponse, bool> handler)
+        public virtual void Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request, Func<TResponse, bool> handler)
         {
             var message = new Message(Format, request.Uri, ServiceType.Broadcast, App.InstanceName)
             {
@@ -330,7 +293,7 @@ namespace Altus.Suffūz.Protocols.Udp
             Call<TResponse>(message, typeof(TResponse) == typeof(NoReturn) ? TimeSpan.FromMilliseconds(0) : request.Timeout, handler);
         }
 
-        public void Call<U>(Message message, TimeSpan timeout, Func<U, bool> handler)
+        public virtual void Call<U>(Message message, TimeSpan timeout, Func<U, bool> handler)
         {
             var evt = new ManualResetEvent(handler == null); // if no handler, we just move on through after sending, no blocks
             lock (_receivers)
@@ -359,11 +322,7 @@ namespace Altus.Suffūz.Protocols.Udp
         public EndPoint McastEndPoint { get; set; }
         public Protocol Protocol { get { return Protocol.Udp; } }
         public Action Action { get { return Action.POST; } }
-        public bool ExcludeMessagesFromSelf { get; private set; }
-
-        [ThreadStatic()]
-        static Dictionary<string, object> _aspects;
-        public Dictionary<string, object> ConnectionAspects { get { return _aspects; } set { _aspects = value; } }
+        public bool ExcludeSelf { get; private set; }
 
         [ThreadStatic()]
         static Encoding _encoding;
@@ -373,15 +332,14 @@ namespace Altus.Suffūz.Protocols.Udp
             set { _encoding = value; }
         }
 
-        public void ResetProperties()
+        public virtual void ResetProperties()
         {
-            _aspects = new Dictionary<string, object>();
             _encoding = null;
         }
 
         public string Format { get { return StandardFormats.BINARY; } }
 
-        public void JoinGroup(bool listen)
+        public virtual void JoinGroup(bool listen)
         {
             this.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, 1);
             Logger.LogInfo("Joining Multicast Group: " + this.McastEndPoint.ToString() + ", on Local Address: " + this.EndPoint.ToString());
@@ -394,7 +352,7 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
-        public void LeaveGroup()
+        public virtual void LeaveGroup()
         {
             try
             {
@@ -410,7 +368,7 @@ namespace Altus.Suffūz.Protocols.Udp
         }
 
         Thread _receiveThread;
-        protected void ReadMessages()
+        protected virtual void ReadMessages()
         {
             _receiveThread = new Thread(new ThreadStart(ReadMessagesLoop));
             _receiveThread.Name = "UDP Multicast Listener [" + this.McastEndPoint.ToString() + "]";
@@ -420,14 +378,14 @@ namespace Altus.Suffūz.Protocols.Udp
 
         }
 
-        private void DefaultDataReceivedHandler(object sender, DataReceivedArgs e)
+        protected virtual void DefaultDataReceivedHandler(object sender, DataReceivedArgs e)
         {
             MessageSegment segment;
             if (MessageSegment.TryCreate(this, Protocol.Udp, EndPoint, e.Buffer, out segment))
                 ProcessInboundUdpSegment(segment);
         }
 
-        private void ReadMessagesLoop()
+        protected virtual void ReadMessagesLoop()
         {
             while (!disposed)
             {
@@ -447,7 +405,6 @@ namespace Altus.Suffūz.Protocols.Udp
                         this.OnSocketException(new IOException("An existing connection was closed by the remote host."));
                         break;
                     }
-
                 }
                 catch (ThreadAbortException)
                 {
@@ -455,25 +412,13 @@ namespace Altus.Suffūz.Protocols.Udp
                 }
                 catch (Exception ex)
                 {
-                    if ((this.Socket != null) && (this.Socket.Connected == true))
-                    {
-                        Logger.LogInfo("Trying to release the Socket since it's been severed");
-                        // Release the socket.
-                        this.Socket.Shutdown(SocketShutdown.Both);
-                        this.Socket.Disconnect(true);
-                        if (this.Socket.Connected)
-                            Logger.LogError("We're still connnected!!!!");
-                        else
-                            Logger.LogInfo("We're disconnected");
-                    }
                     this.OnSocketException(ex);
-                    break;
                 }
             }
         }
 
-        Dictionary<Guid, UdpMessage> _udpInboundMessages = new Dictionary<Guid, UdpMessage>();
-        private void ProcessInboundUdpSegment(MessageSegment segment)
+        protected Dictionary<ulong, UdpMessage> _messages = new Dictionary<ulong, UdpMessage>();
+        protected virtual void ProcessInboundUdpSegment(MessageSegment segment)
         {
             if (segment.SegmentType == SegmentType.Segment)
             {
@@ -487,26 +432,24 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
-        private void ProcessInboundUdpSegmentSegment(UdpSegment segment)
+        protected virtual void ProcessInboundUdpSegmentSegment(UdpSegment segment)
         {
             UdpMessage msg = null;
-            if (segment.MessageId == Guid.Empty) return; // discard bad message
-            lock (_udpInboundMessages)
+            if (segment.MessageId == 0) return; // discard bad message
+            lock (_messages)
             {
                 try
                 {
-                    if (_udpInboundMessages.ContainsKey(segment.MessageId))
+                    if (_messages.TryGetValue(segment.MessageId, out msg))
                     {
-                        msg = _udpInboundMessages[segment.MessageId];
                         msg.AddSegment(segment);
                     }
                     else
                     {
-                        //key not found
                         msg = new UdpMessage(segment.Connection, segment);
                         msg.AddSegment(segment);
 
-                        _udpInboundMessages.Add(msg.MessageId, msg);
+                        _messages.Add(msg.MessageId, msg);
                     }
                 }
                 catch
@@ -516,30 +459,29 @@ namespace Altus.Suffūz.Protocols.Udp
 
                 if (msg != null && msg.IsComplete)
                 {
-                    _udpInboundMessages.Remove(segment.MessageId);
+                    _messages.Remove(segment.MessageId);
                     ProcessCompletedInboundUdpMessage(msg);
                 }
             }
         }
 
-        private void ProcessInboundUdpHeaderSegment(UdpHeader segment)
+        protected virtual void ProcessInboundUdpHeaderSegment(UdpHeader segment)
         {
             UdpMessage msg = null;
-            if (segment.MessageId == Guid.Empty) return; // discard bad message
-            lock (_udpInboundMessages)
+            if (segment.MessageId == 0) return; // discard bad message
+            lock (_messages)
             {
                 try
                 {
                     // udp can duplicate messages, or send payload datagrams ahead of the header
-                    if (_udpInboundMessages.ContainsKey(segment.MessageId))
+                    if (_messages.TryGetValue(segment.MessageId, out msg))
                     {
-                        msg = _udpInboundMessages[segment.MessageId];
                         msg.UdpHeaderSegment = segment;
                     }
                     else
                     {
                         msg = new UdpMessage(segment.Connection, segment);
-                        _udpInboundMessages.Add(msg.MessageId, msg);
+                        _messages.Add(msg.MessageId, msg);
                     }
                 }
                 catch
@@ -549,23 +491,21 @@ namespace Altus.Suffūz.Protocols.Udp
 
                 if (msg != null && msg.IsComplete)
                 {
-                    _udpInboundMessages.Remove(segment.MessageId);
+                    _messages.Remove(segment.MessageId);
                     ProcessCompletedInboundUdpMessage(msg);
                 }
             }
         }
 
-        private void ProcessCompletedInboundUdpMessage(UdpMessage udpMessage)
+        protected virtual void ProcessCompletedInboundUdpMessage(UdpMessage udpMessage)
         {
-            this.ConnectionAspects = new Dictionary<string, object>();
-
             Message message = (Message)Message.FromStream(udpMessage.Payload);
             App.Resolve<ISerializationContext>().TextEncoding = System.Text.Encoding.Unicode;
             ProcessInboundMessage(message);
             MsgReceivedRate.IncrementByFast(1);
         }
 
-        private void ProcessInboundMessage(Message message)
+        protected virtual void ProcessInboundMessage(Message message)
         {
             MessageReceivedHandler callback;
             bool hasCallback = false;
@@ -579,7 +519,7 @@ namespace Altus.Suffūz.Protocols.Udp
             }
             else if (string.IsNullOrEmpty(message.CorrelationId))
             {
-                if ((ExcludeMessagesFromSelf && message.Sender.Equals(App.InstanceName, StringComparison.InvariantCultureIgnoreCase)))
+                if ((ExcludeSelf && message.Sender.Equals(App.InstanceName, StringComparison.InvariantCultureIgnoreCase)))
                     return; // don't process our own mutlicast publications
 
                 if (!message.Recipients.Any(r => r.Equals("*") || r.Equals(App.InstanceName)))
@@ -589,7 +529,7 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
-        private void HandleNewMessage(Message message)
+        protected virtual void HandleNewMessage(Message message)
         {
             var payloadType = TypeHelper.GetType(message.PayloadType);
             var requestType = payloadType;
@@ -636,7 +576,7 @@ namespace Altus.Suffūz.Protocols.Udp
                             {
                                 Payload = nomination,
                                 CorrelationId = message.Id,
-                                DeliveryGuaranteed = message.DeliveryGuaranteed,
+                                ServiceLevel = message.ServiceLevel,
                                 Recipients = new string[] { message.Sender },
                                 Timestamp = CurrentTime.Now,
                                 IsReponse = true
@@ -658,7 +598,7 @@ namespace Altus.Suffūz.Protocols.Udp
                     {
                         Payload = result,
                         CorrelationId = message.Id,
-                        DeliveryGuaranteed = message.DeliveryGuaranteed,
+                        ServiceLevel = message.ServiceLevel,
                         Recipients = new string[] { message.Sender },
                         Timestamp = CurrentTime.Now,
                         IsReponse = true
@@ -672,7 +612,7 @@ namespace Altus.Suffūz.Protocols.Udp
             // messages on the group that simply aren't relevant, so we don't throw an exception here - we just ignore
         }
 
-        protected bool IsDelegatedRequest(object payload, Type payloadType, out Type requestType)
+        protected virtual bool IsDelegatedRequest(object payload, Type payloadType, out Type requestType)
         {
             requestType = payloadType;
 
@@ -696,7 +636,7 @@ namespace Altus.Suffūz.Protocols.Udp
             return false;
         }
 
-        protected void HandleCallback(MessageReceivedHandler callback, Message message)
+        protected virtual void HandleCallback(MessageReceivedHandler callback, Message message)
         {
             try
             {
@@ -718,11 +658,12 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void OnSocketException(Exception e)
         {
+            Logger.LogError(e);
+
             if (this.SocketException != null)
             {
                 this.SocketException(this, new SocketExceptionEventArgs(this, e));
             }
-            OnDisconnected();
         }
 
         #region IDisposable Members

@@ -29,8 +29,8 @@ namespace Altus.Suffūz.Protocols
 
         protected abstract bool OnIsValid();
 
-        private ulong _sender;
-        public unsafe ulong Sender
+        private ushort _sender;
+        public unsafe ushort Sender
         {
             get
             {
@@ -38,12 +38,43 @@ namespace Altus.Suffūz.Protocols
                 {
                     fixed (byte* Pointer = Data)
                     {
-                        _sender = *(((ulong*)(Pointer + 1)));
+                        _sender = *(((ushort*)(Pointer + 1 + 6)));
                     }
                 }
                 return _sender;
             }
         }
+
+        private ulong _sequenceNumber;
+        public unsafe ulong SequenceNumber
+        {
+            get
+            {
+                if (_sequenceNumber == 0 && Data != null)
+                {
+                    fixed (byte* Pointer = Data)
+                    {
+                        _sequenceNumber = *(((ulong*)(Pointer + 1)));
+                    }
+                    _sequenceNumber = ((_sequenceNumber << 16) >> 16);
+                }
+                return _sequenceNumber;
+            }
+        }
+
+        private ulong _id = 0;
+        public ulong MessageId
+        {
+            get
+            {
+                if (_id == 0)
+                {
+                    _id = ((ulong)Sender << 48) + SequenceNumber;
+                }
+                return _id;
+            }
+        }
+
         private SegmentType _type = SegmentType.Unknown;
         public SegmentType SegmentType
         {
@@ -67,22 +98,8 @@ namespace Altus.Suffūz.Protocols
             }
         }
 
-        private Guid _id = Guid.Empty;
-        public Guid MessageId
-        {
-            get
-            {
-                if (_id == Guid.Empty
-                    && Data != null)
-                {
-                    byte[] msgId = new byte[16];
-                    for (int i = 0; i < 16; i++)
-                        msgId[i] = Data[i + 9];
-                    _id = new Guid(msgId);
-                }
-                return _id;
-            }
-        }
+
+
 
         internal static bool TryCreate(IChannel connection, Protocol protocol, EndPoint ep, byte[] buffer, out MessageSegment segment)
         {

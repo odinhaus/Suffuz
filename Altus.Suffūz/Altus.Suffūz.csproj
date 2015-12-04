@@ -97,6 +97,7 @@
     <Compile Include="Protocols\ServiceType.cs" />
     <Compile Include="Protocols\SocketException.cs" />
     <Compile Include="Protocols\SocketOptions.cs" />
+    <Compile Include="Protocols\Udp\BestEffortMulticastChannel.cs" />
     <Compile Include="Protocols\Udp\MulticastChannel.cs" />
     <Compile Include="Protocols\Udp\MulticastChannelService.cs" />
     <Compile Include="Protocols\Udp\UdpHeader.cs" />

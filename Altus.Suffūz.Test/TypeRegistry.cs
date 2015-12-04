@@ -32,11 +32,11 @@ namespace Altus.Suffūz.Test
         /// <summary>
         /// Globally unique Id for this node
         /// </summary>
-        public ulong InstanceId
+        public ushort InstanceId
         {
             get
             {
-                return ulong.Parse(ConfigurationManager.AppSettings["instanceId"]);
+                return ushort.Parse(ConfigurationManager.AppSettings["instanceId"]);
             }
         }
         /// <summary>
