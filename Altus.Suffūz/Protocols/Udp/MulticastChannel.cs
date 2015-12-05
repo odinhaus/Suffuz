@@ -11,6 +11,7 @@ using Altus.Suffūz.Diagnostics;
 using Altus.Suffūz.Routing;
 using Altus.Suffūz.Serialization;
 using Altus.Suffūz.Messages;
+using Altus.Suffūz.Scheduling;
 
 namespace Altus.Suffūz.Protocols.Udp
 {
@@ -75,6 +76,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public MulticastChannel(Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
         {
+            this.SequenceNumber = (ulong)(App.InstanceId << 48);
             this.DataReceivedHandler = new DataReceivedHandler(this.DefaultDataReceivedHandler);
             this.ExcludeSelf = excludeMessagesFromSelf;
             this.Socket = udpSocket;
@@ -94,7 +96,7 @@ namespace Altus.Suffūz.Protocols.Udp
             }
             _lock = _locks[mcastGroup.ToString()];
             this.TextEncoding = Encoding.Unicode;
-            ThreadPool.QueueUserWorkItem(new WaitCallback(CleanInboundOrphans), null);
+            Scheduler.Current.Schedule(2000, () => Cleaner());
             this._router = App.Resolve<IServiceRouter>();
         }
 
@@ -112,7 +114,7 @@ namespace Altus.Suffūz.Protocols.Udp
         public MulticastChannel(Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf, DataReceivedHandler handler)
         {
             if (handler == null) throw new ArgumentException("DataReceivedHandler cannot be null.");
-
+            this.SequenceNumber = (ulong)(App.InstanceId << 48);
             this.DataReceivedHandler = handler;
             this.ExcludeSelf = excludeMessagesFromSelf;
             this.Socket = udpSocket;
@@ -132,13 +134,13 @@ namespace Altus.Suffūz.Protocols.Udp
             }
             _lock = _locks[mcastGroup.ToString()];
             this.TextEncoding = Encoding.Unicode;
-            ThreadPool.QueueUserWorkItem(new WaitCallback(CleanInboundOrphans), null);
+            Scheduler.Current.Schedule(2000, () => Cleaner());
             this._router = App.Resolve<IServiceRouter>();
         }
 
         protected DataReceivedHandler DataReceivedHandler;
 
-        protected virtual void CleanInboundOrphans(object state)
+        protected virtual void Cleaner()
         {
             ulong[] orphans = new ulong[0];
             System.DateTime now = CurrentTime.Now;
@@ -157,14 +159,11 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 this._messages.Remove(orphans[i]);
             }
-
-            Thread.Sleep(2000);
-            ThreadPool.QueueUserWorkItem(new WaitCallback(CleanInboundOrphans), null);
         }
 
         public virtual void Send(byte[] data)
         {
-            lock (_lock)
+            lock (SyncRoot)
             {
                 Socket.SendTo(data, this.McastEndPoint);
                 BytesSentRate.IncrementBy(data.Length);
@@ -184,15 +183,25 @@ namespace Altus.Suffūz.Protocols.Udp
                 message.Encoding = this.TextEncoding.EncodingName;
 
             App.Resolve<ISerializationContext>().TextEncoding = Encoding.GetEncoding(message.Encoding);
-            UdpMessage tcpMsg = new UdpMessage(this, message);
+            UdpMessage tcpMsg = CreateUdpMessage(message);
 
             this.Send(tcpMsg.UdpHeaderSegment.Data);
+
             for (int i = 0; i < tcpMsg.UdpSegments.Length; i++)
             {
                 this.Send(tcpMsg.UdpSegments[i].Data);
             }
 
             MsgSentRate.IncrementByFast(1);
+        }
+
+        public virtual UdpMessage CreateUdpMessage(Message message)
+        {
+            lock (SyncRoot)
+            {
+                SequenceNumber++;
+                return new UdpMessage(this, message);
+            }
         }
 
         public virtual void SendError(Message message, Exception ex)
@@ -237,7 +246,8 @@ namespace Altus.Suffūz.Protocols.Udp
                 var message = new Message(Format, request.Uri, ServiceType.Broadcast, App.InstanceName)
                 {
                     Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
-                    Recipients = request.Recipients
+                    Recipients = request.Recipients,
+                    TTL = this.TTL
                 };
 
                 Call(message, TimeSpan.FromMilliseconds(0));
@@ -287,7 +297,8 @@ namespace Altus.Suffūz.Protocols.Udp
             var message = new Message(Format, request.Uri, ServiceType.Broadcast, App.InstanceName)
             {
                 Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
-                Recipients = request.Recipients
+                Recipients = request.Recipients,
+                TTL = this.TTL
             };
 
             Call<TResponse>(message, typeof(TResponse) == typeof(NoReturn) ? TimeSpan.FromMilliseconds(0) : request.Timeout, handler);
@@ -323,6 +334,10 @@ namespace Altus.Suffūz.Protocols.Udp
         public Protocol Protocol { get { return Protocol.Udp; } }
         public Action Action { get { return Action.POST; } }
         public bool ExcludeSelf { get; private set; }
+        public virtual ServiceLevels ServiceLevels { get { return ServiceLevels.Default; } }
+        public virtual TimeSpan TTL { get { return TimeSpan.FromSeconds(0); } set { } }
+        public object SyncRoot { get { return _lock; } }
+        public ulong SequenceNumber { get; protected set; }
 
         [ThreadStatic()]
         static Encoding _encoding;

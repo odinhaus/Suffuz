@@ -68,12 +68,14 @@
     <Compile Include="Collections\PersistentStack.cs" />
     <Compile Include="CostFunctions.cs" />
     <Compile Include="CurrentTime.cs" />
+    <Compile Include="DateRange.cs" />
     <Compile Include="DependencyInjection\IResolveTypes.cs" />
     <Compile Include="Diagnostics\Logger.cs" />
     <Compile Include="Diagnostics\MetricsHelper.cs" />
     <Compile Include="Diagnostics\PerformanceCounter.cs" />
     <Compile Include="Diagnostics\PerformanceCounterInstallAttribute.cs" />
     <Compile Include="Diagnostics\PerformanceCounterNames.cs" />
+    <Compile Include="EnumEx.cs" />
     <Compile Include="Extensions.cs" />
     <Compile Include="IBootstrapper.cs" />
     <Compile Include="IO\StreamHelper.cs" />
@@ -113,6 +115,10 @@
     <Compile Include="Routing\NoReturn.cs" />
     <Compile Include="Routing\ServiceRoute.cs" />
     <Compile Include="Routing\ServiceRouter.cs" />
+    <Compile Include="Scheduling\IScheduledTask.cs" />
+    <Compile Include="Scheduling\Schedule.cs" />
+    <Compile Include="Scheduling\ScheduledDelegate.cs" />
+    <Compile Include="Scheduling\Scheduler.cs" />
     <Compile Include="Serialization\BinaryExtensions.cs" />
     <Compile Include="Serialization\BinarySerializableAttribute.cs" />
     <Compile Include="Serialization\Binary\BinarySerializerBuilder.cs" />

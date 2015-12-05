@@ -13,6 +13,11 @@ namespace Altus.Suffūz.Protocols.Udp
         MD5 _hasher = MD5.Create();
         static object _lock = new object();
 
+        internal UdpMessage(byte[] serialized)
+        {
+            this.FromBytes(serialized);
+        }
+
         public UdpMessage(IChannel connection, Message source)
         {
             UdpSegmentsPrivate = new List<UdpSegment>();
@@ -55,7 +60,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
             MemoryStream ms = new MemoryStream(source.ToByteArray());
             this.Sender = App.InstanceId;
-            this.SequenceNumber = source.SequenceNumber;
+            this.SequenceNumber = Connection.SequenceNumber;
             ushort headerLength = (ushort)Math.Min(ms.Length, SocketOptions.MTU_SIZE - 36);
             byte[] hdr = new byte[36];
             hdr[0] = (byte)0;
@@ -200,6 +205,34 @@ namespace Altus.Suffūz.Protocols.Udp
             if (x == null) return -1;
             if (y == null) return 1;
             return x.SegmentNumber.CompareTo(y.SegmentNumber);
+        }
+
+        protected void FromBytes(byte[] serialized)
+        {
+            var position = 0;
+            var length = BitConverter.ToUInt16(serialized, 34) + 36;
+            
+            var header = new UdpHeader(null, null, serialized.Take(length).ToArray());
+            this.UdpHeaderSegment = header;
+
+            position = length;
+
+            while(position < serialized.Length)
+            {
+                length = BitConverter.ToUInt16(serialized, position + 18) + 20;
+                this.UdpSegmentsPrivate.Add(new UdpSegment(null, null, serialized.Skip(position).Take(length).ToArray()));
+                position += length;
+            }
+        }
+
+        public byte[] ToBytes()
+        {
+            var bytes = new List<byte>();
+            for(int i = 0; i<this.UdpSegmentsPrivate.Count; i++)
+            {
+                bytes.AddRange(this.UdpSegmentsPrivate[i].Data);
+            }
+            return bytes.ToArray();
         }
     }
 }

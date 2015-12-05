@@ -33,6 +33,7 @@ namespace Altus.Suffūz.Protocols
             Uri = uri;
             Timeout = timeout;
             Recipients = new string[] { "*" };
+            TTL = TimeSpan.FromSeconds(90);
         }
 
         public ChannelRequest(string uri, TimeSpan timeout, TRequest payload)
@@ -46,6 +47,7 @@ namespace Altus.Suffūz.Protocols
             Payload = payload;
             Recipients = recipients;
             ServiceType = ServiceType.RequestResponse;
+            TTL = TimeSpan.FromSeconds(90);
         }
         public string Uri { get; set; }
         public string[] Recipients { get; set; }
@@ -53,5 +55,10 @@ namespace Altus.Suffūz.Protocols
         public TimeSpan Timeout { get; set; }
         public ServiceType ServiceType { get; set; }
         public Type ResponseType { get { return typeof(TResponse); } }
+        /// <summary>
+        /// The length of time the message should be available for resending 
+        /// for channels that support BestEffort or higher ServiceLevels
+        /// </summary>
+        public TimeSpan TTL { get; set; }
     }
 }

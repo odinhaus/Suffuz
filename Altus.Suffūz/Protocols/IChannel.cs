@@ -23,5 +23,8 @@ namespace Altus.Suffūz.Protocols
         void SendError(Message message, Exception ex);
         void ResetProperties();
         bool IsDisconnected { get; }
+        ServiceLevels ServiceLevels { get; }
+        TimeSpan TTL { get; set; }
+        ulong SequenceNumber { get; }
     }
 }

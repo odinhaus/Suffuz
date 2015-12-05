@@ -38,8 +38,10 @@ namespace Altus.Suffūz.Protocols
             {
                 BinaryReader br = new BinaryReader(ms);
                 var typed = new SimplePOCO();
-
-                typed.R = (AnEnum)br.ReadInt32();
+                if (ms.Position < ms.Length)
+                {
+                    typed.R = (AnEnum)br.ReadInt32();
+                }
 
                 return typed;
             }

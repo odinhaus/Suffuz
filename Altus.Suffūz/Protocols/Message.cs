@@ -24,7 +24,7 @@ namespace Altus.Suffūz.Protocols
     [System.Serializable]
     public abstract class IdentifiedMessage
     {
-        public IdentifiedMessage(string payloadFormat, ulong sequenceNumber = 0)
+        public IdentifiedMessage(string payloadFormat)
         {
             this.Headers = new Dictionary<string, string>();
             this.Id = Guid.NewGuid().ToString();
@@ -33,9 +33,8 @@ namespace Altus.Suffūz.Protocols
             this.TTL = TimeSpan.FromSeconds(90);
             this.PayloadFormat = payloadFormat;
             this.CorrelationId = string.Empty;
-            this.SequenceNumber = sequenceNumber;
         }
-        public IdentifiedMessage(string payloadFormat, string id, ulong sequenceNumber = 0)
+        public IdentifiedMessage(string payloadFormat, string id)
         {
             this.Headers = new Dictionary<string, string>();
             this.Id = id;
@@ -45,7 +44,6 @@ namespace Altus.Suffūz.Protocols
             this.TTL = TimeSpan.FromSeconds(90);
             this.PayloadFormat = payloadFormat;
             this.CorrelationId = string.Empty;
-            this.SequenceNumber = sequenceNumber;
         }
 
         public string Id { get; set; }
@@ -60,7 +58,6 @@ namespace Altus.Suffūz.Protocols
         public ServiceType ServiceType { get; protected set; }
         public string ServiceUri { get; protected set; }
         public Dictionary<string, string> Headers { get; private set; }
-        public ulong SequenceNumber { get; protected set; }
 
         private object _payload;
         public object Payload
@@ -268,7 +265,8 @@ namespace Altus.Suffūz.Protocols
 
         internal Message() : this("") { }
 
-        public Message(string payloadFormat) : base(payloadFormat, Guid.NewGuid().ToString())
+        public Message(string payloadFormat) 
+            : base(payloadFormat)
         {
             Recipients = new string[0];
             Sender = "";
@@ -276,7 +274,8 @@ namespace Altus.Suffūz.Protocols
             ServiceType = ServiceType.Directed;
         }
 
-        public Message(string payloadFormat, string serviceUri, ServiceType type, string sender) : base(payloadFormat)
+        public Message(string payloadFormat, string serviceUri, ServiceType type, string sender) 
+            : base(payloadFormat)
         {
             ServiceType = type;
             Recipients = new string[0];

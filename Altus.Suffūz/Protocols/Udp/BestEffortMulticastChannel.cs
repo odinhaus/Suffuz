@@ -1,4 +1,5 @@
 ﻿using Altus.Suffūz.Collections;
+using Altus.Suffūz.Scheduling;
 using Altus.Suffūz.Serialization;
 using System;
 using System.Collections.Generic;
@@ -52,9 +53,10 @@ namespace Altus.Suffūz.Protocols.Udp
                     mcastGroup.ToString(),
                     (name) => new PersistentDictionary<ushort, ulong>(name, manager.GlobalHeap, true));
 
-            ulong sequenceNumber = 0;
+            ulong sequenceNumber;
             if (!_sequenceNumbers.TryGetValue(App.InstanceId, out sequenceNumber))
             {
+                sequenceNumber = (ulong)(App.InstanceId << 48);
                 _sequenceNumbers[App.InstanceId] = sequenceNumber;
             }
             SequenceNumber = sequenceNumber;
@@ -68,6 +70,50 @@ namespace Altus.Suffūz.Protocols.Udp
                     (name) => new PersistentDictionary<ulong, UdpMessage>(name, manager.GlobalHeap, false));
         }
 
-        public ulong SequenceNumber { get; private set; }
+        public override ServiceLevels ServiceLevels
+        {
+            get
+            {
+                return ServiceLevels.BestEffort;
+            }
+        }
+
+       
+        TimeSpan _ttl;
+        public override TimeSpan TTL
+        {
+            get
+            {
+                return _ttl;
+            }
+
+            set
+            {
+                _ttl = value;
+            }
+        }
+
+        protected override void Cleaner()
+        {
+            _resendBuffer.Compact();
+            base.Cleaner();
+        }
+
+        public override UdpMessage CreateUdpMessage(Message message)
+        {
+            var udpMessage = base.CreateUdpMessage(message);
+            
+            if (message.TTL.TotalMilliseconds > 0)
+            {
+                // add message to retry buffer
+                _resendBuffer.Add(udpMessage.MessageId, udpMessage);
+                // set the message to expire from the retry buffer based on the message's TTL
+                Scheduler.Current.Schedule<ulong>(CurrentTime.Now.Add(message.TTL),
+                    (messageId) => _resendBuffer.Remove(messageId),
+                    () => udpMessage.MessageId);
+            }
+
+            return udpMessage;
+        }
     }
 }

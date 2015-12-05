@@ -31,6 +31,19 @@ namespace Altus.Suffūz.IO
             return bytes;
         }
 
+        public static byte[] GetBytes(this Stream source)
+        {
+            var bytes = new List<byte>();
+            var buffer = new byte[4096];
+            var read = 0;
+            do
+            {
+                read = source.Read(buffer, 0, buffer.Length);
+                bytes.AddRange(buffer.Take(read));
+            } while (read > 0);
+            return bytes.ToArray();
+        }
+
         public static IComparable ToValue(this Stream source, Type T)
         {
             byte[] buffer = new byte[8];
@@ -177,29 +190,6 @@ namespace Altus.Suffūz.IO
         {
             source.Write(data, 0, data.Length);
         }
-
-        //========================================================================================================//
-        /// <summary>
-        /// Gets a byte array from the current stream
-        /// </summary>
-        /// <param name="source"></param>
-        /// <returns></returns>
-        public static byte[] GetBytes(Stream source)
-        {
-            if (source.CanSeek)
-            {
-                byte[] bytes = new byte[source.Length];
-                source.Read(bytes, 0, bytes.Length);
-                return bytes;
-            }
-            else
-            {
-                MemoryStream ms = new MemoryStream();
-                Copy(source, ms);
-                return ms.ToArray();
-            }
-        }
-        //========================================================================================================//
 
         //========================================================================================================//
         /// <summary>

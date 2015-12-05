@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using Altus.Suffūz.IO;
 
 namespace Altus.Suffūz.Protocols.Udp
 {
@@ -14,7 +15,7 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             get
             {
-                throw new NotImplementedException();
+                return false;
             }
         }
 
@@ -22,48 +23,48 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             get
             {
-                throw new NotImplementedException();
+                return int.MaxValue;
             }
         }
 
         public UdpMessage Deserialize(Stream inputSource)
         {
-            throw new NotImplementedException();
+            return Deserialize(inputSource.GetBytes());
         }
 
         public UdpMessage Deserialize(byte[] source)
         {
-            throw new NotImplementedException();
+            return new UdpMessage(source);
         }
 
         public object Deserialize(byte[] source, Type targetType)
         {
-            throw new NotImplementedException();
+            return Deserialize(source);
         }
 
         public byte[] Serialize(object source)
         {
-            throw new NotImplementedException();
+            return Serialize((UdpMessage)source);
         }
 
         public byte[] Serialize(UdpMessage source)
         {
-            throw new NotImplementedException();
+            return source.ToBytes();
         }
 
         public void Serialize(UdpMessage source, Stream outputStream)
         {
-            throw new NotImplementedException();
+            outputStream.Write(Serialize(source));
         }
 
         public bool SupportsFormat(string format)
         {
-            throw new NotImplementedException();
+            return format.Equals(StandardFormats.BINARY);
         }
 
         public bool SupportsType(Type type)
         {
-            throw new NotImplementedException();
+            return type == typeof(UdpMessage);
         }
     }
 }
