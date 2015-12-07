@@ -204,34 +204,29 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
-        public virtual void SendError(Message message, Exception ex)
+        protected virtual Message Call(Message message, Type responseType)
         {
-            throw (new NotImplementedException());
+            return this.Call(message, 30000, responseType);
         }
 
-        static Dictionary<string, MessageReceivedHandler> _receivers = new Dictionary<string, MessageReceivedHandler>();
-
-        public virtual Message Call(Message message)
+        protected virtual Message Call(Message message, int timespan, Type responseType)
         {
-            return this.Call(message, 30000);
+            return this.Call(message, TimeSpan.FromMilliseconds(timespan), responseType);
         }
 
-        public virtual Message Call(Message message, int timespan)
+        protected virtual Message Call(Message message, TimeSpan timespan, Type responseType)
         {
-            return this.Call(message, TimeSpan.FromMilliseconds(timespan));
+            AsyncRequest async = new AsyncRequest(message, timespan, responseType);
+
+            this.Send(message);
+
+            return async.GetResponse();
         }
 
-        public virtual Message Call(Message message, TimeSpan timespan)
-        {
-            AsyncRequest async = new AsyncRequest(message, timespan);
 
-            if (async.CanHaveResponse)
-            {
-                lock (_receivers)
-                {
-                    _receivers.Add(message.Id, async.ResponseCallback);
-                }
-            }
+        public virtual Message Call<TResponse>(Message message, TimeSpan timeout, Func<TResponse, bool> handler)
+        {
+            AsyncRequest async = new AsyncRequest(message, timeout, typeof(TResponse), (response) => handler((TResponse)response.Payload));
 
             this.Send(message);
 
@@ -241,92 +236,61 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public virtual TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request)
         {
-            if (typeof(TResponse) == typeof(NoReturn))
-            {
-                var message = new Message(Format, request.Uri, ServiceType.Broadcast, App.InstanceName)
-                {
-                    Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
-                    Recipients = request.Recipients,
-                    TTL = this.TTL
-                };
+            return Call(request, (response) => true); // return the first result
+        }
 
-                Call(message, TimeSpan.FromMilliseconds(0));
-                return default(TResponse);
-            }
-            else
-            {
-                bool isNomination = request.Payload is NominateExecutionRequest;
-                object deferredPayload = null;
-                if (isNomination)
-                {
-                    // for scalar nominations, we don't want to send the actual request payload twice
-                    // so we strip it here, and hold it
-                    deferredPayload = ((NominateExecutionRequest)(object)request.Payload).Request;
-                    ((NominateExecutionRequest)(object)request.Payload).Request = NoArgs.Empty;
-                    ((NominateExecutionRequest)(object)request.Payload).IsPayloadDeferred = true;
-                    ((NominateExecutionRequest)(object)request.Payload).RequestType = deferredPayload.GetType().AssemblyQualifiedName;
-                }
 
-                var message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
+        public virtual TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request, Func<TResponse, bool> handler)
+        {
+            var responseType = typeof(TResponse);
+            bool isNomination = request.Payload is NominateExecutionRequest;
+            object deferredPayload = null;
+            Message message, response;
+            if (isNomination)
+            {
+                // for scalar nominations, we don't want to send the actual request payload twice
+                // so we strip it here, and hold it
+                deferredPayload = ((NominateExecutionRequest)(object)request.Payload).Request;
+                ((NominateExecutionRequest)(object)request.Payload).Request = NoArgs.Empty;
+                ((NominateExecutionRequest)(object)request.Payload).IsPayloadDeferred = true;
+                ((NominateExecutionRequest)(object)request.Payload).RequestType = deferredPayload.GetType().AssemblyQualifiedName;
+                message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
                 {
                     Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
                     Recipients = request.Recipients
                 };
 
-                var response = Call(message, request.Timeout);
-
-                if (isNomination)
+                response = Call(message, request.Timeout, responseType);
+            }
+            else
+            {
+                message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
                 {
-                    // now send the actual payload to first respondant
-                    message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
-                    {
-                        Payload = new RoutablePayload(deferredPayload, deferredPayload.GetType(), typeof(TResponse)),
-                        Recipients = new string[] { response.Sender }
-                    };
+                    Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
+                    Recipients = request.Recipients
+                };
+                response = Call(message, request.Timeout, handler);
+            }
+            
 
-                    response = Call(message, request.Timeout);
-                }
+            if (isNomination)
+            {
+                // now send the actual payload to first respondant
+                message = new Message(Format, request.Uri, ServiceType.RequestResponse, App.InstanceName)
+                {
+                    Payload = new RoutablePayload(deferredPayload, deferredPayload.GetType(), typeof(TResponse)),
+                    Recipients = new string[] { response.Sender }
+                };
 
+                response = Call(message, request.Timeout, handler);
+            }
+
+            if (response == null)
+                return default(TResponse);
+            else
                 return (TResponse)response.Payload;
-            }
         }
 
-
-        public virtual void Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request, Func<TResponse, bool> handler)
-        {
-            var message = new Message(Format, request.Uri, ServiceType.Broadcast, App.InstanceName)
-            {
-                Payload = new RoutablePayload(request.Payload, typeof(TRequest), typeof(TResponse)),
-                Recipients = request.Recipients,
-                TTL = this.TTL
-            };
-
-            Call<TResponse>(message, typeof(TResponse) == typeof(NoReturn) ? TimeSpan.FromMilliseconds(0) : request.Timeout, handler);
-        }
-
-        public virtual void Call<U>(Message message, TimeSpan timeout, Func<U, bool> handler)
-        {
-            var evt = new ManualResetEvent(handler == null); // if no handler, we just move on through after sending, no blocks
-            lock (_receivers)
-            {
-                _receivers.Add(message.Id, (sender, response) =>
-                {
-                    if (handler((U)response.Payload))
-                    {
-                        evt.Set(); // it's been handled, so stop receiving
-                    }
-                });
-            }
-
-            Send(message);
-
-            evt.WaitOne(timeout); // block for up to timeout
-
-            lock (_receivers)
-            {
-                _receivers.Remove(message.Id); // clean up, we're done, ignore any other messages that arrive 
-            }
-        }
 
         public Socket Socket { get; private set; }
         public EndPoint EndPoint { get; set; }
@@ -335,7 +299,7 @@ namespace Altus.Suffūz.Protocols.Udp
         public Action Action { get { return Action.POST; } }
         public bool ExcludeSelf { get; private set; }
         public virtual ServiceLevels ServiceLevels { get { return ServiceLevels.Default; } }
-        public virtual TimeSpan TTL { get { return TimeSpan.FromSeconds(0); } set { } }
+        public virtual TimeSpan DefaultTimeout { get { return TimeSpan.FromSeconds(0); } set { } }
         public object SyncRoot { get { return _lock; } }
         public ulong SequenceNumber { get; protected set; }
 
@@ -522,17 +486,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void ProcessInboundMessage(Message message)
         {
-            MessageReceivedHandler callback;
-            bool hasCallback = false;
-            lock(_receivers)
-            {
-                hasCallback = _receivers.TryGetValue(message.CorrelationId, out callback);
-            }
-            if (hasCallback)
-            {
-                HandleCallback(callback, message);
-            }
-            else if (string.IsNullOrEmpty(message.CorrelationId))
+            if (!AsyncRequest.HandleMessage(message) && string.IsNullOrEmpty(message.CorrelationId))
             {
                 if ((ExcludeSelf && message.Sender.Equals(App.InstanceName, StringComparison.InvariantCultureIgnoreCase)))
                     return; // don't process our own mutlicast publications
@@ -584,21 +538,18 @@ namespace Altus.Suffūz.Protocols.Udp
                             Thread.Sleep(delay);
                         }
 
-                        if (isScalar)
+                        // return the nomination message, so the requestor can select a single agent to handle the request
+                        var response = new Message(Format, message.ServiceUri, message.ServiceType, App.InstanceName)
                         {
-                            // return the nomination message, so the requestor can select a single agent to handle the request
-                            var response = new Message(Format, message.ServiceUri, message.ServiceType, App.InstanceName)
-                            {
-                                Payload = nomination,
-                                CorrelationId = message.Id,
-                                ServiceLevel = message.ServiceLevel,
-                                Recipients = new string[] { message.Sender },
-                                Timestamp = CurrentTime.Now,
-                                IsReponse = true
-                            };
-                            this.Send(response);
-                            return;
-                        }
+                            Payload = nomination,
+                            CorrelationId = message.Id,
+                            ServiceLevel = message.ServiceLevel,
+                            Recipients = new string[] { message.Sender },
+                            Timestamp = CurrentTime.Now,
+                            IsReponse = true
+                        };
+                        this.Send(response);
+                        return;
                     }
                     else return; // we didn't pass the test, so don't process the request
                 }
@@ -606,8 +557,7 @@ namespace Altus.Suffūz.Protocols.Udp
                 var result = route.HasParameters
                     ? route.Handler.DynamicInvoke(payload)
                     : route.Handler.DynamicInvoke();
-                if ((message.ServiceType == ServiceType.RequestResponse || message.ServiceType == ServiceType.Broadcast)
-                    && route.Handler.Method.ReturnType != typeof(void))
+                if ((message.ServiceType == ServiceType.RequestResponse) && route.Handler.Method.ReturnType != typeof(void))
                 {
                     var response = new Message(Format, message.ServiceUri, message.ServiceType, App.InstanceName)
                     {
@@ -649,26 +599,6 @@ namespace Altus.Suffūz.Protocols.Udp
             }
 
             return false;
-        }
-
-        protected virtual void HandleCallback(MessageReceivedHandler callback, Message message)
-        {
-            try
-            {
-                callback(this, message);
-            }
-            catch { }
-            finally
-            {
-                if (message.ServiceType == ServiceType.RequestResponse)
-                {
-                    lock (_receivers)
-                    {
-                        // we only care about one response, so remove the callback
-                        _receivers.Remove(message.CorrelationId);
-                    }
-                }
-            }
         }
 
         protected virtual void OnSocketException(Exception e)

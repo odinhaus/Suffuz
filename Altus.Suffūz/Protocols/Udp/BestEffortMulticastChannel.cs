@@ -80,7 +80,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
        
         TimeSpan _ttl;
-        public override TimeSpan TTL
+        public override TimeSpan DefaultTimeout
         {
             get
             {

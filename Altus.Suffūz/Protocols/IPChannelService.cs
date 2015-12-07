@@ -48,7 +48,7 @@ namespace Altus.Suffūz.Protocols.Udp
                 if (_endPoints.TryGetValue(channelName, out endpoint))
                 {
                     channel = Create(channelName, endpoint);
-                    channel.TTL = _ttls[channelName];
+                    channel.DefaultTimeout = _ttls[channelName];
                 }
                 else
                     throw new InvalidOperationException("The channel provided has not been mapped to an end point.");
@@ -59,7 +59,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public bool CanCreate(string channelName)
         {
-            return _channels.ContainsKey(channelName);
+            return _endPoints.ContainsKey(channelName);
         }
     }
 }

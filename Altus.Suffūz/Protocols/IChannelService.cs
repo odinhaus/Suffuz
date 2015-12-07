@@ -10,7 +10,7 @@ namespace Altus.Suffūz.Protocols
     public interface IChannelService
     {
         IChannelService Register(string channel, IPEndPoint endpoint);
-        IChannelService Register(string channel, IPEndPoint endpoint, TimeSpan ttl);
+        IChannelService Register(string channel, IPEndPoint endpoint, TimeSpan defaultTimeout);
         IChannel Create(string channelName);
         ServiceLevels AvailableServiceLevels { get; }
         bool CanCreate(string channelName);

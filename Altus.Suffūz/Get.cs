@@ -19,7 +19,7 @@ namespace Altus.Suffūz
         public TRequest Request { get; set; }
         public bool HasArgs { get { return typeof(TRequest) != typeof(NoArgs); } }
         public bool HasReturn { get { return typeof(TRequest) != typeof(NoReturn); } }
-        public TimeSpan TimeOut { get; set; }
+        public TimeSpan Timeout { get; set; }
     }
 
     public static class Get<TResponse>
@@ -31,7 +31,7 @@ namespace Altus.Suffūz
 
         public static Get<TRequest, TResponse> From<TRequest>(string channelId, TRequest request)
         {
-            return new Get<TRequest, TResponse>(channelId, request) { TimeOut = DefaultTimeout };
+            return new Get<TRequest, TResponse>(channelId, request) { Timeout = DefaultTimeout };
         }
 
         public static TimeSpan DefaultTimeout
@@ -51,17 +51,17 @@ namespace Altus.Suffūz
     {
         static Get()
         {
-            DefaultTimeout = TimeSpan.FromSeconds(10);
+            DefaultTimeout = TimeSpan.FromSeconds(5);
         }
 
         public static Get<TRequest, NoReturn> From<TRequest>(string channelId, TRequest request)
         {
-            return new Get<TRequest, NoReturn>(channelId, request) { TimeOut = DefaultTimeout };
+            return new Get<TRequest, NoReturn>(channelId, request) { Timeout = TimeSpan.FromMilliseconds(0) };
         }
 
         public static Get<NoArgs, NoReturn> From(string channelId)
         {
-            return new Get<NoArgs, NoReturn>(channelId, NoArgs.Empty) { TimeOut = DefaultTimeout };
+            return new Get<NoArgs, NoReturn>(channelId, NoArgs.Empty) { Timeout = TimeSpan.FromMilliseconds(0) };
         }
 
         public static TimeSpan DefaultTimeout { get; set; }

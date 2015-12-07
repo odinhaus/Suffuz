@@ -67,6 +67,17 @@
     <Compile Include="Collections\PersistentQueue.cs" />
     <Compile Include="Collections\PersistentStack.cs" />
     <Compile Include="CostFunctions.cs" />
+    <Compile Include="Security\Cryptography\Box\Curve25519XSalsa20Poly1305.cs" />
+    <Compile Include="Security\Cryptography\Core\HSalsa20.cs" />
+    <Compile Include="Security\Cryptography\Core\Salsa20.cs" />
+    <Compile Include="Security\Cryptography\NaClClient.cs" />
+    <Compile Include="Security\Cryptography\OneTimeAuth\Poly1305.cs" />
+    <Compile Include="Security\Cryptography\RandomBytes.cs" />
+    <Compile Include="Security\Cryptography\ScalarMult\Curve25519.cs" />
+    <Compile Include="Security\Cryptography\SecretBox\XSalsa20Poly1305.cs" />
+    <Compile Include="Security\Cryptography\Stream\Salsa20.cs" />
+    <Compile Include="Security\Cryptography\Stream\XSalsa20.cs" />
+    <Compile Include="Security\Cryptography\Verify\_16.cs" />
     <Compile Include="CurrentTime.cs" />
     <Compile Include="DateRange.cs" />
     <Compile Include="DependencyInjection\IResolveTypes.cs" />

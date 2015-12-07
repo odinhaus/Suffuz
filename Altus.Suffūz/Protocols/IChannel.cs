@@ -19,12 +19,11 @@ namespace Altus.Suffūz.Protocols
         Encoding TextEncoding { get; set; }
         string Format { get; }
         TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request);
-        void Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request, Func<TResponse, bool> handler);
-        void SendError(Message message, Exception ex);
+        TResponse Call<TRequest, TResponse>(ChannelRequest<TRequest, TResponse> request, Func<TResponse, bool> handler);
         void ResetProperties();
         bool IsDisconnected { get; }
         ServiceLevels ServiceLevels { get; }
-        TimeSpan TTL { get; set; }
+        TimeSpan DefaultTimeout { get; set; }
         ulong SequenceNumber { get; }
     }
 }

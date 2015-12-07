@@ -67,7 +67,9 @@ namespace Altus.Suffūz.Routing
                 if (!_routes.ContainsKey(route.Key))
                 {
                     _routes.Add(route.Key, route);
-                    App.Resolve<IChannelService>().Create(route.ChannelId); // gets the channel up and running
+                    App.ResolveAll<IChannelService>()
+                        .First(c => c.CanCreate(route.ChannelId))
+                        .Create(route.ChannelId); // gets the channel up and running
                 }
                 else
                 {
