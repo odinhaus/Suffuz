@@ -14,6 +14,7 @@ namespace Altus.Suffūz.Protocols
         event EventHandler Disposing;
         event EventHandler Disposed;
 
+        string Name { get; }
         Protocol Protocol { get; }
         EndPoint EndPoint { get; }
         Encoding TextEncoding { get; set; }

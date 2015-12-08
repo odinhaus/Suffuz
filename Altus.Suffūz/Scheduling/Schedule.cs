@@ -28,6 +28,8 @@ namespace Altus.Suffūz.Scheduling
         public int Interval { get; protected set; }
         public TimeSpan EventDuration { get; protected set; }
 
+        public abstract void Cancel();
+
         public virtual bool IsScheduled(long ticks)
         {
             return DateRange.Contains(ticks);
@@ -131,7 +133,16 @@ namespace Altus.Suffūz.Scheduling
         /// <param name="type">type of periodic schedule</param>
         /// <param name="interval"></param>
         public PeriodicSchedule(DateRange dateRange, int interval) : base(dateRange, IntervalType.Periodic) { Interval = interval; }
-        
+
+        public override void Cancel()
+        {
+            Interval = -1;
+        }
+
+        public override bool IsScheduled(long ticks)
+        {
+            return Interval >= 0 && base.IsScheduled(ticks);
+        }
     }
 
     public enum CalendricalScheduleType
@@ -182,7 +193,16 @@ namespace Altus.Suffūz.Scheduling
             EventDuration = eventDuration.TotalMilliseconds > maxDuration.TotalMilliseconds ? maxDuration : eventDuration;
         }
         public DateRange EventDateRange { get; set; }
-        public CalendricalScheduleType CalendricalScheduleType { get; set; }    
+        public CalendricalScheduleType CalendricalScheduleType { get; set; }
+        public override void Cancel()
+        {
+            Interval = -1;
+        }
+
+        public override bool IsScheduled(long ticks)
+        {
+            return Interval >= 0 && base.IsScheduled(ticks);
+        }
     }
 
     public class FixedCalendricalSchedule : CalendricalSchedule

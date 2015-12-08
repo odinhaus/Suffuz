@@ -64,20 +64,20 @@ namespace Altus.Suffūz.Protocols.Udp
         object _lock;
         IServiceRouter _router;
 
-        public MulticastChannel(IPEndPoint mcastGroup, bool listen) : this(mcastGroup, listen, true)
+        public MulticastChannel(string name, IPEndPoint mcastGroup, bool listen) : this(name, mcastGroup, listen, true)
         {
 
         }
 
-        public MulticastChannel(IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
-            : this(new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf)
+        public MulticastChannel(string name, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
+            : this(name, new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf)
         {
         }
 
-        public MulticastChannel(Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
+        public MulticastChannel(string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
         {
+            this.Name = name;
             this.SequenceNumber = (ulong)(App.InstanceId << 48);
-            this.DataReceivedHandler = new DataReceivedHandler(this.DefaultDataReceivedHandler);
             this.ExcludeSelf = excludeMessagesFromSelf;
             this.Socket = udpSocket;
             this.Socket.SendBufferSize = 8192 * 2;
@@ -99,46 +99,6 @@ namespace Altus.Suffūz.Protocols.Udp
             Scheduler.Current.Schedule(2000, () => Cleaner());
             this._router = App.Resolve<IServiceRouter>();
         }
-
-        public MulticastChannel(IPEndPoint mcastGroup, bool listen, DataReceivedHandler handler)
-            : this(mcastGroup, listen, true, handler)
-        {
-
-        }
-        public MulticastChannel(IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf, DataReceivedHandler handler)
-            : this(new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf, handler)
-        {
-        }
-
-
-        public MulticastChannel(Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf, DataReceivedHandler handler)
-        {
-            if (handler == null) throw new ArgumentException("DataReceivedHandler cannot be null.");
-            this.SequenceNumber = (ulong)(App.InstanceId << 48);
-            this.DataReceivedHandler = handler;
-            this.ExcludeSelf = excludeMessagesFromSelf;
-            this.Socket = udpSocket;
-            this.Socket.SendBufferSize = 8192 * 2;
-            this.EndPoint = IPEndPointEx.LocalEndPoint(mcastGroup.Port, true); //new IPEndPoint(IPAddress.Any, mcastGroup.Port);
-            this.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
-            this.Socket.ExclusiveAddressUse = false;
-            this.Socket.Bind(this.EndPoint);
-            this.McastEndPoint = mcastGroup;
-            this.JoinGroup(listen);
-            lock (_locks)
-            {
-                if (!_locks.ContainsKey(mcastGroup.ToString()))
-                {
-                    _locks.Add(mcastGroup.ToString(), new object());
-                }
-            }
-            _lock = _locks[mcastGroup.ToString()];
-            this.TextEncoding = Encoding.Unicode;
-            Scheduler.Current.Schedule(2000, () => Cleaner());
-            this._router = App.Resolve<IServiceRouter>();
-        }
-
-        protected DataReceivedHandler DataReceivedHandler;
 
         protected virtual void Cleaner()
         {
@@ -302,6 +262,7 @@ namespace Altus.Suffūz.Protocols.Udp
         public virtual TimeSpan DefaultTimeout { get { return TimeSpan.FromSeconds(0); } set { } }
         public object SyncRoot { get { return _lock; } }
         public ulong SequenceNumber { get; protected set; }
+        public string Name { get; private set; }
 
         [ThreadStatic()]
         static Encoding _encoding;
@@ -357,13 +318,6 @@ namespace Altus.Suffūz.Protocols.Udp
 
         }
 
-        protected virtual void DefaultDataReceivedHandler(object sender, DataReceivedArgs e)
-        {
-            MessageSegment segment;
-            if (MessageSegment.TryCreate(this, Protocol.Udp, EndPoint, e.Buffer, out segment))
-                ProcessInboundUdpSegment(segment);
-        }
-
         protected virtual void ReadMessagesLoop()
         {
             while (!disposed)
@@ -377,10 +331,13 @@ namespace Altus.Suffūz.Protocols.Udp
                     BytesReceivedRate.IncrementBy(read);
                     if (read > 0)
                     {
-                        this.DataReceivedHandler(this, new DataReceivedArgs(buffer, read, ep, this.McastEndPoint));
+                        MessageSegment segment;
+                        if (MessageSegment.TryCreate(this, Protocol.Udp, ep, buffer, out segment))
+                            ProcessInboundUdpSegment(segment);
                     }
                     else
                     {
+                        // should not happen with multicast, because it's connectionless
                         this.OnSocketException(new IOException("An existing connection was closed by the remote host."));
                         break;
                     }
@@ -417,30 +374,23 @@ namespace Altus.Suffūz.Protocols.Udp
             if (segment.MessageId == 0) return; // discard bad message
             lock (_messages)
             {
-                try
+                if (_messages.TryGetValue(segment.MessageId, out msg))
                 {
-                    if (_messages.TryGetValue(segment.MessageId, out msg))
-                    {
-                        msg.AddSegment(segment);
-                    }
-                    else
-                    {
-                        msg = new UdpMessage(segment.Connection, segment);
-                        msg.AddSegment(segment);
-
-                        _messages.Add(msg.MessageId, msg);
-                    }
+                    msg.AddSegment(segment);
                 }
-                catch
+                else
                 {
+                    msg = new UdpMessage(segment.Connection, segment);
+                    msg.AddSegment(segment);
 
+                    _messages.Add(msg.MessageId, msg);
                 }
+            }
 
-                if (msg != null && msg.IsComplete)
-                {
-                    _messages.Remove(segment.MessageId);
-                    ProcessCompletedInboundUdpMessage(msg);
-                }
+            if (msg != null && msg.IsComplete)
+            {
+                _messages.Remove(segment.MessageId);
+                ProcessCompletedInboundUdpMessage(msg);
             }
         }
 
@@ -503,7 +453,6 @@ namespace Altus.Suffūz.Protocols.Udp
             var payloadType = TypeHelper.GetType(message.PayloadType);
             var requestType = payloadType;
             var responseType = typeof(NoReturn);
-            var isScalar = false;
             object payload = message.Payload;
             Func<NominateResponse, bool> capacityPredicate = null;
 
@@ -514,16 +463,25 @@ namespace Altus.Suffūz.Protocols.Udp
                 payload = ((RoutablePayload)payload).Payload;
             }
 
-            if (IsDelegatedRequest(payload, payloadType, out requestType))
+            if (IsDelegatedRequest( payload, payloadType, out requestType))
             {
                 capacityPredicate = new Serialization.Expressions.ExpressionSerializer()
                     .Deserialize<Func<NominateResponse, bool>>(XElement.Parse(((NominateExecutionRequest)payload).Nominator))
                     .Compile();
-                isScalar = ((NominateExecutionRequest)payload).ScalarResults;
                 payload = ((NominateExecutionRequest)payload).Request;
             }
 
-            var route = _router.GetRoute(message.ServiceUri, requestType, responseType);
+            //var route = _router.GetRoute(message.ServiceUri, requestType, responseType);
+            foreach (var route in _router.GetRoutes(message.ServiceUri, requestType, responseType))
+            {
+                RouteMessage(message, route, payload, capacityPredicate);
+            }
+            // for multicast listeners, the absence of a matched route doesn't mean there's a problem, as the listener may see many
+            // messages on the group that simply aren't relevant, so we don't throw an exception here - we just ignore
+        }
+
+        private void RouteMessage(Message message, ServiceRoute route, object payload, Func<NominateResponse, bool> capacityPredicate)
+        {
             if (route != null)
             {
                 if (capacityPredicate != null)
@@ -573,8 +531,6 @@ namespace Altus.Suffūz.Protocols.Udp
                     //Console.WriteLine("Sent {0} To {1}", result.GetType().Name, message.Sender);
                 }
             }
-            // for multicast listeners, the absence of a matched route doesn't mean there's a problem, as the listener may see many
-            // messages on the group that simply aren't relevant, so we don't throw an exception here - we just ignore
         }
 
         protected virtual bool IsDelegatedRequest(object payload, Type payloadType, out Type requestType)
@@ -603,12 +559,16 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void OnSocketException(Exception e)
         {
-            Logger.LogError(e);
-
-            if (this.SocketException != null)
+            try
             {
-                this.SocketException(this, new SocketExceptionEventArgs(this, e));
+                Logger.LogError(e);
+
+                if (this.SocketException != null)
+                {
+                    this.SocketException(this, new SocketExceptionEventArgs(this, e));
+                }
             }
+            catch { }
         }
 
         #region IDisposable Members

@@ -19,10 +19,7 @@ using System.Threading.Tasks;
 namespace Altus.Suffūz
 {
     class Program
-    {
-        
-        private static IChannelService _channelService;
-
+    { 
         static void Main(string[] args)
         {
             //PerfTest();
@@ -210,6 +207,8 @@ namespace Altus.Suffūz
             router.Route<Handler, TestResponse>(Channels.CHANNEL, (handler) => handler.Handle())
                   .Nominate(() => CostFunctions.CapacityCost(25d, 0d, 100d))
                   .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
+
+            router.Route<Handler, TestRequest, TestResponse>(Channels.BESTEFFORT_CHANNEL, (handler, request) => handler.HandleBE(request));
         }
 
 
@@ -311,7 +310,7 @@ namespace Altus.Suffūz
             //Console.Read();
 
             // in this case, because we're executing an enumeration for an unmapped request/response pair, the call will simply block for the 
-            // timeout period, and return no results.  Enumerations DO NOT through timeout exceptions in the absence of any responses, only scalar
+            // timeout period, and return no results.  Enumerations DO NOT throw timeout exceptions in the absence of any responses, only scalar
             // execution calls can produce timeout exceptions.
             var enResult5 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest())
                                             .All()
@@ -340,6 +339,8 @@ namespace Altus.Suffūz
         {
             return 0.8d;
         }
+
+        public bool IsBestEffort { get; set; }
     }
 
     /// <summary>
@@ -367,6 +368,12 @@ namespace Altus.Suffūz
         public void Handle(CommandRequest request)
         {
             Logger.LogInfo("Handled CommandRequest");
+        }
+
+        public TestResponse HandleBE(TestRequest request)
+        {
+            Logger.LogInfo("Handled BE TestRequest with TestResponse");
+            return new TestResponse() { Size = Environment.TickCount };
         }
     }
 }

@@ -46,5 +46,9 @@ namespace Altus.Suffūz.Collections
         /// Reclaims free memory blocks from the collection
         /// </summary>
         void Compact();
+        /// <summary>
+        /// Indicates whether the instance has been disposed
+        /// </summary>
+        bool IsDisposed { get; }
     }
 }

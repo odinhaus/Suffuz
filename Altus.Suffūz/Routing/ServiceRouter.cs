@@ -12,25 +12,25 @@ namespace Altus.Suffūz.Routing
     public delegate U TaskRoute<T, U>(T payload);
     public class ServiceRouter : IServiceRouter
     {
-        Dictionary<string, ServiceRoute> _routes = new Dictionary<string, ServiceRoute>();
+        Dictionary<string, List<ServiceRoute>> _routes = new Dictionary<string, List<ServiceRoute>>();
 
-        public ServiceRoute GetRoute(string channelId, Type requestType, Type responseType)
+        public IEnumerable<ServiceRoute> GetRoutes(string channelId, Type requestType, Type responseType)
         {
-            ServiceRoute route;
+            List<ServiceRoute> routes;
             var key = ServiceRoute.GetKey(channelId, requestType, responseType);
             lock (_routes)
             {
-                if (!_routes.TryGetValue(key, out route))
+                if (!_routes.TryGetValue(key, out routes))
                 {
-                    return null;
+                    return new ServiceRoute[0];
                 }
             }
-            return route;
+            return routes;
         }
 
-        public ServiceRoute GetRoute<TRequest, TResponse>(string channelId)
+        public IEnumerable<ServiceRoute> GetRoutes<TRequest, TResponse>(string channelId)
         {
-            return GetRoute(channelId, typeof(TRequest), typeof(TResponse));
+            return GetRoutes(channelId, typeof(TRequest), typeof(TResponse));
         }
 
         public ServiceRoute<TRequest, TResult> Route<THandler, TRequest, TResult>(string channelId, Expression<Func<THandler, TRequest, TResult>> handler)
@@ -66,14 +66,16 @@ namespace Altus.Suffūz.Routing
             {
                 if (!_routes.ContainsKey(route.Key))
                 {
-                    _routes.Add(route.Key, route);
+                    var routes = new List<ServiceRoute>();
+                    routes.Add(route);
+                    _routes.Add(route.Key, routes);
                     App.ResolveAll<IChannelService>()
                         .First(c => c.CanCreate(route.ChannelId))
                         .Create(route.ChannelId); // gets the channel up and running
                 }
                 else
                 {
-                    _routes[route.Key] = route;
+                    _routes[route.Key].Add(route);
                 }
             }
         }

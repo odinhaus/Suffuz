@@ -161,6 +161,8 @@ namespace Altus.Suffūz.Collections
         public abstract void Flush();
         public abstract IEnumerator GetEnumerator();
 
+        public bool IsDisposed { get { return disposed; } }
+
         #region IDisposable Members
         bool disposed = false;
 

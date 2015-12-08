@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Protocols.Udp
 {
-    public class UdpMessage : IComparer<UdpSegment>
+    public class UdpMessage : IComparer<UdpSegment>, IProtocolMessage<UdpSegment>
     {
         MD5 _hasher = MD5.Create();
         static object _lock = new object();

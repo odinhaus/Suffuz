@@ -11,5 +11,6 @@ namespace Altus.Suffūz.Scheduling
         object Execute(object[] args);
         Schedule Schedule { get; }
         Func<object[]> ExecuteArgs { get; }
+        void Cancel();
     }
 }

@@ -67,5 +67,10 @@ namespace Altus.Suffūz.Scheduling
         {
             return Executor.DynamicInvoke(args);
         }
+
+        public void Cancel()
+        {
+            Schedule.Cancel();
+        }
     }
 }

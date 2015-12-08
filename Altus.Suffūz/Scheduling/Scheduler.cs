@@ -2,14 +2,17 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Diagnostics;
+using System.Collections;
 
 namespace Altus.Suffūz.Scheduling
 {
-    public class Scheduler
+    public class Scheduler : IScheduler
     {
         List<IScheduledTask> _tasks = new List<IScheduledTask>();
         Thread _taskRunner;
         bool _running = false;
+
+        public event TaskExpiredHandler TaskExpired;
 
         static Scheduler _current;
         public static Scheduler Current
@@ -62,11 +65,20 @@ namespace Altus.Suffūz.Scheduling
 
                     if (_runners[task].IsExpired)
                     {
+                        OnTaskExpired(task);
                         _runners.Remove(task);
                     }
                 }
 
                 Thread.Sleep(1);
+            }
+        }
+
+        protected virtual void OnTaskExpired(IScheduledTask task)
+        {
+            if (this.TaskExpired != null)
+            {
+                TaskExpired(this, new TaskExpiredEventArgs(task));
             }
         }
 
@@ -115,6 +127,16 @@ namespace Altus.Suffūz.Scheduling
             public IScheduledTask Task { get; private set; }
             public Thread Thread { get; private set; }
             public bool IsExpired { get; private set; }
+        }
+
+        public IEnumerator<IScheduledTask> GetEnumerator()
+        {
+            return Tasks.GetEnumerator();
+        }
+
+        IEnumerator IEnumerable.GetEnumerator()
+        {
+            return this.GetEnumerator();
         }
 
         /// <summary>

@@ -337,6 +337,8 @@ namespace Altus.Suffūz.Collections
             }
         }
 
+        public bool IsDisposed { get { return disposed; } }
+
         #region IDisposable Members
         bool disposed = false;
 

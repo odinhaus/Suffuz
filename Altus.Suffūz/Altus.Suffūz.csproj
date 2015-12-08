@@ -67,6 +67,10 @@
     <Compile Include="Collections\PersistentQueue.cs" />
     <Compile Include="Collections\PersistentStack.cs" />
     <Compile Include="CostFunctions.cs" />
+    <Compile Include="Protocols\Udp\BestEffortChannelBuffer.cs" />
+    <Compile Include="Protocols\IBestEffortChannelBuffer.cs" />
+    <Compile Include="Protocols\IProtocolMessage.cs" />
+    <Compile Include="Scheduling\IScheduler.cs" />
     <Compile Include="Security\Cryptography\Box\Curve25519XSalsa20Poly1305.cs" />
     <Compile Include="Security\Cryptography\Core\HSalsa20.cs" />
     <Compile Include="Security\Cryptography\Core\Salsa20.cs" />

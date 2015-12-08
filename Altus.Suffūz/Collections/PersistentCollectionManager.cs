@@ -25,10 +25,10 @@ namespace Altus.Suffūz.Collections
             IPersistentCollection collection;
             lock(_collections)
             {
-                if (!_collections.TryGetValue(fileName, out collection))
+                if (!_collections.TryGetValue(fileName, out collection) || collection.IsDisposed)
                 {
                     collection = creator(fileName);
-                    _collections.Add(fileName, collection);
+                    _collections[fileName] = collection;
                 }
             }
             return (TCollection)collection;
