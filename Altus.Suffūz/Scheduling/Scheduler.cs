@@ -44,7 +44,6 @@ namespace Altus.Suffūz.Scheduling
         Dictionary<IScheduledTask, TaskRunner> _runners = new Dictionary<IScheduledTask, TaskRunner>();
         private void RunTasks()
         {
-            _running = false;
             while (_running)
             {
                 IScheduledTask[] tasks;
@@ -58,10 +57,20 @@ namespace Altus.Suffūz.Scheduling
                 {
                     IScheduledTask task = tasks[i];
 
-                    if (!_runners.ContainsKey(task)
-                        && task.Schedule[now].IsScheduled(now.Ticks))
+                    if (!_runners.ContainsKey(task))
                     {
-                        _runners.Add(task, new TaskRunner(task));
+                        if (task.Schedule[now].IsScheduled(now.Ticks))
+                        {
+                            _runners.Add(task, new TaskRunner(task));
+                        }
+                        else if (task.Schedule.Interval < 0)
+                        {
+                            // it's been canceled before it was scheduled to execute
+                            lock (this)
+                            {
+                                _tasks.Remove(task);
+                            }
+                        }
                     }
 
                     if (_runners.ContainsKey(task) && _runners[task].IsExpired)

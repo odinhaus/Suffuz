@@ -191,9 +191,9 @@ namespace Altus.Suffūz
         {
             var ctx = new ChannelContext()
             {
-                Count = 0,
-                Results = new EnumerableResponse<TRequest, TResponse>(terminalExecutor, timeout, recipients)
+                Count = 0
             };
+            ctx.Results = new EnumerableResponse<TRequest, TResponse>(ctx, terminalExecutor, timeout, recipients);
             Current = ctx;
             return (IEnumerable<TResponse>)ctx.Results;
         }
@@ -209,14 +209,17 @@ namespace Altus.Suffūz
             Queue<TResponse> _queue = new Queue<TResponse>();
 
             TerminalExecutor<TRequest, TResponse> _executor;
+            ChannelContext _ctx;
 
             Func<TResponse, bool> _handleNewMessage;
 
-            public EnumerableResponse(TerminalExecutor<TRequest, TResponse> terminalExecutor, int timeout, string[] recipients)
+            public EnumerableResponse(ChannelContext ctx, TerminalExecutor<TRequest, TResponse> terminalExecutor, int timeout, string[] recipients)
             {
+                this._ctx = ctx;
                 this._executor = terminalExecutor;
                 this._handleNewMessage = (response) =>
                 {
+                    ChannelContext.Current = _ctx;
                     if (CurrentTime.Now < this.EndTime)
                     {
                         if (_executor.Selector(response))
@@ -225,12 +228,12 @@ namespace Altus.Suffūz
                             {
                                 _queue.Enqueue(response);
                                 _evt.Set();
-                                ChannelContext.Current.Count++;
+                                _ctx.Count++;
                             }
                         }
                         if (_executor.Terminator(response)
                             ||
-                           (_executor.IsScalar && ChannelContext.Current.Count >= 1))
+                           (_executor.IsScalar && _ctx.Count >= 1))
                         {
                             IsComplete = true;
                             return true;
@@ -246,8 +249,9 @@ namespace Altus.Suffūz
                         return true;
                     }
                 };
-                this.EndTime = CurrentTime.Now.Add(_executor.Get.Timeout);
+               
                 this.Timeout = timeout < 0 ? (int)_executor.Get.Timeout.TotalMilliseconds : timeout;
+                this.EndTime = CurrentTime.Now.Add(TimeSpan.FromMilliseconds(this.Timeout));
                 this.Recipients = recipients;
             }
 
@@ -315,35 +319,59 @@ namespace Altus.Suffūz
                 {
                     Recipients = new string[] { "*" };
                 }
+
                 if (_executor.Nominator == null)
                 {
-                    var request = new ChannelRequest<TRequest, TResponse>(_executor.Get.ChannelName)
-                    {
-                        Payload = _executor.Get.Request,
-                        Timeout = Timeout >= 0 ? TimeSpan.FromMilliseconds(Timeout) : _executor.Get.Timeout,
-                        Recipients = Recipients
-                    };
-
-                    //Task.Run(() => channel.Call(request, this._handleNewMessage)); // we don't want to block here
-                    ThreadPool.QueueUserWorkItem((state) => channel.Call(request, this._handleNewMessage)); // we don't want to block here
+                    ExecuteNominated(channel);
                 }
                 else
                 {
-                    var request = new ChannelRequest<NominateExecutionRequest, TResponse>(_executor.Get.ChannelName)
-                    {
-                        Timeout = Timeout >= 0 ? TimeSpan.FromMilliseconds(Timeout) : _executor.Get.Timeout,
-                        Payload = new NominateExecutionRequest()
-                        {
-                            Request = _executor.Get.Request,
-                            Nominator = new Serialization.Expressions.ExpressionSerializer().Serialize(_executor.Nominator).ToString(),
-                            ScalarResults = _executor.IsScalar
-                        },
-                        Recipients = Recipients
-                    };
-
-                    //Task.Run(() => channel.Call(request, this._handleNewMessage)); // we don't want to block here
-                    ThreadPool.QueueUserWorkItem((state) => channel.Call(request, this._handleNewMessage)); // we don't want to block here
+                    ExecuteCollective(channel);
                 }
+            }
+
+            private void ExecuteNominated(IChannel channel)
+            {
+                var request = new ChannelRequest<TRequest, TResponse>(_executor.Get.ChannelName)
+                {
+                    Payload = _executor.Get.Request,
+                    Timeout = Timeout >= 0 ? TimeSpan.FromMilliseconds(Timeout) : _executor.Get.Timeout,
+                    Recipients = Recipients
+                };
+
+                ThreadPool.QueueUserWorkItem((state) =>
+                {
+                    try
+                    {
+                        channel.Call(request, this._handleNewMessage);
+                    }
+                    catch { }
+                }); // we don't want to block here
+            }
+
+            private void ExecuteCollective(IChannel channel)
+            {
+                var request = new ChannelRequest<NominateExecutionRequest, TResponse>(_executor.Get.ChannelName)
+                {
+                    Timeout = Timeout >= 0 ? TimeSpan.FromMilliseconds(Timeout) : _executor.Get.Timeout,
+                    Payload = new NominateExecutionRequest()
+                    {
+                        Request = _executor.Get.Request,
+                        Nominator = new Serialization.Expressions.ExpressionSerializer().Serialize(_executor.Nominator).ToString(),
+                        ScalarResults = _executor.IsScalar
+                    },
+                    Recipients = Recipients
+                };
+
+
+                ThreadPool.QueueUserWorkItem((state) =>
+                {
+                    try
+                    {
+                        channel.Call(request, this._handleNewMessage);
+                    }
+                    catch { }
+                }); // we don't want to block here
             }
         }
     }

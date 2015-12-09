@@ -86,7 +86,8 @@ namespace Altus.Suffūz.Protocols.Udp
             
             this.ExcludeSelf = excludeMessagesFromSelf;
             this.Socket = udpSocket;
-            this.Socket.SendBufferSize = 8192 * 2;
+            this.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReceiveBuffer, SocketOptions.MTU_SIZE * 10);
+            this.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.SendBuffer, SocketOptions.MTU_SIZE * 10);
             this.EndPoint = IPEndPointEx.LocalEndPoint(mcastGroup.Port, true);
             this.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.ReuseAddress, true);
             this.Socket.ExclusiveAddressUse = false;
@@ -117,7 +118,7 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             lock (SyncRoot)
             {
-                Socket.SendTo(data, this.McastEndPoint);
+                Socket.SendTo(data, SocketFlags.None, this.McastEndPoint);
                 BytesSentRate.IncrementBy(data.Length);
                 BytesSentTotal.IncrementBy(data.Length);
             }

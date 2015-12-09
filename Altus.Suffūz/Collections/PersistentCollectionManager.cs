@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Altus.Suffūz.Scheduling;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,6 +10,7 @@ namespace Altus.Suffūz.Collections
     public class PersistentCollectionManager : IManagePersistentCollections
     {
         public const string GLOBAL_HEAP = "global_heap.bin";
+        public const int GLOBAL_HEAP_COMPACT_INTERVAL = 30000;
 
         static Dictionary<string, IPersistentCollection> _collections = new Dictionary<string, IPersistentCollection>();
 
@@ -16,7 +18,15 @@ namespace Altus.Suffūz.Collections
         {
             get
             {
-                return GetOrCreate<PersistentHeap>(GLOBAL_HEAP, (name) => new PersistentHeap(name));
+                return GetOrCreate<PersistentHeap>(GLOBAL_HEAP, (name) =>
+                {
+                    var heap = new PersistentHeap(name)
+                    {
+                        AutoGrowSize = 1024 * 1024 * 10
+                    };
+                    App.Resolve<IScheduler>().Schedule(GLOBAL_HEAP_COMPACT_INTERVAL, () => heap.Compact());
+                    return heap;
+                });
             }
         }
 

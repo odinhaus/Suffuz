@@ -140,18 +140,18 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void Compact()
         {
-            //lock (Channel)
-            //{
-            //    _sequenceNumbers.Compact();
-            //    _segmentNumbers.Compact();
-            //    _segments.Compact();
-            //}
+            lock (Channel)
+            {
+                _sequenceNumbers.Compact();
+                _segmentNumbers.Compact();
+                _segments.Compact();
+            }
         }
 
         public virtual void AddInboundSegment(MessageSegment segment)
         {
-            //lock (Channel)
-            //{
+            lock (Channel)
+            {
                 using (var scope = new FlushScope())
                 {
                     UpdateSequenceNumber(segment.Sender, segment.SequenceNumber);
@@ -170,8 +170,8 @@ namespace Altus.Suffūz.Protocols.Udp
                         AfterMessageReceived(udpMessage);
                     }
                 }
-            //}
         }
+    }
 
         protected virtual SegmentList AddMessageSegment(MessageSegment segment)
         {

@@ -5,6 +5,7 @@ using Altus.Suffūz.Messages;
 using Altus.Suffūz.Protocols;
 using Altus.Suffūz.Protocols.Udp;
 using Altus.Suffūz.Routing;
+using Altus.Suffūz.Scheduling;
 using Altus.Suffūz.Serialization;
 using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Test;
@@ -223,7 +224,7 @@ namespace Altus.Suffūz
 
             var channelService = App.Resolve<IChannelService>();
             var channel = channelService.Create("channel1");
-            var count = 1000f;
+            var count = 10000f;
             var sw = new Stopwatch();
             sw.Start();
             for (int i = 0; i < count; i++)
@@ -289,16 +290,22 @@ namespace Altus.Suffūz
             //var sendRate = count / (sw.ElapsedMilliseconds / 1000f);
             //Console.WriteLine("Send Rate: {0} message/sec", bufferRate);
 
-
+            
             Console.Read();
-
-            for (int i = 0; i < 1000; i++)
+            sw.Reset();
+            sw.Start();
+            for (int i = 0; i < count; i++)
             {
-                var r = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute();
+                
+                var r = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute(100000);
+                
                 //Debug.Assert(r.Size > 0);
                 //Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
             }
-            //System.Threading.Thread.Sleep(60000);
+            sw.Stop();
+            Console.WriteLine("Mean Call Time: {0} ms", sw.ElapsedMilliseconds / count);
+            sw.Reset();
+
 
             //// executes the default call on the CHANNEL, with no arguments or response
             Get.From(Channels.CHANNEL).Execute();
@@ -401,9 +408,11 @@ namespace Altus.Suffūz
                                             .ToArray();
             Debug.Assert(enResult5.Length == 0);
 
+            // give the scheduler time to clean up
+            System.Threading.Thread.Sleep(20);
 
-            
-
+            var scheduler = App.Resolve<IScheduler>();
+            Console.WriteLine("Scheduled Tasks: {0}", scheduler.Count());
 
             Console.WriteLine("Tests Complete");
             Console.Read();
