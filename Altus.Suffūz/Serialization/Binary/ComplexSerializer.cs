@@ -12,11 +12,10 @@ namespace Altus.Suffūz.Serialization.Binary
         public bool IsScalar { get { return false; } }
         public ComplexSerializer(IBinarySerializerBuilder builder)
         {
-            Priority = int.MaxValue;
             Builder = builder;
         }
 
-        public int Priority { get; private set; }
+        public int Priority { get { return int.MaxValue; } }
 
         private IBinarySerializerBuilder Builder;
 

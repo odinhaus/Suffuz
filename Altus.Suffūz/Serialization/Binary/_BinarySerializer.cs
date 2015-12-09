@@ -23,7 +23,7 @@ namespace Altus.Suffūz.Serialization.Binary
                     type = source.GetType();
                 }
 
-                string tname = type.AssemblyQualifiedName;
+                string tname = source.GetType().AssemblyQualifiedName;
                 if (typeof(ISerializer).IsAssignableFrom(targetType))
                 {
                     Type baseType = type.BaseType;

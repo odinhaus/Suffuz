@@ -63,6 +63,8 @@ namespace Altus.Suffūz.Protocols.Udp
         static Dictionary<string, object> _locks = new Dictionary<string, object>();
         object _lock;
         IServiceRouter _router;
+        IChannelBuffer<UdpMessage> _buffer;
+
 
         public MulticastChannel(string name, IPEndPoint mcastGroup, bool listen) : this(name, mcastGroup, listen, true)
         {
@@ -77,7 +79,11 @@ namespace Altus.Suffūz.Protocols.Udp
         public MulticastChannel(string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
         {
             this.Name = name;
-            this.SequenceNumber = (ulong)(App.InstanceId << 48);
+
+            this._buffer = new ChannelBuffer();
+            this._buffer.MessageReceived += MessageReceived;
+            this._buffer.Initialize(this);
+            
             this.ExcludeSelf = excludeMessagesFromSelf;
             this.Socket = udpSocket;
             this.Socket.SendBufferSize = 8192 * 2;
@@ -96,29 +102,15 @@ namespace Altus.Suffūz.Protocols.Udp
             }
             _lock = _locks[mcastGroup.ToString()];
             this.TextEncoding = Encoding.Unicode;
-            Scheduler.Current.Schedule(2000, () => Cleaner());
             this._router = App.Resolve<IServiceRouter>();
         }
 
-        protected virtual void Cleaner()
+        private void MessageReceived(object sender, MessageAvailableEventArgs<UdpMessage> e)
         {
-            ulong[] orphans = new ulong[0];
-            System.DateTime now = CurrentTime.Now;
-            lock (this._messages)
-            {
-                try
-                {
-                    orphans = this._messages
-                        .Where(kvp => kvp.Value.UdpSegments.Length > 0 && kvp.Value.UdpSegments.Count(s => s.TimeToLive >= now) > 0)
-                        .Select(kvp => kvp.Key).ToArray();
-                }
-                catch { }
-            }
-
-            for (int i = 0; i < orphans.Length; i++)
-            {
-                this._messages.Remove(orphans[i]);
-            }
+            Message message = (Message)Message.FromStream(e.Message.Payload);
+            App.Resolve<ISerializationContext>().TextEncoding = Encoding.Unicode;
+            ProcessInboundMessage(message);
+            MsgReceivedRate.IncrementByFast(1);
         }
 
         public virtual void Send(byte[] data)
@@ -159,7 +151,7 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             lock (SyncRoot)
             {
-                SequenceNumber++;
+                _buffer.IncrementLocalMessageId();
                 return new UdpMessage(this, message);
             }
         }
@@ -261,7 +253,7 @@ namespace Altus.Suffūz.Protocols.Udp
         public virtual ServiceLevels ServiceLevels { get { return ServiceLevels.Default; } }
         public virtual TimeSpan DefaultTimeout { get { return TimeSpan.FromSeconds(0); } set { } }
         public object SyncRoot { get { return _lock; } }
-        public ulong SequenceNumber { get; protected set; }
+        public ulong MessageId { get { return _buffer.LocalMessageId; } }
         public string Name { get; private set; }
 
         [ThreadStatic()]
@@ -333,7 +325,9 @@ namespace Altus.Suffūz.Protocols.Udp
                     {
                         MessageSegment segment;
                         if (MessageSegment.TryCreate(this, Protocol.Udp, ep, buffer, out segment))
-                            ProcessInboundUdpSegment(segment);
+                        {
+                            _buffer.AddInboundSegment(segment);
+                        }
                     }
                     else
                     {
@@ -351,87 +345,6 @@ namespace Altus.Suffūz.Protocols.Udp
                     this.OnSocketException(ex);
                 }
             }
-        }
-
-        protected Dictionary<ulong, UdpMessage> _messages = new Dictionary<ulong, UdpMessage>();
-        protected virtual void ProcessInboundUdpSegment(MessageSegment segment)
-        {
-            if (segment.SegmentType == SegmentType.Segment)
-            {
-                // segment
-                ProcessInboundUdpSegmentSegment((UdpSegment)segment);
-            }
-            else
-            {
-                // header
-                ProcessInboundUdpHeaderSegment((UdpHeader)segment);
-            }
-        }
-
-        protected virtual void ProcessInboundUdpSegmentSegment(UdpSegment segment)
-        {
-            UdpMessage msg = null;
-            if (segment.MessageId == 0) return; // discard bad message
-            lock (_messages)
-            {
-                if (_messages.TryGetValue(segment.MessageId, out msg))
-                {
-                    msg.AddSegment(segment);
-                }
-                else
-                {
-                    msg = new UdpMessage(segment.Connection, segment);
-                    msg.AddSegment(segment);
-
-                    _messages.Add(msg.MessageId, msg);
-                }
-            }
-
-            if (msg != null && msg.IsComplete)
-            {
-                _messages.Remove(segment.MessageId);
-                ProcessCompletedInboundUdpMessage(msg);
-            }
-        }
-
-        protected virtual void ProcessInboundUdpHeaderSegment(UdpHeader segment)
-        {
-            UdpMessage msg = null;
-            if (segment.MessageId == 0) return; // discard bad message
-            lock (_messages)
-            {
-                try
-                {
-                    // udp can duplicate messages, or send payload datagrams ahead of the header
-                    if (_messages.TryGetValue(segment.MessageId, out msg))
-                    {
-                        msg.UdpHeaderSegment = segment;
-                    }
-                    else
-                    {
-                        msg = new UdpMessage(segment.Connection, segment);
-                        _messages.Add(msg.MessageId, msg);
-                    }
-                }
-                catch
-                {
-
-                }
-
-                if (msg != null && msg.IsComplete)
-                {
-                    _messages.Remove(segment.MessageId);
-                    ProcessCompletedInboundUdpMessage(msg);
-                }
-            }
-        }
-
-        protected virtual void ProcessCompletedInboundUdpMessage(UdpMessage udpMessage)
-        {
-            Message message = (Message)Message.FromStream(udpMessage.Payload);
-            App.Resolve<ISerializationContext>().TextEncoding = System.Text.Encoding.Unicode;
-            ProcessInboundMessage(message);
-            MsgReceivedRate.IncrementByFast(1);
         }
 
         protected virtual void ProcessInboundMessage(Message message)

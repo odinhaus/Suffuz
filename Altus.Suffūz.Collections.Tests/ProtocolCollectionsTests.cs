@@ -10,27 +10,77 @@ using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Protocols;
 using System.Net;
 using System.Text;
+using Altus.Suffūz.Routing;
+using System.Threading;
 
 namespace Altus.Suffūz.Collections.Tests
 {
     [TestClass]
     public class ProtocolCollectionsTests : IBootstrapper
     {
-       
-
         [TestMethod]
-        public void CanInitializeMCastBuffers()
+        public void CanSerializeUdpMessage()
         {
             var cb = App.Resolve<IBestEffortChannelBuffer<UdpMessage>>();
-            var sched = App.Resolve<IScheduler>();
-            cb.Initialize();
-            cb.Reset();
-            Assert.IsTrue(cb.SequenceNumber == (ulong)((ulong)App.InstanceId << 48));
-            Assert.IsTrue(cb.IsInitialized);
-            Assert.IsTrue(sched.Count() == 0);
+            var msg = new UdpMessage(cb.Channel, new Message(StandardFormats.BINARY, cb.Channel.Name, ServiceType.RequestResponse, App.InstanceName)
+            {
+                TTL = TimeSpan.FromSeconds(5),
+                Payload = NoArgs.Empty,
+                Recipients = new string[] { "*" }
+            });
+
+            var serializer = new UdpMessageSerializer();
+
+            var serialized = serializer.Serialize(msg);
+            var deserialized = serializer.Deserialize(serialized);
+
+            Assert.IsTrue(msg.MessageId == deserialized.MessageId);
+            Assert.IsTrue(msg.UdpHeaderSegment.PayloadLength == deserialized.UdpHeaderSegment.PayloadLength);
         }
 
-        
+
+        [TestMethod]
+        public void CanInitializeMCastBuffer()
+        {
+            var cb = App.Resolve<IChannelBuffer<UdpMessage>>();
+            cb.Initialize(new FakeChannel(cb));
+            cb.Reset();
+            Assert.IsTrue(cb.Channel.MessageId == (ulong)((ulong)App.InstanceId << 48));
+            Assert.IsTrue(cb.IsInitialized);
+        }
+
+        [TestMethod]
+        public void CanComposeMessageFromSegments()
+        {
+            var cb = App.Resolve<IChannelBuffer<UdpMessage>>();
+            var sched = App.Resolve<IScheduler>();
+            cb.Initialize(new FakeChannel(cb));
+            cb.Reset();
+
+            var msg = new UdpMessage(cb.Channel, new Message(StandardFormats.BINARY, cb.Channel.Name, ServiceType.RequestResponse, App.InstanceName)
+            {
+                TTL = TimeSpan.FromSeconds(2),
+                Payload = NoArgs.Empty,
+                Recipients = new string[] { "*" }
+            });
+
+            UdpMessage rcvd = null;
+            cb.MessageReceived += (s, e) =>
+            {
+                rcvd = e.Message;
+            };
+
+            cb.AddInboundSegment(msg.UdpHeaderSegment);
+            foreach(var seg in msg.UdpSegments)
+            {
+                cb.AddInboundSegment(seg);
+            }
+
+            Assert.IsTrue(rcvd != null && rcvd.MessageId == msg.MessageId);
+        }
+
+
+
         static bool _init;
         [TestInitialize]
         public void Init()
@@ -90,8 +140,14 @@ namespace Altus.Suffūz.Collections.Tests
                     typeof(ISerializer),
                     new Tuple<Type, object>(typeof(ISerializer), new ComplexSerializer(new ILSerializerBuilder()))));
                 _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
-                    typeof(IBestEffortChannelBuffer<UdpMessage>),
-                    new Tuple<Type, object>(typeof(IBestEffortChannelBuffer<UdpMessage>), new BestEffortChannelBuffer(new FakeChannel()))));
+                    typeof(ISerializer),
+                    new Tuple<Type, object>(typeof(ISerializer), new MessageSegmentSerializer())));
+                //_types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                //    typeof(IBestEffortChannelBuffer<UdpMessage>),
+                //    new Tuple<Type, object>(typeof(IBestEffortChannelBuffer<UdpMessage>), new BestEffortChannelBuffer(new FakeChannel()))));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(IChannelBuffer<UdpMessage>),
+                    new Tuple<Type, object>(typeof(IChannelBuffer<UdpMessage>), new ChannelBuffer())));
                 _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
                     typeof(IScheduler),
                     new Tuple<Type, object>(typeof(IScheduler), Scheduler.Current)));
@@ -115,6 +171,12 @@ namespace Altus.Suffūz.Collections.Tests
 
     public class FakeChannel : IChannel
     {
+        IChannelBuffer<UdpMessage> _buffer;
+        public FakeChannel(IChannelBuffer<UdpMessage> buffer)
+        {
+            _buffer = buffer;
+        }
+
         public TimeSpan DefaultTimeout { get; set; }
 
         public EndPoint EndPoint { get; set; }
@@ -127,7 +189,7 @@ namespace Altus.Suffūz.Collections.Tests
 
         public Protocol Protocol { get { return Protocol.Udp; } }
 
-        public ulong SequenceNumber { get; set; }
+        public ulong MessageId { get { return _buffer.LocalMessageId; } }
 
         public ServiceLevels ServiceLevels { get { return ServiceLevels.BestEffort; } }
 

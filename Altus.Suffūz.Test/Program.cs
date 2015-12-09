@@ -5,6 +5,7 @@ using Altus.Suffūz.Messages;
 using Altus.Suffūz.Protocols;
 using Altus.Suffūz.Protocols.Udp;
 using Altus.Suffūz.Routing;
+using Altus.Suffūz.Serialization;
 using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Test;
 using Altus.Suffūz.Tests;
@@ -208,7 +209,7 @@ namespace Altus.Suffūz
                   .Nominate(() => CostFunctions.CapacityCost(25d, 0d, 100d))
                   .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
 
-            router.Route<Handler, TestRequest, TestResponse>(Channels.BESTEFFORT_CHANNEL, (handler, request) => handler.HandleBE(request));
+            //router.Route<Handler, TestRequest, TestResponse>(Channels.BESTEFFORT_CHANNEL, (handler, request) => handler.HandleBE(request));
         }
 
 
@@ -217,6 +218,88 @@ namespace Altus.Suffūz
         /// </summary>
         static void DoIt()
         {
+            Console.WriteLine("Press ENTER to start");
+            Console.Read();
+
+            var channelService = App.Resolve<IChannelService>();
+            var channel = channelService.Create("channel1");
+            var count = 1000f;
+            var sw = new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < count; i++)
+            {
+                var message = new Message(StandardFormats.BINARY, "channel1", ServiceType.RequestResponse, App.InstanceName)
+                {
+                    Payload = new RoutablePayload(new TestRequest(), typeof(TestRequest), typeof(TestResponse)),
+                    Recipients = new string[] { "*" }
+                };
+
+                var udpMessage = new UdpMessage(channel, message);
+            }
+            sw.Stop();
+
+            var serializationRate = count / (sw.ElapsedMilliseconds / 1000f);
+            Console.WriteLine("Serialization Rate: {0} message/sec", serializationRate);
+
+            var buffer = new ChannelBuffer();
+            buffer.Initialize(channel);
+
+
+            sw.Reset();
+            sw.Start();
+            using (var scope = new FlushScope())
+            {
+                for (int i = 0; i < count; i++)
+                {
+                    var message = new Message(StandardFormats.BINARY, "channel1", ServiceType.RequestResponse, App.InstanceName)
+                    {
+                        Payload = new RoutablePayload(new TestRequest(), typeof(TestRequest), typeof(TestResponse)),
+                        Recipients = new string[] { "*" }
+                    };
+
+                    var udpMessage = new UdpMessage(channel, message);
+                    buffer.AddInboundSegment(udpMessage.UdpHeaderSegment);
+                    for (int x = 0; x < udpMessage.UdpSegments.Length; x++)
+                    {
+                        buffer.AddInboundSegment(udpMessage.UdpSegments[x]);
+                    }
+                }
+            }
+            sw.Stop();
+            var bufferRate = count / (sw.ElapsedMilliseconds / 1000f);
+            Console.WriteLine("Buffer Rate: {0} message/sec", bufferRate);
+
+
+            //sw.Reset();
+            //sw.Start();
+            //using (var scope = new FlushScope())
+            //{
+            //    for (int i = 0; i < count; i++)
+            //    {
+            //        var message = new Message(StandardFormats.BINARY, "channel1", ServiceType.RequestResponse, App.InstanceName)
+            //        {
+            //            Payload = new RoutablePayload(new TestRequest(), typeof(TestRequest), typeof(TestResponse)),
+            //            Recipients = new string[] { "*" }
+            //        };
+
+            //        ((MulticastChannel)channel).Send(message);
+            //    }
+            //}
+            //sw.Stop();
+            //var sendRate = count / (sw.ElapsedMilliseconds / 1000f);
+            //Console.WriteLine("Send Rate: {0} message/sec", bufferRate);
+
+
+            Console.Read();
+
+            for (int i = 0; i < 1000; i++)
+            {
+                var r = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute();
+                //Debug.Assert(r.Size > 0);
+                //Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
+            }
+            //System.Threading.Thread.Sleep(60000);
+
             //// executes the default call on the CHANNEL, with no arguments or response
             Get.From(Channels.CHANNEL).Execute();
             //Console.Read();
@@ -318,6 +401,10 @@ namespace Altus.Suffūz
                                             .ToArray();
             Debug.Assert(enResult5.Length == 0);
 
+
+            
+
+
             Console.WriteLine("Tests Complete");
             Console.Read();
         }
@@ -350,29 +437,29 @@ namespace Altus.Suffūz
     {
         public TestResponse Handle(TestRequest request)
         {
-            Logger.LogInfo("Handled TestRequest with TestResponse");
+            //Logger.LogInfo("Handled TestRequest with TestResponse");
             return new TestResponse() { Size = Environment.TickCount };
         }
 
         public TestResponse Handle()
         {
-            Logger.LogInfo("Handled NoArgs with TestResponse");
+            //Logger.LogInfo("Handled NoArgs with TestResponse");
             return new TestResponse() { Size = 4 };
         }
 
         public void HandleNoArgs()
         {
-            Logger.LogInfo("Handled NoArgs");
+            //Logger.LogInfo("Handled NoArgs");
         }
 
         public void Handle(CommandRequest request)
         {
-            Logger.LogInfo("Handled CommandRequest");
+            //Logger.LogInfo("Handled CommandRequest");
         }
 
         public TestResponse HandleBE(TestRequest request)
         {
-            Logger.LogInfo("Handled BE TestRequest with TestResponse");
+            //Logger.LogInfo("Handled BE TestRequest with TestResponse");
             return new TestResponse() { Size = Environment.TickCount };
         }
     }

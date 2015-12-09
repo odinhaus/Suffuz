@@ -12,6 +12,7 @@ using Altus.Suffūz.Protocols;
 using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Protocols.Udp;
 using Altus.Suffūz.Collections;
+using Altus.Suffūz.Scheduling;
 
 namespace Altus.Suffūz.Test
 {
@@ -60,12 +61,12 @@ namespace Altus.Suffūz.Test
             // create our channel mappings
             channelService.Register(Channels.CHANNEL, Channels.CHANNEL_EP);
 
-            var beChannelService = new BestEffortMulticastChannelService();
-            // create our best-effort mcast channel mappings
-            beChannelService.Register(
-                Channels.BESTEFFORT_CHANNEL, 
-                Channels.BESTEFFORT_CHANNEL_EP, 
-                Channels.BESTEFFORT_CHANNEL_TTL);
+            //var beChannelService = new BestEffortMulticastChannelService();
+            //// create our best-effort mcast channel mappings
+            //beChannelService.Register(
+            //    Channels.BESTEFFORT_CHANNEL, 
+            //    Channels.BESTEFFORT_CHANNEL_EP, 
+            //    Channels.BESTEFFORT_CHANNEL_TTL);
 
             return new TypeResolver(
                 new Container(c =>
@@ -74,10 +75,12 @@ namespace Altus.Suffūz.Test
                 c.For<IServiceRouter>().Use<ServiceRouter>().Singleton();
                 // use the mapped channels above
                 c.For<IChannelService>().Use(channelService).Singleton();
-                c.For<IChannelService>().Use(beChannelService).Singleton();
+                //c.For<IChannelService>().Use(beChannelService).Singleton();
                 c.For<IBinarySerializerBuilder>().Use<ILSerializerBuilder>().Singleton();
                 c.For<ISerializer>().Use<ComplexSerializer>();
+                c.For<ISerializer>().Use<MessageSegmentSerializer>();
                 c.For<IManagePersistentCollections>().Use<PersistentCollectionManager>();
+                c.For<IScheduler>().Use<Scheduler>(Scheduler.Current).Singleton();
             }));
         }
     }

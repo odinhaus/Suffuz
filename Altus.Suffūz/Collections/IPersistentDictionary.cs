@@ -10,5 +10,7 @@ namespace Altus.Suffūz.Collections
         /// will always be the same.
         /// </summary>
         bool AllowOverwrites { get; }
+
+        new int Count { get; }
     }
 }

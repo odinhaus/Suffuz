@@ -20,7 +20,11 @@ namespace Altus.Suffūz.Protocols
 
         public abstract byte[] Payload { get; }
         public abstract ushort PayloadLength { get; }
-        public abstract uint SegmentNumber { get; }
+        public abstract ushort SegmentNumber { get; }
+        public abstract ushort SegmentCount { get; }
+        public abstract int SegmentLength { get; }
+
+        public abstract TimeSpan TimeToLive { get; }
         public byte[] Data { get; set; }
         public Protocol Protocol { get; set; }
         public EndPoint EndPoint { get; set; }
@@ -38,7 +42,7 @@ namespace Altus.Suffūz.Protocols
                 {
                     fixed (byte* Pointer = Data)
                     {
-                        _sender = *(((ushort*)(Pointer + 1 + 6)));
+                        _sender = (ushort)(*(((ulong*)(Pointer + 1))) >> 48);
                     }
                 }
                 return _sender;

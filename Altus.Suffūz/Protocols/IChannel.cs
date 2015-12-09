@@ -25,6 +25,6 @@ namespace Altus.Suffūz.Protocols
         bool IsDisconnected { get; }
         ServiceLevels ServiceLevels { get; }
         TimeSpan DefaultTimeout { get; set; }
-        ulong SequenceNumber { get; }
+        ulong MessageId { get; }
     }
 }

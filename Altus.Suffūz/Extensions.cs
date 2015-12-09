@@ -206,7 +206,7 @@ namespace Altus.Suffūz
         private class EnumerableResponse<TRequest, TResponse> : IEnumerable<TResponse>
         {
             ManualResetEventSlim _evt = new ManualResetEventSlim(false);
-            ConcurrentQueue<TResponse> _queue = new ConcurrentQueue<TResponse>();
+            Queue<TResponse> _queue = new Queue<TResponse>();
 
             TerminalExecutor<TRequest, TResponse> _executor;
 
@@ -276,9 +276,9 @@ namespace Altus.Suffūz
                     {
                         lock (_queue)
                         {
-                            TResponse response;
-                            while (_queue.TryDequeue(out response))
+                            while (_queue.Count > 0)
                             {
+                                TResponse response = _queue.Dequeue();
                                 yield return response;
                             }
                             _evt.Reset();
@@ -324,7 +324,8 @@ namespace Altus.Suffūz
                         Recipients = Recipients
                     };
 
-                    Task.Run(() => channel.Call(request, this._handleNewMessage)); // we don't want to block here
+                    //Task.Run(() => channel.Call(request, this._handleNewMessage)); // we don't want to block here
+                    ThreadPool.QueueUserWorkItem((state) => channel.Call(request, this._handleNewMessage)); // we don't want to block here
                 }
                 else
                 {
@@ -340,7 +341,8 @@ namespace Altus.Suffūz
                         Recipients = Recipients
                     };
 
-                    Task.Run(() => channel.Call(request, this._handleNewMessage)); // we don't want to block here
+                    //Task.Run(() => channel.Call(request, this._handleNewMessage)); // we don't want to block here
+                    ThreadPool.QueueUserWorkItem((state) => channel.Call(request, this._handleNewMessage)); // we don't want to block here
                 }
             }
         }

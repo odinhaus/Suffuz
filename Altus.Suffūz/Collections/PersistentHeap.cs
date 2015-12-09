@@ -417,6 +417,7 @@ namespace Altus.Suffūz.Collections
                     First = Last = 0;
                     using (var scope = new FlushScope())
                     {
+                        scope.Enlist(this);
                         while (address != -1)
                         {
                             address = GetNext(address, false); // first deleted block address

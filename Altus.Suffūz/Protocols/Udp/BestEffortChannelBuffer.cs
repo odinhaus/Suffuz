@@ -10,133 +10,142 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Protocols.Udp
 {
-    public class BestEffortChannelBuffer : IBestEffortChannelBuffer<UdpMessage>
+    public class BestEffortChannelBuffer : ChannelBuffer, IBestEffortChannelBuffer<UdpMessage>
     {
-        IPersistentDictionary<ushort, ulong> _sequenceNumbers;
         IPersistentDictionary<ulong, UdpMessage> _resendBuffer;
-        IChannel _channel;
-        List<IScheduledTask> _expirations = new List<IScheduledTask>();
-        IScheduler _scheduler;
 
-        public BestEffortChannelBuffer(IChannel channel)
+        List<Tuple<ulong, IScheduledTask>> _expirations = new List<Tuple<ulong, IScheduledTask>>();
+
+        int _added = 0, _removed = 0;
+
+        public BestEffortChannelBuffer() : base()
         {
-            _channel = channel;
         }
 
-        public void Initialize()
+        public override void Initialize(IChannel channel)
         {
             if (!IsInitialized)
             {
                 var manager = App.Resolve<IManagePersistentCollections>();
-                _scheduler = App.Resolve<IScheduler>();
-                _scheduler.TaskExpired += TaskExpired;
 
-                _sequenceNumbers = manager
-                    .GetOrCreate<IPersistentDictionary<ushort, ulong>>(
-                        _channel.Name + "_seq",
-                        (name) => new PersistentDictionary<ushort, ulong>(name, manager.GlobalHeap, true));
-
-                ulong sequenceNumber;
-                if (!_sequenceNumbers.TryGetValue(App.InstanceId, out sequenceNumber))
-                {
-                    sequenceNumber = (ulong)((ulong)App.InstanceId << 48);
-                    _sequenceNumbers[App.InstanceId] = sequenceNumber;
-                }
-
-                SequenceNumber = sequenceNumber;
-
-                App.Resolve<ISerializationContext>()
-                    .SetSerializer<UdpMessage, UdpMessageSerializer>(StandardFormats.BINARY);
+               
 
                 _resendBuffer = manager
                     .GetOrCreate<IPersistentDictionary<ulong, UdpMessage>>(
-                        _channel.Name + "_nak",
+                        Channel.Name + "_nak.bin",
                         (name) => new PersistentDictionary<ulong, UdpMessage>(name, manager.GlobalHeap, false));
+                _resendBuffer.Compact();
 
                 var now = CurrentTime.Now;
                 foreach (var kvp in _resendBuffer)
                 {
-                    if (now < kvp.Value.UdpHeaderSegment.TimeToLive)
-                    {
-                        // set the message to expire from the retry buffer based on the message's TTL
-                        _expirations.Add(_scheduler.Schedule<ulong>(kvp.Value.UdpHeaderSegment.TimeToLive,
-                            (messageId) => _resendBuffer.Remove(messageId),
-                            () => kvp.Value.MessageId));
-                    }
-                    else
-                    {
-                        _resendBuffer.Remove(kvp.Key);
-                    }
+                    //if (now < kvp.Value.UdpHeaderSegment.TimeToLive)
+                    //{
+                    //    // set the message to expire from the retry buffer based on the message's TTL
+                    //    _expirations.Add(new Tuple<ulong, IScheduledTask>(kvp.Value.MessageId,
+                    //        _scheduler.Schedule<ulong>(kvp.Value.UdpHeaderSegment.TimeToLive,
+                    //        (messageId) => _resendBuffer.Remove(messageId),
+                    //        () => kvp.Value.MessageId)));
+                    //    _added++;
+                    //}
+                    //else
+                    //{
+                    //    _resendBuffer.Remove(kvp.Key);
+                    //    _removed++;
+                    //}
                 }
-                IsInitialized = true;
+
+
+                base.Initialize(this.Channel);
             }
         }
 
-        private void TaskExpired(object sender, TaskExpiredEventArgs e)
+        protected override void Compact()
         {
-            lock(_channel)
+            lock(Channel)
             {
-                _expirations.Remove(e.Task);
+                if (_added != _removed)
+                {
+                    _resendBuffer.Compact();
+                    _added = _removed = 0;
+                }
             }
+            base.Compact();
         }
 
-        public void Reset()
+        public override void Reset()
         {
             if (!IsInitialized)
                 throw new InvalidOperationException("The channel buffer has not been initialized");
 
             _resendBuffer.Clear(true);
-            _sequenceNumbers.Clear(true);
             _resendBuffer.Dispose();
-            _sequenceNumbers.Dispose();
 
-            foreach(var task in _expirations)
+            foreach(var tuple in _expirations)
             {
-                task.Cancel();
+                tuple.Item2.Cancel();
             }
             _expirations.Clear();
 
-            IsInitialized = false;
-            Initialize();
+            base.Reset();
         }
 
-        private ulong _seq;
-        public ulong SequenceNumber
+        public void AddRetryMessage(UdpMessage message)
         {
-            get
+            lock(Channel)
             {
-                lock(_channel)
-                {
-                    return _seq;
-                }
-            }
-            set
-            {
-                lock(_channel)
-                {
-                    _seq = value;
-                }
+                //if (message.UdpHeaderSegment.TimeToLive > CurrentTime.Now)
+                //{
+                //    // add message to retry buffer
+                //    _resendBuffer.Add(message.MessageId, message);
+
+                //    // set the message to expire from the retry buffer based on the message's TTL
+                //    _expirations.Add(new Tuple<ulong, IScheduledTask>(message.MessageId,
+                //        _scheduler.Schedule<ulong>(message.UdpHeaderSegment.TimeToLive,
+                //        (messageId) => RemoveRetryMessage(messageId),
+                //        () => message.MessageId)));
+                //    _added++;
+                //}
+                //_sequenceNumbers.Add(message.Sender, message.MessageId);
             }
         }
 
-        public void AddMessage(UdpMessage message)
+        public void RemoveRetryMessage(UdpMessage message)
         {
-            lock(_channel)
+            RemoveRetryMessage(message.MessageId);
+        }
+
+        public void RemoveRetryMessage(ulong messageId)
+        {
+            lock (Channel)
             {
-                if (message.UdpHeaderSegment.TimeToLive > CurrentTime.Now)
+                _resendBuffer.Remove(messageId);
+                var tuple = _expirations.SingleOrDefault(t => t.Item1 == messageId);
+                if (tuple != null)
                 {
-                    // add message to retry buffer
-                    _resendBuffer.Add(message.MessageId, message);
+                    tuple.Item2.Cancel();
+                    _expirations.Remove(tuple);
+                }
+                _removed++;
+            }
+        }
 
-                    // set the message to expire from the retry buffer based on the message's TTL
-                    _expirations.Add(_scheduler.Schedule<ulong>(message.UdpHeaderSegment.TimeToLive,
-                        (messageId) => _resendBuffer.Remove(messageId),
-                        () => message.MessageId));
-
+        public UdpMessage GetRetryMessage(ulong messageId)
+        {
+            lock (Channel)
+            {
+                try
+                {
+                    return _resendBuffer[messageId];
+                }
+                catch(KeyNotFoundException)
+                {
+                    return null;
                 }
             }
         }
 
-        public bool IsInitialized { get; private set; }
+        public int RetryCount { get { return _resendBuffer.Count; } }
+
     }
 }

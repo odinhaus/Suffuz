@@ -35,11 +35,9 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             _beBuffer = App.Resolve<IBestEffortChannelBuffer<UdpMessage>>();
             if (_beBuffer == null)
-                _beBuffer = new BestEffortChannelBuffer(this);
+                _beBuffer = new BestEffortChannelBuffer();
 
-            _beBuffer.Initialize();
-
-            SequenceNumber = _beBuffer.SequenceNumber;
+            _beBuffer.Initialize(this);
         }
 
         public override ServiceLevels ServiceLevels
@@ -69,9 +67,71 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             var udpMessage = base.CreateUdpMessage(message);
 
-            _beBuffer.AddMessage(udpMessage);
+            _beBuffer.AddRetryMessage(udpMessage);
 
             return udpMessage;
         }
+
+        //protected override void ProcessInboundUdpSegment(MessageSegment segment)
+        //{
+        //    var messageId = _beBuffer[segment.Sender];
+
+        //    if (messageId > 0)
+        //    {
+        //        ulong sequenceNo, lastSequenceNo;
+        //        ushort senderId;
+
+        //        UdpMessage.SplitMessageId(segment.MessageId, out senderId, out sequenceNo);
+        //        UdpMessage.SplitMessageId(messageId, out senderId, out lastSequenceNo);
+
+        //        if (lastSequenceNo < sequenceNo)
+        //        {
+        //            _beBuffer[senderId] = sequenceNo;
+
+        //        }
+
+                
+        //        if (++lastSequenceNo == sequenceNo)
+        //        {
+        //            // this is the expected 
+        //            // check we didn't miss an individual packet
+        //            UdpMessage msg;
+        //            if (_messages.TryGetValue(segment.MessageId, out msg))
+        //            {
+        //                // we've seen this message, check the segment number against our greatest segment number
+        //                var lastSegment = _beBuffer[segment.MessageId];
+        //                if (lastSegment < segment.SegmentNumber)
+        //                {
+        //                    _beBuffer[segment.MessageId] = segment.SegmentNumber;
+        //                }
+
+
+                        
+        //            }
+        //        }
+        //        else if (lastSequenceNo < sequenceNo)
+        //        {
+        //            // we're 
+        //            // we missed a whole message, need to request it again
+        //            SendNACKMessages(lastSequenceNo, sequenceNo);
+        //        }
+        //    }
+
+        //    base.ProcessInboundUdpSegment(segment);
+        //}
+
+        private void SendNACKMessages(ulong lastSequenceNo, ulong sequenceNo)
+        {
+            throw new NotImplementedException();
+        }
+
+        //protected override void ProcessCompletedInboundUdpMessage(UdpMessage udpMessage)
+        //{
+        //    // adds message and updates the last message Id for sender
+        //    _beBuffer.AddRetryMessage(udpMessage);
+
+
+        //    base.ProcessCompletedInboundUdpMessage(udpMessage);
+        //}
     }
 }

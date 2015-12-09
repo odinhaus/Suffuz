@@ -44,6 +44,7 @@ namespace Altus.Suffūz.Scheduling
         Dictionary<IScheduledTask, TaskRunner> _runners = new Dictionary<IScheduledTask, TaskRunner>();
         private void RunTasks()
         {
+            _running = false;
             while (_running)
             {
                 IScheduledTask[] tasks;
@@ -63,10 +64,14 @@ namespace Altus.Suffūz.Scheduling
                         _runners.Add(task, new TaskRunner(task));
                     }
 
-                    if (_runners[task].IsExpired)
+                    if (_runners.ContainsKey(task) && _runners[task].IsExpired)
                     {
                         OnTaskExpired(task);
                         _runners.Remove(task);
+                        lock(this)
+                        {
+                            _tasks.Remove(task);
+                        }
                     }
                 }
 
@@ -120,7 +125,7 @@ namespace Altus.Suffūz.Scheduling
                         Thread.Sleep(sleep);
                         elapsed = sw.ElapsedMilliseconds;
                     }
-                    IsExpired = interval >= 0 && !Task.Schedule[DateTime.Now].IsScheduled(DateTime.Now.Ticks);
+                    IsExpired = !(interval >= 0 && Task.Schedule[DateTime.Now].IsScheduled(DateTime.Now.Ticks));
                 }
             }
 
@@ -145,7 +150,10 @@ namespace Altus.Suffūz.Scheduling
         /// <param name="task"></param>
         public void Schedule(IScheduledTask task)
         {
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
         }
 
         /// <summary>
@@ -157,7 +165,10 @@ namespace Altus.Suffūz.Scheduling
         public IScheduledTask Schedule(Schedule schedule, Action action)
         {
             var task = new ScheduledDelegate(schedule, action);
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
@@ -170,63 +181,90 @@ namespace Altus.Suffūz.Scheduling
         public IScheduledTask Schedule(int interval, Action action)
         {
             var task = new ScheduledDelegate(interval, action);
-            Scheduler.Current.Tasks.Add(task);
+            lock(Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
         public IScheduledTask Schedule<T>(Schedule schedule, Action<T> action, Func<T> args)
         {
             var task = new ScheduledDelegate(schedule, action, () => new object[] { args() });
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
         public IScheduledTask Schedule<T>(DateTime when, Action<T> action, Func<T> args)
         {
             var task = new ScheduledDelegate(when, action, () => new object[] { args() });
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
         public IScheduledTask Schedule<T>(int interval, Action<T> action, Func<T> args)
         {
             var task = new ScheduledDelegate(interval, action, () => new object[] { args() });
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
         public IScheduledTask Schedule<T>(Schedule schedule, Func<T> action)
         {
             var task = new ScheduledDelegate(schedule, action);
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
         public IScheduledTask Schedule<T>(int interval, Func<T> action)
         {
             var task = new ScheduledDelegate(interval, action);
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
         public IScheduledTask Schedule<T>(DateTime when, Func<T> action)
         {
             var task = new ScheduledDelegate(when, action);
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
         public IScheduledTask Schedule<T, U>(Schedule schedule, Func<T, U> action, Func<U> args)
         {
             var task = new ScheduledDelegate(schedule, action, () => new object[] { args() });
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
         public IScheduledTask Schedule<T, U>(int interval, Func<T, U> action, Func<U> args)
         {
             var task = new ScheduledDelegate(interval, action, () => new object[] { args() });
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 
@@ -234,7 +272,10 @@ namespace Altus.Suffūz.Scheduling
         public IScheduledTask Schedule<T, U>(DateTime when, Func<T, U> action, Func<U> args)
         {
             var task = new ScheduledDelegate(when, action, () => new object[] { args() });
-            Scheduler.Current.Tasks.Add(task);
+            lock (Scheduler.Current)
+            {
+                Scheduler.Current.Tasks.Add(task);
+            }
             return task;
         }
 

@@ -10,6 +10,8 @@ namespace Altus.Suffūz.Protocols.Udp
 {
     public class UdpHeader : MessageSegment
     {
+        private UdpHeader(byte[] data) : this(null, null, data) { }
+
         public UdpHeader(IChannel connection, EndPoint ep, byte[] data) : base(connection, Protocol.Udp, ep, data) { }
         /** ======================================================================================================================================
         * UDP HEADER DESCRIPTOR
@@ -17,12 +19,12 @@ namespace Altus.Suffūz.Protocols.Udp
         * TAG                          1                   0           VVVVVVSC - Version (6 bits), Segment Type (0 = Header, 1 = Segment), Compressed (0 = false, 1 = true)
         * SENDERID + MESSAGEID         8                   1           Combination of SENDER (16 bits) + MESSAGE SEQUENCE NUMBER (48 bits) = 64 bits
         * MESSAGEHASH                  16                  9           byte[] MD5 hash using secret hashkey + message body
-        * SEGEMENTCOUNT                1                   25          total count of message segments, including header segment for complete message
-        * TIMETOLIVE                   8                   26          absolute message expiration date/time in UTC for message reassembly to occur, before message is discarded
-        * DATALENGTH                   2                   34          length in bytes of any included transfer data
-        * DATA                         N (up to 1024 - 36) 36          included message data
+        * SEGEMENTCOUNT                2                   25          total count of message segments, including header segment for complete message
+        * TIMETOLIVE                   8                   27          absolute message expiration date/time in UTC for message reassembly to occur, before message is discarded
+        * DATALENGTH                   2                   35          length in bytes of any included transfer data
+        * DATA                         N (up to 1024 - 36) 37          included message data
         * =======================================================================================================================================
-        * Total                        36 bytes            
+        * Total                        37 bytes            
         */
         protected override bool OnIsValid()
         {
@@ -50,8 +52,8 @@ namespace Altus.Suffūz.Protocols.Udp
                 return _hash;
             }
         }
-        private byte _count = 0;
-        public byte SegmentCount
+        private ushort _count = 0;
+        public override ushort SegmentCount
         {
             get
             {
@@ -62,17 +64,14 @@ namespace Altus.Suffūz.Protocols.Udp
                 return _count;
             }
         }
-        private DateTime _ttl = DateTime.MinValue;
-        public DateTime TimeToLive
+        private TimeSpan _ttl = TimeSpan.MinValue;
+        public override TimeSpan TimeToLive
         {
             get
             {
-                if (_ttl == DateTime.MinValue && Data != null)
+                if (_ttl == TimeSpan.MinValue && Data != null)
                 {
-                    byte[] ttl = new byte[8];
-                    for (int i = 0; i < 8; i++)
-                        ttl[i] = Data[i + 26];
-                    _ttl = DateTime.FromBinary(BitConverter.ToInt64(ttl, 0)).ToLocalTime();
+                    _ttl = TimeSpan.FromMilliseconds(BitConverter.ToDouble(Data, 27));
                 }
                 return _ttl;
             }
@@ -84,10 +83,7 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 if (_pl == 0 && Data != null)
                 {
-                    byte[] pl = new byte[2];
-                    pl[0] = Data[34];
-                    pl[1] = Data[35];
-                    _pl = BitConverter.ToUInt16(pl, 0);
+                    _pl = BitConverter.ToUInt16(Data, 35);
                 }
                 return _pl;
             }
@@ -100,17 +96,17 @@ namespace Altus.Suffūz.Protocols.Udp
                 if (_plData == null && Data != null)
                 {
                     _plData = new byte[PayloadLength];
-                    Data.Copy(36, _plData, 0, PayloadLength);
+                    Data.Copy(37, _plData, 0, PayloadLength);
                 }
                 return _plData;
             }
         }
         public int HeaderLength
         {
-            get { return 36; }
+            get { return 37; }
         }
 
-        public int SegmentLength
+        public override int SegmentLength
         {
             get
             {
@@ -118,7 +114,7 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
-        public override uint SegmentNumber
+        public override ushort SegmentNumber
         {
             get { return 1; }
         }

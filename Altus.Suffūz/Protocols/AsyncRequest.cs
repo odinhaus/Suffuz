@@ -17,7 +17,7 @@ namespace Altus.Suffūz.Protocols
         public AsyncRequest(Message request, TimeSpan timeout, Type responseType)
         {
             this.Request = request;
-            this.WaitHandle = new ManualResetEvent(request.ServiceType != ServiceType.RequestResponse);
+            this.WaitHandle = new ManualResetEventSlim(request.ServiceType != ServiceType.RequestResponse);
             this.ResponseCallback = new MessageReceivedHandler(this.ResponseReceived);
             this.TimeSpan = timeout;
             this.Start = CurrentTime.Now;
@@ -58,7 +58,7 @@ namespace Altus.Suffūz.Protocols
             });
         }
 
-        private ManualResetEvent WaitHandle;
+        private ManualResetEventSlim WaitHandle;
         private DateTime Start;
         public string Id { get; private set; }
         public Message Request { get; private set; }
@@ -89,7 +89,7 @@ namespace Altus.Suffūz.Protocols
                 int wait = (int)Start.Add(TimeSpan).Subtract(CurrentTime.Now).TotalMilliseconds;
                 if (!TimedOut
                     && wait > 0
-                    && this.WaitHandle.WaitOne(wait))
+                    && this.WaitHandle.Wait(wait))
                 {
                     this.WaitHandle.Reset();
                 }
