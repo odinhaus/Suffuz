@@ -10,9 +10,18 @@ using System.Collections;
 using Altus.Suffūz.Serialization.Binary;
 using System.Threading;
 using Altus.Suffūz.Serialization;
+using Altus.Suffūz.IO;
+using System.Security.Cryptography;
+using Altus.Suffūz.Diagnostics;
 
 namespace Altus.Suffūz.Collections
 {
+    public enum WALEntryType : int
+    {
+        RecordUpdate = 1,
+        Checkpoint = 2
+    }
+
     public class PersistentHeap<TValue> : PersistentHeap, ICollection<TValue>, IEnumerable<TValue>, IPersistentHeap<TValue>
     {
         public PersistentHeap() : base()
@@ -114,13 +123,25 @@ namespace Altus.Suffūz.Collections
 
     public unsafe class PersistentHeap : PersistentCollectionBase, IPersistentHeap
     {
-        protected int HEAD_ROOM;
-        protected const int HEADER_LENGTH = 4 + 4 + 4 + 8;
+        protected int HEAP_HEAD_ROOM;
+        protected const int HEAP_HEADER_LENGTH = 4 + 4 + 4 + 8 + 8;
         protected const int ITEM_ISVALID = 0;
         protected const int ITEM_INDEX = 1;
         protected const int ITEM_LENGTH = 9;
         protected const int ITEM_TYPE = 13;
         protected const int ITEM_DATA = 17;
+
+        protected const int WAL_BLOCK_SIZE = 512;
+        protected const int WAL_RECORD_TYPE = 0;
+        protected const int WAL_SEQ_NO = 4;
+        protected const int WAL_HEAP_SEQ_NO = 12;
+        protected const int WAL_HEAP_ITEM_ADDRESS = 20;
+        protected const int WAL_ITEM_ISVALID = 28;
+        protected const int WAL_ITEM_LENGTH = 29;
+        protected const int WAL_ITEM_TYPE = 32;
+        protected const int WAL_ITEM_MD5 = 37;
+        protected const int WAL_ITEM_DATA = 52;
+        protected const int WAL_ITEM_DATA_LENGTH = WAL_BLOCK_SIZE - WAL_ITEM_DATA - 1;
 
         static int COUNTER = 0;
         static object GlobalSyncRoot = new object();
@@ -128,7 +149,6 @@ namespace Altus.Suffūz.Collections
         bool _isInitialized = false;
         private byte* _filePtr;
         private BytePointerAdapter _ptr;
-        private ulong _index = 0;
         Dictionary<ulong, int> _addresses = new Dictionary<ulong, int>();
         static Dictionary<int, Type> _typesByCode = new Dictionary<int, Type>();
         static Dictionary<Type, int> _codesByType = new Dictionary<Type, int>();
@@ -184,6 +204,11 @@ namespace Altus.Suffūz.Collections
 
         protected Dictionary<ulong, int> Addresses {  get { return _addresses; } }
 
+        public string WALFilePath { get; private set; }
+        public FileStream WALFile { get; private set; }
+        public ulong WALSequenceNumber { get; private set; }
+        public ulong HeapSequenceNumber { get; private set; }
+
         /// <summary>
         /// Frees all items in the heap without compacting the heap
         /// </summary>
@@ -202,9 +227,9 @@ namespace Altus.Suffūz.Collections
             {
                 OnDisposeManagedResources();
                 // just delete the File and start over
-                System.IO.File.Delete(FilePath);
+                System.IO.File.Delete(BaseFilePath);
                 First = Next = Last = 0;
-                Initialize(FilePath, MaximumSize);
+                Initialize(BaseFilePath, MaximumSize);
             }
             else
             {
@@ -233,11 +258,11 @@ namespace Altus.Suffūz.Collections
                 var itemType = item.GetType();
                 CheckTypeTable(itemType);
 
-                if (Next == HEADER_LENGTH)
+                if (Next == HEAP_HEADER_LENGTH)
                 {
                     First = Last = Next;
                 }
-                else if (Next + ITEM_DATA + bytes.Length > File.Length)
+                else if (Next + ITEM_DATA + bytes.Length > BaseFile.Length)
                 {
                     if (AutoGrowSize > 0)
                     {
@@ -249,14 +274,17 @@ namespace Altus.Suffūz.Collections
                     }
                 }
 
-                _index++;
+                HeapSequenceNumber++;
+                var typeCode = GetTypeCode(itemType);
+                var walSequenceNumber = WriteWAL(Next, true, bytes, typeCode);
+
                 using (var scope = new FlushScope())
                 {
                     scope.Enlist(this);
                     _ptr.Write(Next + ITEM_ISVALID, true); // record is valid
-                    _ptr.Write(Next + ITEM_INDEX, _index); // index
+                    _ptr.Write(Next + ITEM_INDEX, HeapSequenceNumber); // index
                     _ptr.Write(Next + ITEM_LENGTH, bytes.Length); // length of bytes
-                    _ptr.Write(Next + ITEM_TYPE, GetTypeCode(itemType)); // type index
+                    _ptr.Write(Next + ITEM_TYPE, typeCode); // type index
                     _ptr.Write(Next + ITEM_DATA, bytes); // bytes
                     Last = Next;
                     Next += ITEM_DATA + bytes.Length;
@@ -264,8 +292,89 @@ namespace Altus.Suffūz.Collections
                 }
                 
                 CheckHeadRoom();
-                _addresses.Add(_index, Last);
-                return _index;
+                _addresses.Add(HeapSequenceNumber, Last);
+                return HeapSequenceNumber;
+            }
+        }
+
+        private MD5 _hasher = MD5.Create();
+        /// <summary>
+        /// Adds a RecordUpdate WAL entry to the WAL for the provided heap entry.  If the serialized entry is less than WAL_ITEM_DATA_LENGTH in total length, 
+        /// the bytes will be recorded with the WAL entry, and might be recoverable in the event of heap corruption.  Serialized data lengths greater than WAL_ITEM_DATA_LENGTH 
+        /// will NOT be recorded, and will therefore not be recoverable.
+        /// </summary>
+        /// <param name="heapAddress">the address of the entry in the heap</param>
+        /// <param name="isValid">boolean indicating whether the entry is valid or invalid</param>
+        /// <param name="bytes">the serialized heap data (if it is less than WAL_ITEM_DATA_LENGTH)</param>
+        /// <param name="typeCode">the deserialized data type code for the entry</param>
+        /// <returns></returns>
+        protected virtual ulong WriteWAL(int heapAddress, bool isValid, byte[] bytes, int typeCode)
+        {
+            // wal entries are 512 bytes in length (1 disk sector) to ensure atomic write operations
+            // structure is as follows:
+            //
+            // Item                 Position    Type
+            //===========================================
+            // WAL Record Type      0 - 3       int
+            // WAL Sequence No      4 - 11       ulong
+            // Heap Sequence No     12 - 19     ulong
+            // Heap Item Address    20 - 27     ulong
+            // Heap Item IsValid    28          bool
+            // Heap Item Length     29 - 32     int
+            // Heap Item Type Code  32 - 36     int
+            // Heap Item Data MD5   37 - 52     byte[]
+            // Heap Item Data       53 - 511    byte[]
+            //
+            // Heap item data is only included if the length is 459 bytes or less
+            lock(SyncRoot)
+            {
+                WALSequenceNumber++;
+                WALFile.Write((int)WALEntryType.RecordUpdate);
+                WALFile.Write(WALSequenceNumber);
+                WALFile.Write(HeapSequenceNumber);
+                WALFile.Write((ulong)heapAddress);
+                WALFile.Write(isValid);
+                WALFile.Write(bytes.Length);
+                WALFile.Write(typeCode);
+                WALFile.Write(_hasher.ComputeHash(bytes));
+                if (bytes.Length <= WAL_ITEM_DATA_LENGTH)
+                {
+                    WALFile.Write(bytes);
+                    WALFile.Write(new byte[WAL_ITEM_DATA_LENGTH - bytes.Length]);
+                }
+                else
+                {
+                    // advance the stream and fill with zero
+                    WALFile.Write(new byte[WAL_ITEM_DATA_LENGTH]);
+                }
+                WALFile.Flush(); // write it to disk
+                return WALSequenceNumber;
+            }
+        }
+
+        /// <summary>
+        /// Creates a Checkpoint WAL entry in the WAL, indicating that all data entered prior to this checkpoint in the WAL can be discarded, as it is 
+        /// confirmed to exist in the heap.
+        /// </summary>
+        /// <param name="heapSequenceNumber">the current heap sequence number at the time of commit</param>
+        /// <returns></returns>
+        protected virtual ulong CommitWAL(ulong heapSequenceNumber)
+        {
+            lock (SyncRoot)
+            {
+                WALSequenceNumber++;
+                WALFile.Write((int)WALEntryType.Checkpoint);
+                WALFile.Write(WALSequenceNumber);
+                WALFile.Write(heapSequenceNumber);
+                WALFile.Write((ulong)1);
+                WALFile.Write(false);
+                WALFile.Write(0);
+                WALFile.Write(0);
+                WALFile.Write(new byte[16]);
+                // advance the stream and fill with zero
+                WALFile.Write(new byte[WAL_ITEM_DATA_LENGTH]);
+                WALFile.Flush(); // write it to disk
+                return WALSequenceNumber;
             }
         }
 
@@ -370,7 +479,7 @@ namespace Altus.Suffūz.Collections
                         var len = _ptr.ReadInt32(address + ITEM_LENGTH);
                         bytes = _ptr.ReadBytes(address + ITEM_DATA, len);
                         itemType = GetCodeType(_ptr.ReadInt32(address + ITEM_TYPE));
-                        nextAddress = address + HEADER_LENGTH + len;
+                        nextAddress = address + HEAP_HEADER_LENGTH + len;
                     }
                     else return false;
                 }
@@ -437,7 +546,7 @@ namespace Altus.Suffūz.Collections
                 if (Count > 0)
                 {
                     var end = MMVA.Capacity;
-                    var address = HEADER_LENGTH;
+                    var address = HEAP_HEADER_LENGTH;
                     var delta = 0;
                     var block = 0;
                     First = Last = 0;
@@ -488,12 +597,12 @@ namespace Altus.Suffūz.Collections
                         }
                     }
                     // wipe free space at end of file
-                    SparseFile.SetZero(File, Next, MMVA.Capacity - Next);
+                    SparseFile.SetZero(BaseFile, Next, MMVA.Capacity - Next);
                     // update new index values
                     LoadIndices();
                     UpdateHeaders();
                 }
-                else if (Next > HEADER_LENGTH)
+                else if (Next > HEAP_HEADER_LENGTH)
                 {
                     Clear(true); // this will just kill the file and start over
                 }
@@ -536,12 +645,14 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         public override void Flush()
         {
-            if (MMVA != null && Next > HEADER_LENGTH)
+            if (MMVA != null && Next > HEAP_HEADER_LENGTH)
             {
                 lock (SyncRoot)
                 {
                     // write current changes to disk - don't move Committed until after Flush finished
+                    UpdateHeaders();
                     MMVA.Flush();
+                    CommitWAL(HeapSequenceNumber);
                 }
             }
         }
@@ -566,7 +677,7 @@ namespace Altus.Suffūz.Collections
         {
             if (!_isInitialized)
             {
-                HEAD_ROOM = (int)((float)maxSize * 0.2f);
+                HEAP_HEAD_ROOM = (int)((float)maxSize * 0.2f);
                 lock(GlobalSyncRoot)
                 {
                     if (TypesFile == null)
@@ -576,11 +687,13 @@ namespace Altus.Suffūz.Collections
                     }
                 }
 
+                LoadWAL();
+
                 ReadHeaders();
 
                 if (Next == 0)
                 {
-                    Next = HEADER_LENGTH;
+                    Next = HEAP_HEADER_LENGTH;
                 }
 
                 CreateView();
@@ -588,6 +701,19 @@ namespace Altus.Suffūz.Collections
                 UpdateHeaders();
                 _isInitialized = true;
             }
+        }
+
+        protected virtual void LoadWAL()
+        {
+            var walFile = Path.ChangeExtension(BaseFilePath, "wal");
+            this.WALFilePath = walFile;
+            this.WALFile = new FileStream(this.WALFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1024 * 8, false);
+            CheckConsistency();
+        }
+
+        protected virtual void CheckConsistency()
+        {
+            // TODO
         }
 
         protected static void LoadTypes()
@@ -613,16 +739,16 @@ namespace Altus.Suffūz.Collections
 
         protected virtual void CreateView()
         {
-            var size = Math.Min(Next + HEAD_ROOM + HEADER_LENGTH, File.Length);
+            var size = Math.Min(Next + HEAP_HEAD_ROOM + HEAP_HEADER_LENGTH, BaseFile.Length);
 
-            MMVA = MMF.CreateViewAccessor(0, size);
+            MMVA = BaseMMF.CreateViewAccessor(0, size);
             _filePtr = MMVA.Pointer(0);
             _ptr = new BytePointerAdapter(ref _filePtr, 0, size);
         }
 
         protected virtual void LoadIndices()
         {
-            var address = HEADER_LENGTH;
+            var address = HEAP_HEADER_LENGTH;
             ulong key;
             _addresses.Clear();
             while(address < Next)
@@ -665,7 +791,8 @@ namespace Altus.Suffūz.Collections
                 _ptr.Write(0, First);
                 _ptr.Write(4, Last);
                 _ptr.Write(8, Next);
-                _ptr.Write(12, _index);
+                _ptr.Write(12, HeapSequenceNumber);
+                _ptr.Write(20, WALSequenceNumber);
             }
         }
 
@@ -673,12 +800,13 @@ namespace Altus.Suffūz.Collections
         {
             lock (SyncRoot)
             {
-                File.Seek(0, SeekOrigin.Begin);
-                First = File.ReadInt32();
-                Last = File.ReadInt32();
-                Next = File.ReadInt32();
-                _index = File.ReadUInt64();
-                File.Seek(0, SeekOrigin.Begin);
+                BaseFile.Seek(0, SeekOrigin.Begin);
+                First = BaseFile.ReadInt32();
+                Last = BaseFile.ReadInt32();
+                Next = BaseFile.ReadInt32();
+                HeapSequenceNumber = BaseFile.ReadUInt64();
+                WALSequenceNumber = BaseFile.ReadUInt64();
+                BaseFile.Seek(0, SeekOrigin.Begin);
             }
         }
 
@@ -707,7 +835,7 @@ namespace Altus.Suffūz.Collections
 
         protected virtual void CheckHeadRoom()
         {
-            if (MMVA.Capacity - Next < (int)((float)HEAD_ROOM * 0.1f))
+            if (MMVA.Capacity - Next < (int)((float)HEAP_HEAD_ROOM * 0.1f))
             {
                 lock (SyncRoot)
                 {
@@ -719,6 +847,15 @@ namespace Altus.Suffūz.Collections
 
         protected virtual void ReleaseViewAccessor()
         {
+            try
+            {
+                Flush();
+            }
+            catch(Exception ex)
+            {
+                Logger.Log(ex, "An error occurred while releasing the persistent heap.");
+            }
+
             if (MMVA != null)
             {
                 MMVA.Release();
@@ -737,6 +874,13 @@ namespace Altus.Suffūz.Collections
             ReleaseViewAccessor();
 
             _addresses.Clear();
+
+            if (WALFile != null)
+            {
+                WALFile.Flush(true);
+                WALFile.Dispose();
+                WALFile = null;
+            }
 
             lock(GlobalSyncRoot)
             {

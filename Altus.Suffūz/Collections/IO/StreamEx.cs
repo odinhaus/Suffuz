@@ -9,15 +9,6 @@ namespace Altus.Suffūz.Collections.IO
 {
     public unsafe static class StreamEx
     {
-        public static void Write(this Stream stream, int value)
-        {
-            byte[] data = new byte[4];
-            fixed (byte* Pointer = data)
-            {
-                *(((int*)Pointer)) = value;
-            }
-            stream.Write(data, 0, data.Length);
-        }
 
         public static byte[] ReadBytes(this Stream stream, int length)
         {

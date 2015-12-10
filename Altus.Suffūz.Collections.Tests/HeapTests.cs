@@ -17,17 +17,22 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
+            var walName = "Heap.wal";
+            File.Delete(fileName);
             using (var heap = new PersistentHeap(fileName, 1024 * 64))
             {
-                Assert.IsTrue(heap.Length == 20);
+                Assert.IsTrue(heap.Length == 28);
             }
             File.Delete(fileName);
+            File.Delete(walName);
         }
 
         [TestMethod]
         public void CanWriteObjectHeap()
         {
             var fileName = "Heap.loh";
+            File.Delete(fileName);
+            var walName = "Heap.wal";
             File.Delete(fileName);
             using (var heap = new PersistentHeap(fileName, 1024 * 64))
             {
@@ -37,6 +42,7 @@ namespace Altus.Suffūz.Collections.Tests
                 var address2 = heap.Add(item);
             }
             File.Delete(fileName);
+            File.Delete(walName);
         }
 
         [TestMethod]

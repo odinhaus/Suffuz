@@ -121,6 +121,16 @@ namespace Altus.Suffūz.IO
             }
         }
 
+        //public static void Write(this Stream stream, int value)
+        //{
+        //    byte[] data = new byte[4];
+        //    fixed (byte* Pointer = data)
+        //    {
+        //        *(((int*)Pointer)) = value;
+        //    }
+        //    stream.Write(data, 0, data.Length);
+        //}
+
         public static void Write(this Stream source, string value)
         {
             byte[] data = App.Resolve<ISerializationContext>().TextEncoding.GetBytes(value);
@@ -130,6 +140,12 @@ namespace Altus.Suffūz.IO
         public static void Write(this Stream source, byte value)
         {
             source.WriteByte(value);
+        }
+
+        public static void Write(this Stream source, bool value)
+        {
+            byte[] data = BitConverter.GetBytes(value);
+            source.Write(data, 0, data.Length);
         }
 
         public static void Write(this Stream source, char value)

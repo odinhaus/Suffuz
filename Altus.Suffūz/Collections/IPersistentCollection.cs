@@ -23,7 +23,7 @@ namespace Altus.Suffūz.Collections
         /// <summary>
         /// The path to the storage file on disk
         /// </summary>
-        string FilePath { get; }
+        string BaseFilePath { get; }
         /// <summary>
         /// The maximum capacity of the collection in bytes
         /// </summary>

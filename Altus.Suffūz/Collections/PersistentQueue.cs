@@ -96,7 +96,7 @@ namespace Altus.Suffūz.Collections
                     {
                         // move the write pointer back to the front of the heap, and overwrite old data
                         First = Last = 0;
-                        Next = HEADER_LENGTH;
+                        Next = HEAP_HEADER_LENGTH;
                     }
                     return item;
                 }

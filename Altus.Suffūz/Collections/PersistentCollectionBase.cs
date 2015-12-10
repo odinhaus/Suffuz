@@ -36,25 +36,25 @@ namespace Altus.Suffūz.Collections
         protected void Initialize(string filePath, int maxSize)
         {
             MaximumSize = maxSize;
-            FilePath = filePath;
-            File = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
-            var isNew = File.Length == 0;
+            BaseFilePath = filePath;
+            BaseFile = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+            var isNew = BaseFile.Length == 0;
             
-            if (File.Length == 0)
+            if (BaseFile.Length == 0)
             {
-                File.SetLength(maxSize);
-                SparseFile.MakeSparse(File);
-                SparseFile.SetZero(File, 0, File.Length);
+                BaseFile.SetLength(maxSize);
+                SparseFile.MakeSparse(BaseFile);
+                SparseFile.SetZero(BaseFile, 0, BaseFile.Length);
             }
-            else if (maxSize != File.Length)
+            else if (maxSize != BaseFile.Length)
             {
-                File.SetLength(maxSize);
-                SparseFile.SetZero(File, File.Length, maxSize);
+                BaseFile.SetLength(maxSize);
+                SparseFile.SetZero(BaseFile, BaseFile.Length, maxSize);
             }
 
-            MMF = MemoryMappedFile.CreateFromFile(
-                   File,
-                   Path.GetFileNameWithoutExtension(File.Name) + "_MMF",
+            BaseMMF = MemoryMappedFile.CreateFromFile(
+                   BaseFile,
+                   Path.GetFileNameWithoutExtension(BaseFile.Name) + "_MMF",
                    maxSize,
                    MemoryMappedFileAccess.ReadWrite,
                    null,
@@ -94,9 +94,9 @@ namespace Altus.Suffūz.Collections
 
 
         public int MaximumSize { get; private set; }
-        public string FilePath { get; private set; }
-        protected FileStream File { get; private set; }
-        protected MemoryMappedFile MMF { get; private set; }
+        public string BaseFilePath { get; private set; }
+        protected FileStream BaseFile { get; private set; }
+        protected MemoryMappedFile BaseMMF { get; private set; }
         public object SyncRoot { get; private set; }
         public virtual int Length { get { return Next; } }
         /// <summary>
@@ -135,11 +135,6 @@ namespace Altus.Suffūz.Collections
 
         public virtual void Grow(int capacityToAdd)
         {
-            //if (FlushScope.Current != null)
-            //{
-            //    throw new InvalidOperationException("You cannot call Grow inside a pending FlushScope.");
-            //}
-
             if (CompactBeforeGrow)
             {
                 var currentSize = Next;
@@ -153,7 +148,7 @@ namespace Altus.Suffūz.Collections
                 lock (SyncRoot)
                 {
                     OnDisposeManagedResources();
-                    Initialize(FilePath, MaximumSize + capacityToAdd);
+                    Initialize(BaseFilePath, MaximumSize + capacityToAdd);
                 }
             }
         }
@@ -224,17 +219,17 @@ namespace Altus.Suffūz.Collections
         {
             Flush();
 
-            if (this.MMF != null)
+            if (this.BaseMMF != null)
             {
-                this.MMF.Dispose();
-                this.MMF = null;
+                this.BaseMMF.Dispose();
+                this.BaseMMF = null;
             }
 
-            if (this.File != null)
+            if (this.BaseFile != null)
             {
-                this.File.Close();
-                this.File.Dispose();
-                this.File = null;
+                this.BaseFile.Close();
+                this.BaseFile.Dispose();
+                this.BaseFile = null;
             }
         }
 

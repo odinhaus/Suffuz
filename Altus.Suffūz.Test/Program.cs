@@ -1,4 +1,5 @@
 ﻿using Altus.Suffūz.Collections;
+using Altus.Suffūz.Collections.IO;
 using Altus.Suffūz.Collections.Tests;
 using Altus.Suffūz.Diagnostics;
 using Altus.Suffūz.Messages;
@@ -15,6 +16,8 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Security.AccessControl;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -24,12 +27,67 @@ namespace Altus.Suffūz
     { 
         static void Main(string[] args)
         {
+            FileIO();
             //PerfTest();
             //CollectionPerfTest();
             //Console.Read();
             ConfigureApp();
             ConfigureRoutes();
             DoIt();
+        }
+
+        private static void FileIO()
+        {
+            File.Delete("Journal.bin");
+            var file = new FileStream("Journal.bin", FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1024 * 8, false);
+            var len = 1024 * 1024 * 10;
+            //file.SetLength(len);
+            //SparseFile.MakeSparse(file);
+            //SparseFile.SetZero(file, 0, file.Length);
+
+            var sampleBlock = new byte[512 * 1];
+            sampleBlock[0] = 65; // A
+            for(int i = 1; i < sampleBlock.Length - 2; i++)
+            {
+                sampleBlock[i] = 48; // 0
+            }
+
+            //sampleBlock[512] = 66; // B
+            ///sampleBlock[1024] = 67; // C
+
+            sampleBlock[sampleBlock.Length - 2] = 13; // new line
+            sampleBlock[sampleBlock.Length - 1] = 10;
+
+
+
+            var count = len / sampleBlock.Length;
+            var sw = new Stopwatch();
+            sw.Start();
+            for (int i = 0; i < count; i++)
+            {
+                file.Write(sampleBlock, 0, sampleBlock.Length);
+                file.Flush();
+                //file.WriteAsync(sampleBlock, 0, sampleBlock.Length).Wait();
+            }
+            
+            file.Flush(true);
+            sw.Stop();
+            var writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+            Console.WriteLine("Rate: {0}", writeRate);
+
+            var hasher = MD5.Create();
+            sw.Reset();
+            sw.Start();
+            for (int i = 0; i < count; i++)
+            {
+                hasher.ComputeHash(sampleBlock);
+            }
+
+            file.Flush(true);
+            sw.Stop();
+            var hashRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+            Console.WriteLine("Hash: {0}", hashRate);
+            Console.Read();
         }
 
         private static void CollectionPerfTest()

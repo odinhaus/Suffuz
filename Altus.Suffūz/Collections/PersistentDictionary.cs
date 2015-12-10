@@ -137,7 +137,7 @@ namespace Altus.Suffūz.Collections
 
         public bool CompactBeforeGrow { get; set; }
 
-        public string FilePath { get; private set; }
+        public string BaseFilePath { get; private set; }
 
         public int MaximumSize { get { return _values.MaximumSize; } }
 
