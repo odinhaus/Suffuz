@@ -341,21 +341,47 @@ namespace Altus.Suffūz.Collections
         /// <returns></returns>
         public virtual object Read(ulong key)
         {
+            object value;
+            ulong foundKey;
+            int nextAddress;
+            if (TryRead(_addresses[key], out value, out foundKey, out nextAddress)
+                && foundKey == key)
+            {
+                return value;
+            }
+            return false;
+        }
+
+        protected virtual bool TryRead(int address, out object value, out ulong key, out int nextAddress)
+        {
             byte[] bytes;
             Type itemType;
-            lock (SyncRoot)
+            key = 0;
+            value = null;
+            nextAddress = address;
+            try
             {
-                var address = _addresses[key];
-                var isValid = _ptr.ReadBoolean(address + ITEM_ISVALID);
-                if (isValid && _ptr.ReadUInt64(address + ITEM_INDEX) == key)
+                lock (SyncRoot)
                 {
-                    var len = _ptr.ReadInt32(address + ITEM_LENGTH);
-                    bytes = _ptr.ReadBytes(address + ITEM_DATA, len);
-                    itemType = GetCodeType(_ptr.ReadInt32(address + ITEM_TYPE));
+                    var isValid = _ptr.ReadBoolean(address + ITEM_ISVALID);
+                    if (isValid)
+                    {
+                        key = _ptr.ReadUInt64(address + ITEM_INDEX);
+                        var len = _ptr.ReadInt32(address + ITEM_LENGTH);
+                        bytes = _ptr.ReadBytes(address + ITEM_DATA, len);
+                        itemType = GetCodeType(_ptr.ReadInt32(address + ITEM_TYPE));
+                        nextAddress = address + HEADER_LENGTH + len;
+                    }
+                    else return false;
                 }
-                else return null;
+                value = GetSerializer(itemType).Deserialize(bytes, itemType);
+                return true;
             }
-            return GetSerializer(itemType).Deserialize(bytes, itemType);
+            catch
+            {
+                nextAddress = address;
+                return false;
+            }
         }
 
         /// <summary>
@@ -467,7 +493,7 @@ namespace Altus.Suffūz.Collections
                     LoadIndices();
                     UpdateHeaders();
                 }
-                else
+                else if (Next > HEADER_LENGTH)
                 {
                     Clear(true); // this will just kill the file and start over
                 }
@@ -510,9 +536,13 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         public override void Flush()
         {
-            if (MMVA != null)
+            if (MMVA != null && Next > HEADER_LENGTH)
             {
-                MMVA.Flush();
+                lock (SyncRoot)
+                {
+                    // write current changes to disk - don't move Committed until after Flush finished
+                    MMVA.Flush();
+                }
             }
         }
 
@@ -547,6 +577,7 @@ namespace Altus.Suffūz.Collections
                 }
 
                 ReadHeaders();
+
                 if (Next == 0)
                 {
                     Next = HEADER_LENGTH;
@@ -631,14 +662,10 @@ namespace Altus.Suffūz.Collections
         {
             lock (SyncRoot)
             {
-                using (var scope = new FlushScope())
-                {
-                    scope.Enlist(this);
-                    _ptr.Write(0, First);
-                    _ptr.Write(4, Last);
-                    _ptr.Write(8, Next);
-                    _ptr.Write(12, _index);
-                }
+                _ptr.Write(0, First);
+                _ptr.Write(4, Last);
+                _ptr.Write(8, Next);
+                _ptr.Write(12, _index);
             }
         }
 

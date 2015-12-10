@@ -7,6 +7,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Protocols.Udp
@@ -45,11 +46,12 @@ namespace Altus.Suffūz.Protocols.Udp
             private set;
         }
 
+        ulong _localMessageId = 0;
         public ulong LocalMessageId
         {
             get
             {
-                return RemoteMessageId(0);
+                return _localMessageId;
             }
         }
 
@@ -57,10 +59,9 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             lock(Channel)
             {
-                var id = LocalMessageId;
-                id++;
-                _sequenceNumbers[0] = id;
-                return id;
+                _localMessageId++;
+                _sequenceNumbers[0] = _localMessageId;
+                return _localMessageId;
             }
         }
 
@@ -114,13 +115,12 @@ namespace Altus.Suffūz.Protocols.Udp
                 _segments.Remove(seg.Key);
             }
 
-            ulong sequenceNumber;
-            if (!_sequenceNumbers.TryGetValue(0, out sequenceNumber))
+            if (!_sequenceNumbers.TryGetValue(0, out _localMessageId))
             {
-                sequenceNumber = (ulong)((ulong)App.InstanceId << 48) + 1;
+                _localMessageId = (ulong)((ulong)App.InstanceId << 48) + 1;
                 // sets the local outbound sequence number - the inbound number will be set at the instance id.  
                 // we can send to ourselves, so we need to track both separately
-                _sequenceNumbers[0] = sequenceNumber; 
+                _sequenceNumbers[0] = _localMessageId; 
             }
 
             // keep the buffers compacted

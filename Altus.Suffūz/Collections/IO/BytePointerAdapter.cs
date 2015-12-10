@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -99,14 +100,12 @@ namespace Altus.Suffūz.Collections.IO
             return *(((char*)Pointer));
         }
 
-        public byte[] ReadBytes(long offset, int length)
+        public byte[] ReadBytes(int offset, int length)
         {
-            var bytes = new byte[length];
-            for(int i = 0; i < length; i++)
-            {
-                bytes[i] = ReadByte(offset + i);
-            }
-            return bytes;
+            byte[] arr = new byte[length];
+            byte* ptr = (byte*)0;
+            Marshal.Copy(IntPtr.Add((IntPtr)BasePointer, offset), arr, 0, length);
+            return arr;
         }
 
         public decimal ReadDecimal(long offset)
@@ -201,17 +200,15 @@ namespace Altus.Suffūz.Collections.IO
             }
         }
 
-        public void Write(long position, byte[] value)
+        public void Write(int position, byte[] value)
         {
             Write(position, value, 0, value.Length);
         }
 
-        public void Write(long position, byte[] value, int start, int length)
+        public void Write(int position, byte[] value, int start, int length)
         {
-            for (int i = start; i < start + length; i++)
-            {
-                Write(position + (i - start), value[i]);
-            }
+            byte* ptr = (byte*)0;
+            Marshal.Copy(value, start, IntPtr.Add((IntPtr)BasePointer, position), length);
         }
     }
 }

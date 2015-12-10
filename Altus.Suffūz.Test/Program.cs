@@ -294,16 +294,19 @@ namespace Altus.Suffūz
             Console.Read();
             sw.Reset();
             sw.Start();
-            for (int i = 0; i < count; i++)
+            using (var scope = new FlushScope())
             {
-                
-                var r = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute(100000);
-                
-                //Debug.Assert(r.Size > 0);
-                //Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
+                for (int i = 0; i < count / 10; i++)
+                {
+
+                    var r = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute();
+
+                    //Debug.Assert(r.Size > 0);
+                    //Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
+                }
             }
             sw.Stop();
-            Console.WriteLine("Mean Call Time: {0} ms", sw.ElapsedMilliseconds / count);
+            Console.WriteLine("Mean Call Time: {0} ms", sw.ElapsedMilliseconds / (count/10f));
             sw.Reset();
 
 
