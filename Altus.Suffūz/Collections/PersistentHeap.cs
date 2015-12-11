@@ -834,7 +834,7 @@ namespace Altus.Suffūz.Collections
                                         // we can recover the data because we have a copy in the log
                                         _ptr.Write(heapAddress + ITEM_TYPE, BitConverter.ToInt32(buffer, ptr + WAL_ITEM_TYPE)); // write item's type
                                         var data = new byte[dataLen];
-                                        Buffer.BlockCopy(buffer, WAL_ITEM_DATA, data, 0, dataLen);
+                                        Buffer.BlockCopy(buffer, ptr + WAL_ITEM_DATA, data, 0, dataLen);
                                         _ptr.Write(heapAddress + ITEM_DATA, data);
                                         isGood = true; // we corrected the error, move to the next one
                                     }
