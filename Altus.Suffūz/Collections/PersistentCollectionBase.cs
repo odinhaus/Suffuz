@@ -25,12 +25,14 @@ namespace Altus.Suffūz.Collections
         {
         }
 
-        protected PersistentCollectionBase(string filePath, int maxSize = DEFAULT_HEAP_SIZE)
+        protected PersistentCollectionBase(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isAtomic = false)
         {
             SyncRoot = new object();
+            IsAtomic = isAtomic;
             First = Next = Last = 0;
             MaximumSize = maxSize;
             Initialize(filePath, maxSize);
+
         }
 
         protected void Initialize(string filePath, int maxSize)
@@ -92,7 +94,7 @@ namespace Altus.Suffūz.Collections
             return s;
         }
 
-
+        public bool IsAtomic { get; private set; }
         public int MaximumSize { get; private set; }
         public string BaseFilePath { get; private set; }
         protected FileStream BaseFile { get; private set; }

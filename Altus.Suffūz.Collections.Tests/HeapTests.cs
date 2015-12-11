@@ -45,6 +45,35 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(walName);
         }
 
+
+        [TestMethod]
+        public void CanCheckConsistencyOfObjectHeap()
+        {
+            var fileName = "Heap.loh";
+            File.Delete(fileName);
+            var walName = "Heap.wal";
+            File.Delete(walName);
+            using (var heap = new PersistentHeap(fileName, 1024 * 64))
+            {
+                var item = new CustomItem() { A = 12, B = "Foo" };
+                ulong key1, key2; ;
+                using (var scope = new FlushScope())
+                {
+                    key1 = heap.Add(item); // writes to WAL & heap, but doesn't commit
+                    key2 = heap.Add(item); // writes to WAL & heap, but doesn't commit
+                } // creates a checkpoint in the WAL, commits heap
+
+                using (var scope = new FlushScope())
+                {
+                    heap.Free(key1); // writes to WAL & heap
+                    heap.Add(item); // writes to WAL & heap
+                    heap.CheckConsistency(); // WAL is up to two items ahead of heap, because we're deferring flushes
+                }
+            }
+            File.Delete(fileName);
+            File.Delete(walName);
+        }
+
         [TestMethod]
         public void CanReadObjectHeap()
         {
@@ -157,7 +186,7 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(fileName);
             using (var scope = new FlushScope())
             {
-                using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 100))
+                using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 500, true))
                 {
                     var addresses = new ulong[count];
                     sw.Start();
