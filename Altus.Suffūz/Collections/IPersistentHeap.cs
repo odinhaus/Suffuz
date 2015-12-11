@@ -62,6 +62,10 @@ namespace Altus.Suffūz.Collections
         /// Indicates whether the heap can be written to
         /// </summary>
         bool IsReadOnly { get; }
+        /// <summary>
+        /// The next incremental sequence number to assign to a newly added item to the heap
+        /// </summary>
+        ulong HeapSequenceNumber { get; }
     }
 
     public interface IPersistentHeap<TValue> : IPersistentHeap, ICollection<TValue>, IEnumerable<TValue>

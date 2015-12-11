@@ -163,13 +163,14 @@ namespace Altus.Suffūz.Collections
             {
                 var kvp = new KVP()
                 {
-                    Key = key
+                    Key = key,
+                    KeyKey = _keys.HeapSequenceNumber + 1,
+                    ValueKey = _values.HeapSequenceNumber + 1
                 };
-                var keyKey = _keys.Add(kvp);
-                kvp.KeyKey = keyKey;
+                
                 var valueKey = Write(value);
-                kvp.ValueKey = valueKey;
-                _keys.WriteUnsafe(kvp, keyKey);
+                var keyKey = _keys.Add(kvp);
+
                 _keyToValueKey.Add(key, kvp);
             }
         }

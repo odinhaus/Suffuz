@@ -2024,7 +2024,7 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Stloc_2);
 
             SerializeMembers(typeBuilder, interfaceType, methodCode, exit);
-            SerializeProtocolBufferBytes(typeBuilder, interfaceType, methodCode, protoBuff);
+            //SerializeProtocolBufferBytes(typeBuilder, interfaceType, methodCode, protoBuff);
 
             methodCode.Emit(OpCodes.Ldloc_1);
             methodCode.Emit(OpCodes.Callvirt, typeof(MemoryStream).GetMethod("ToArray"));
@@ -2170,7 +2170,7 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Stloc_2);
 
             DeserializeMembers(typeBuilder, interfaceType, methodCode, exit);
-            DeserializeProtocolBufferBytes(typeBuilder, interfaceType, methodCode, protoBuff);
+            //DeserializeProtocolBufferBytes(typeBuilder, interfaceType, methodCode, protoBuff);
 
             methodCode.Emit(OpCodes.Leave, exit);
 

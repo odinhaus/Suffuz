@@ -78,19 +78,19 @@ namespace Altus.Suffūz.Protocols.Udp
 
             _sequenceNumbers = manager
                    .GetOrCreate<IPersistentDictionary<ushort, ulong>>(
-                       Channel.Name + "_seqNums.bin",
+                       Channel.Name + "_messageNumbers.bin",
                        (name) => new PersistentDictionary<ushort, ulong>(name, manager.GlobalHeap, true));
             _sequenceNumbers.Compact();
 
             _segmentNumbers = manager
                .GetOrCreate<IPersistentDictionary<ulong, ushort>>(
-                   Channel.Name + "_segNums.bin",
+                   Channel.Name + "_segmentNumbers.bin",
                    (name) => new PersistentDictionary<ulong, ushort>(name, manager.GlobalHeap, true));
             _segmentNumbers.Compact();
 
             _segments = manager
               .GetOrCreate<IPersistentDictionary<ulong, SegmentList>>(
-                  Channel.Name + "_segs.bin",
+                  Channel.Name + "_segments.bin",
                   (name) => new PersistentDictionary<ulong, SegmentList>(name, manager.GlobalHeap, false));
             _segments.Compact();
 
