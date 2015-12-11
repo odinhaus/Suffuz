@@ -13,32 +13,18 @@ namespace Altus.Suffūz.Protocols.Udp
 {
     public class BestEffortMulticastChannel : MulticastChannel
     {
-        IBestEffortChannelBuffer<UdpMessage> _beBuffer;
-
-        public BestEffortMulticastChannel(string name, IPEndPoint mcastGroup, bool listen) 
-            : this(name, mcastGroup, listen, true)
+        public BestEffortMulticastChannel(IBestEffortChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen) 
+            : this(buffer, name, mcastGroup, listen, true)
         { }
 
-        public BestEffortMulticastChannel(string name, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
-            : this(name, new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf)
+        public BestEffortMulticastChannel(IBestEffortChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
+            : this(buffer, name, new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf)
         { }
 
-        public BestEffortMulticastChannel(string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
-            : base(name, udpSocket, mcastGroup, listen, excludeMessagesFromSelf)
-        {
-            Initialize(mcastGroup);
-        }
+        public BestEffortMulticastChannel(IBestEffortChannelBuffer<UdpMessage> buffer, string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
+            : base(buffer, name, udpSocket, mcastGroup, listen, excludeMessagesFromSelf)
+        { }
 
-
-
-        protected virtual void Initialize(IPEndPoint mcastGroup)
-        {
-            _beBuffer = App.Resolve<IBestEffortChannelBuffer<UdpMessage>>();
-            if (_beBuffer == null)
-                _beBuffer = new BestEffortChannelBuffer();
-
-            _beBuffer.Initialize(this);
-        }
 
         public override ServiceLevels ServiceLevels
         {
@@ -67,7 +53,7 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             var udpMessage = base.CreateUdpMessage(message);
 
-            _beBuffer.AddRetryMessage(udpMessage);
+            //_beBuffer.AddRetryMessage(udpMessage);
 
             return udpMessage;
         }

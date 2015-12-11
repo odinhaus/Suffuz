@@ -98,7 +98,7 @@ namespace Altus.Suffūz.Serialization.Binary
 
             */
 
-            var ctor = ImplementCtor(typeBuilder, interfaceType);
+            
 
             ImplementIsScalar(typeBuilder, interfaceType);
             ImplementPriority(typeBuilder, interfaceType);
@@ -107,8 +107,9 @@ namespace Altus.Suffūz.Serialization.Binary
 
             //var serializeType = ImplementSerializeType(typeBuilder, interfaceType);
             //var deserializeType = ImplementDeserializeType(typeBuilder, interfaceType);
-
-            var protoBuff = ImplementProtocolBufferProperty(typeBuilder, interfaceType);
+            FieldInfo protoBuffField;
+            var protoBuff = ImplementProtocolBufferProperty(typeBuilder, interfaceType, out protoBuffField);
+            var ctor = ImplementCtor(typeBuilder, interfaceType, protoBuffField);
 
             var onSerialize = ImplementOnSerialize(typeBuilder, interfaceType, protoBuff);
             var onDeserialize = ImplementOnDeserialize(typeBuilder, interfaceType, ctor, protoBuff);
@@ -125,11 +126,11 @@ namespace Altus.Suffūz.Serialization.Binary
             return typeBuilder.CreateType();
         }
 
-        private PropertyInfo ImplementProtocolBufferProperty(TypeBuilder typeBuilder, Type interfaceType)
+        private PropertyInfo ImplementProtocolBufferProperty(TypeBuilder typeBuilder, Type interfaceType, out FieldInfo protoBuffField)
         {
             var propType = typeof(byte[]);
             var piName = "__ProtocolBuffer";
-            var fld = typeBuilder.DefineField("_" + piName.ToLower(), propType, FieldAttributes.Public);
+            protoBuffField = typeBuilder.DefineField("_" + piName.ToLower(), propType, FieldAttributes.Public);
 
             var property = typeBuilder.DefineProperty(piName,
                 PropertyAttributes.HasDefault,
@@ -148,7 +149,7 @@ namespace Altus.Suffūz.Serialization.Binary
 
             var getterCode = getter.GetILGenerator();
             getterCode.Emit(OpCodes.Ldarg_0);
-            getterCode.Emit(OpCodes.Ldfld, fld);
+            getterCode.Emit(OpCodes.Ldfld, protoBuffField);
             getterCode.Emit(OpCodes.Ret);
             property.SetGetMethod(getter);
 
@@ -165,7 +166,7 @@ namespace Altus.Suffūz.Serialization.Binary
             var setterCode = setter.GetILGenerator();
             setterCode.Emit(OpCodes.Ldarg_0);
             setterCode.Emit(OpCodes.Ldarg_1);
-            setterCode.Emit(OpCodes.Stfld, fld);
+            setterCode.Emit(OpCodes.Stfld, protoBuffField);
             setterCode.Emit(OpCodes.Ret);
             property.SetSetMethod(setter);
 
@@ -1890,7 +1891,7 @@ namespace Altus.Suffūz.Serialization.Binary
                 return ((PropertyInfo)member).PropertyType;
         }
 
-        private ConstructorInfo ImplementCtor(TypeBuilder typeBuilder, Type interfaceType)
+        private ConstructorInfo ImplementCtor(TypeBuilder typeBuilder, Type interfaceType, FieldInfo protoBuffField)
         {
             /*
 
@@ -1906,10 +1907,16 @@ namespace Altus.Suffūz.Serialization.Binary
               // Code size       8 (0x8)
               .maxstack  8
               IL_0000:  ldarg.0
-              IL_0001:  call       instance void ['Altus.Suffūz']'Altus.Suffūz.Protocols'.RoutablePayload::.ctor()
-              IL_0006:  nop
-              IL_0007:  ret
+              IL_0001:  ldc.i4.0
+              IL_0002:  newarr     [mscorlib]System.Byte
+              IL_0007:  stfld      uint8[] 'Altus.Suffūz.Protocols'.BinarySerializer_RoutablePayload::_bytes
+              IL_0008:  ldarg.0
+              IL_0009:  call       instance void ['Altus.Suffūz']'Altus.Suffūz.Protocols'.RoutablePayload::.ctor()
+              IL_000a:  nop
+              IL_000b:  ret
             } // end of method BinarySerializer_RoutablePayload::.ctor
+
+
 
             */
 
@@ -1919,6 +1926,10 @@ namespace Altus.Suffūz.Serialization.Binary
                 new Type[0]);
             var baseType = interfaceType.GetGenericArguments()[0];
             var ctorCode = ctorBuilder.GetILGenerator();
+            ctorCode.Emit(OpCodes.Ldarg_0);
+            ctorCode.Emit(OpCodes.Ldc_I4_0);
+            ctorCode.Emit(OpCodes.Newarr, typeof(byte[]));
+            ctorCode.Emit(OpCodes.Stfld, protoBuffField);
             ctorCode.Emit(OpCodes.Ldarg_0);
             ctorCode.Emit(OpCodes.Call, baseType.GetConstructor(new Type[0]));
             ctorCode.Emit(OpCodes.Ret);

@@ -57,7 +57,7 @@ namespace Altus.Suffūz.Test
         /// <returns></returns>
         public IResolveTypes Initialize()
         {
-            var channelService = new MulticastChannelService();
+            var channelService = App.ResolveAll<IChannelService>().Single(cs => cs.AvailableServiceLevels == ServiceLevels.Default);
             // create our channel mappings
             channelService.Register(Channels.CHANNEL, Channels.CHANNEL_EP);
 
@@ -71,16 +71,7 @@ namespace Altus.Suffūz.Test
             return new TypeResolver(
                 new Container(c =>
             {
-                c.For<ISerializationContext>().Use<SerializationContext>();
-                c.For<IServiceRouter>().Use<ServiceRouter>().Singleton();
-                // use the mapped channels above
-                c.For<IChannelService>().Use(channelService).Singleton();
-                //c.For<IChannelService>().Use(beChannelService).Singleton();
-                c.For<IBinarySerializerBuilder>().Use<ILSerializerBuilder>().Singleton();
-                c.For<ISerializer>().Use<ComplexSerializer>();
-                c.For<ISerializer>().Use<MessageSegmentSerializer>();
-                c.For<IManagePersistentCollections>().Use<PersistentCollectionManager>();
-                c.For<IScheduler>().Use<Scheduler>(Scheduler.Current).Singleton();
+                // define mappings here
             }));
         }
     }

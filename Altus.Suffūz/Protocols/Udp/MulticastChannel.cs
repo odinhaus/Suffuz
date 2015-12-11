@@ -66,21 +66,21 @@ namespace Altus.Suffūz.Protocols.Udp
         IChannelBuffer<UdpMessage> _buffer;
 
 
-        public MulticastChannel(string name, IPEndPoint mcastGroup, bool listen) : this(name, mcastGroup, listen, true)
+        public MulticastChannel(IChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen) : this(buffer, name, mcastGroup, listen, true)
         {
 
         }
 
-        public MulticastChannel(string name, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
-            : this(name, new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf)
+        public MulticastChannel(IChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
+            : this(buffer, name, new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf)
         {
         }
 
-        public MulticastChannel(string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
+        public MulticastChannel(IChannelBuffer<UdpMessage> buffer, string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
         {
             this.Name = name;
 
-            this._buffer = new ChannelBuffer();
+            this._buffer = buffer;
             this._buffer.MessageReceived += MessageReceived;
             this._buffer.Initialize(this);
             

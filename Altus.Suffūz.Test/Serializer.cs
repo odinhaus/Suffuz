@@ -20,6 +20,7 @@ namespace Altus.Suffūz.Protocols
     [System.Serializable]
     public class BinarySerializer_RoutablePayload : Altus.Suffūz.Protocols.RoutablePayload, ISerializer<Altus.Suffūz.Protocols.RoutablePayload>
     {
+        byte[] _bytes = new byte[0];
         protected byte[] OnSerialize(object source)
         {
             var typed = (SimplePOCO)source;

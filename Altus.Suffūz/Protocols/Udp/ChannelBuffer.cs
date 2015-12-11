@@ -73,24 +73,24 @@ namespace Altus.Suffūz.Protocols.Udp
             _scheduler = App.Resolve<IScheduler>();
             _scheduler.TaskExpired += OnTaskExpired;
 
-            App.Resolve<ISerializationContext>()
-                   .SetSerializer<UdpMessage, UdpMessageSerializer>(StandardFormats.BINARY);
+            //App.Resolve<ISerializationContext>()
+            //       .SetSerializer<UdpMessage, UdpMessageSerializer>(StandardFormats.BINARY);
 
             _sequenceNumbers = manager
                    .GetOrCreate<IPersistentDictionary<ushort, ulong>>(
-                       Channel.Name + "_seq.bin",
+                       Channel.Name + "_seqNums.bin",
                        (name) => new PersistentDictionary<ushort, ulong>(name, manager.GlobalHeap, true));
             _sequenceNumbers.Compact();
 
             _segmentNumbers = manager
                .GetOrCreate<IPersistentDictionary<ulong, ushort>>(
-                   Channel.Name + "_segNum.bin",
+                   Channel.Name + "_segNums.bin",
                    (name) => new PersistentDictionary<ulong, ushort>(name, manager.GlobalHeap, true));
             _segmentNumbers.Compact();
 
             _segments = manager
               .GetOrCreate<IPersistentDictionary<ulong, SegmentList>>(
-                  Channel.Name + "_seg.bin",
+                  Channel.Name + "_segs.bin",
                   (name) => new PersistentDictionary<ulong, SegmentList>(name, manager.GlobalHeap, false));
             _segments.Compact();
 

@@ -30,7 +30,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected override IChannel Create(string uri, IPEndPoint endpoint)
         {
-            var channel = new MulticastChannel(uri, endpoint, true, !_loopback);
+            var channel = new MulticastChannel(App.Resolve<IChannelBuffer<UdpMessage>>(), uri, endpoint, true, !_loopback);
             lock (_channels)
             {
                 _channels.Add(uri, channel);

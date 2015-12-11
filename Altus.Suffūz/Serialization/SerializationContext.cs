@@ -40,7 +40,7 @@ namespace Altus.Suffūz.Serialization
             }
         }
 
-        Dictionary<string, ISerializer> _serializers = new Dictionary<string, ISerializer>();
+        static Dictionary<string, ISerializer> _serializers = new Dictionary<string, ISerializer>();
         public ISerializer<T> GetSerializer<T>(string format)
         {
             return (ISerializer<T>)GetSerializer(typeof(T), format);

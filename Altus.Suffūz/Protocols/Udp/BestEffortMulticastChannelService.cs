@@ -24,13 +24,13 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             get
             {
-                return ServiceLevels.Default;
+                return ServiceLevels.BestEffort;
             }
         }
 
         protected override IChannel Create(string uri, IPEndPoint endpoint)
         {
-            var channel = new BestEffortMulticastChannel(uri, endpoint, true, !_loopback);
+            var channel = new BestEffortMulticastChannel(App.Resolve<IBestEffortChannelBuffer<UdpMessage>>(), uri, endpoint, true, !_loopback);
             lock (_channels)
             {
                 _channels.Add(uri, channel);
