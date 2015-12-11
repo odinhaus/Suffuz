@@ -140,8 +140,8 @@ namespace Altus.Suffūz.Collections
         protected const int WAL_ITEM_LENGTH = 29;
         protected const int WAL_ITEM_TYPE = 32;
         protected const int WAL_ITEM_MD5 = 37;
-        protected const int WAL_ITEM_DATA = 52;
-        protected const int WAL_ITEM_DATA_LENGTH = WAL_BLOCK_SIZE - WAL_ITEM_DATA - 1;
+        protected const int WAL_ITEM_DATA = 53;
+        protected const int WAL_ITEM_DATA_LENGTH = WAL_BLOCK_SIZE - WAL_ITEM_DATA;
 
         static int COUNTER = 0;
         static object GlobalSyncRoot = new object();
@@ -759,7 +759,7 @@ namespace Altus.Suffūz.Collections
                 // Heap Item Data MD5   37 - 52     byte[]
                 // Heap Item Data       53 - 511    byte[]
 
-
+                var walLength = WALFile.Length - 512;
                 var buffer = new byte[512 * 16]; // 8k read buffer = 16 WAL records @ 512 bytes per record
 
                 ulong lastWALSequenceNo = 0, lastHeapSequenceNo = 0; // sequence numbers, as read from latest checkpoint (if found)
@@ -827,7 +827,7 @@ namespace Altus.Suffūz.Collections
                                     // we also need to check MD5 hashes for validity
                                     var md5Hash = new byte[16];
                                     Buffer.BlockCopy(buffer, ptr + WAL_ITEM_MD5, md5Hash, 0, 16);
-                                    var checkMd5Hash = _hasher.ComputeHash(_ptr.ReadBytes(heapAddress + ITEM_DATA, _ptr.ReadInt32(heapAddress + ITEM_LENGTH)));
+                                    var checkMd5Hash = _hasher.ComputeHash(_ptr.ReadBytes(heapAddress + ITEM_DATA, checkDataLen));
                                     isGood = md5Hash.SequenceEqual(checkMd5Hash);
                                     if (!isGood && dataLen < WAL_ITEM_DATA_LENGTH)
                                     {
@@ -870,8 +870,15 @@ namespace Altus.Suffūz.Collections
 
                 UpdateHeaders();
                 Compact();
-
+                // forces a new WAL checkpoint to be written
+                _walChanged = true;
+                var rerun = WALFile.Length != walLength;
                 CommitWAL(HeapSequenceNumber, Next); // add a checkpoint to where we are now
+                if (rerun)
+                {
+                    // this will prune any additional replayed updates applied after the last checkpoint from the WAL file
+                    CheckConsistency();
+                }
             }
         }
 

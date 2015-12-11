@@ -181,12 +181,12 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             float writeRate, readRate, loadRate, enumerateRate;
-            var count = 1000000;
+            var count = 100000;
             var sw = new Stopwatch();
             File.Delete(fileName);
             using (var scope = new FlushScope())
             {
-                using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 500, true))
+                using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 100, true))
                 {
                     var addresses = new ulong[count];
                     sw.Start();

@@ -27,9 +27,9 @@ namespace Altus.Suffūz
     { 
         static void Main(string[] args)
         {
-            FileIO();
+            //FileIO();
             //PerfTest();
-            //CollectionPerfTest();
+            CollectionPerfTest();
             //Console.Read();
             ConfigureApp();
             ConfigureRoutes();
@@ -94,8 +94,8 @@ namespace Altus.Suffūz
         {
             var fileName = "Dictionary.dic";
             var keyName = Path.GetFileNameWithoutExtension(fileName) + "_keys.bin";
-            File.Delete(fileName);
-            File.Delete(keyName);
+            //File.Delete(fileName);
+            //File.Delete(keyName);
             float writeRate, readRate, loadRate, enumerateRate;
             var count = 1000000;
             var sw = new Stopwatch();
@@ -109,6 +109,10 @@ namespace Altus.Suffūz
                     for (int i = 0; i < count; i++)
                     {
                         heap.Add(i.ToString(), item);
+                        if (i == 11)
+                        {
+                            Process.GetCurrentProcess().Kill();
+                        }
                     }
                     sw.Stop();
                     writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
@@ -139,8 +143,8 @@ namespace Altus.Suffūz
             }
             loadRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
 
-            File.Delete(fileName);
-            File.Delete(keyName);
+            //File.Delete(fileName);
+            //File.Delete(keyName);
 
             Console.WriteLine("Write Rate: {0}, Read Rate: {1}, Load Rate: {2}, Enumerate Rate: {3}", writeRate, readRate, loadRate, enumerateRate);
         }
