@@ -26,6 +26,12 @@ namespace Altus.Suffūz.Serialization.Binary
                         var listType = TypeHelper.GetType(listTypeName);
                         var count = br.ReadInt32();
                         var elemType = GetElementType(listType);
+                        if (listType == typeof(IEnumerable)
+                            || (listType.IsGenericType && listType.GetGenericTypeDefinition() == typeof(IEnumerable<>)))
+                        {
+                            listType = typeof(List<>).MakeGenericType(elemType);
+                        }
+
                         var list = (IList)Activator.CreateInstance(listType);
 
                         for(int i = 0; i < count; i++)
@@ -81,7 +87,7 @@ namespace Altus.Suffūz.Serialization.Binary
 
         private Type GetElementType(Type listType)
         {
-            if (listType.Implements(typeof(IList<>)))
+            if (listType.Implements(typeof(IEnumerable<>)))
             {
                 return listType.GetGenericArguments()[0];
             }

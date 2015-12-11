@@ -634,7 +634,7 @@ namespace Altus.Suffūz.Collections
                         }
                     }
                     // wipe free space at end of file
-                    SparseFile.SetZero(BaseFile, Next, MMVA.Capacity - Next);
+                    SparseFile.SetZero(BaseFile, Next, BaseFile.Length - 1);
                     // update new index values
                     LoadIndices();
                     UpdateHeaders();

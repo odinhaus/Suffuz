@@ -12,6 +12,7 @@ using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Protocols;
 using Altus.Suffūz.Test;
 using Altus.Suffūz.Tests;
+using Altus.Suffūz.IO;
 
 namespace Altus.Suffūz.Protocols
 {
@@ -26,7 +27,6 @@ namespace Altus.Suffūz.Protocols
             {
                 BinaryWriter br = new BinaryWriter(ms);
 
-                br.Write((int)typed.R);
 
                 return ms.ToArray();
             }
@@ -38,10 +38,7 @@ namespace Altus.Suffūz.Protocols
             {
                 BinaryReader br = new BinaryReader(ms);
                 var typed = new SimplePOCO();
-                if (ms.Position < ms.Length)
-                {
-                    typed.R = (AnEnum)br.ReadInt32();
-                }
+
 
                 return typed;
             }

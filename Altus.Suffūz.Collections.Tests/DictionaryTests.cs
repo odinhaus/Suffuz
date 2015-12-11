@@ -217,7 +217,7 @@ namespace Altus.Suffūz.Collections.Tests
                 }
 
                 Assert.IsTrue(dictionary.Count == 0);
-                Assert.IsTrue(dictionary.Length == 20);
+                Assert.IsTrue(dictionary.Length == 28);
             }
             File.Delete(fileName);
             File.Delete(keyName);
@@ -267,7 +267,7 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(fileName);
             File.Delete(keyName);
             float writeRate, readRate, loadRate, enumerateRate;
-            var count = 1000000;
+            var count = 100000;
             var sw = new Stopwatch();
             var item = new CustomItem() { A = 12, B = "some text here" };
             using (var scope = new FlushScope())

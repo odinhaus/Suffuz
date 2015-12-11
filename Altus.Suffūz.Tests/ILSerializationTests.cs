@@ -46,7 +46,7 @@ namespace Altus.Suffūz.Tests
                 P = DateTime.Now,
                 Q = "foo",
                 R = AnEnum.Fish,
-                nA = true
+                nA = true,
             };
 
             var serialized = instance.Serialize(testPoco);

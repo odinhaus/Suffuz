@@ -24,4 +24,9 @@ namespace Altus.Suffūz.Serialization
         T Deserialize(byte[] source);
         T Deserialize(Stream inputSource);
     }
+
+    public interface IProtocolBuffer
+    {
+        byte[] __ProtocolBuffer { get; set; }
+    }
 }

@@ -68,12 +68,13 @@ namespace Altus.Suffūz.Serialization.Binary
         private Type ImplementSerializerType(Type type)
         {
             var interfaceType = typeof(ISerializer<>).MakeGenericType(type);
+            var protocolBuffer = typeof(IProtocolBuffer);
             var className = GetTypeName(type);
             var typeBuilder = _modBuilder.DefineType(
                 className, 
                 TypeAttributes.Public | TypeAttributes.Class | TypeAttributes.Serializable, 
                 type, // base type
-                new Type[] { interfaceType } // interfaces
+                new Type[] { interfaceType, protocolBuffer } // interfaces
                 );
             /*
 
@@ -107,8 +108,10 @@ namespace Altus.Suffūz.Serialization.Binary
             //var serializeType = ImplementSerializeType(typeBuilder, interfaceType);
             //var deserializeType = ImplementDeserializeType(typeBuilder, interfaceType);
 
-            var onSerialize = ImplementOnSerialize(typeBuilder, interfaceType);
-            var onDeserialize = ImplementOnDeserialize(typeBuilder, interfaceType, ctor);
+            var protoBuff = ImplementProtocolBufferProperty(typeBuilder, interfaceType);
+
+            var onSerialize = ImplementOnSerialize(typeBuilder, interfaceType, protoBuff);
+            var onDeserialize = ImplementOnDeserialize(typeBuilder, interfaceType, ctor, protoBuff);
 
             
             ImplementSerialize(typeBuilder, interfaceType, onSerialize);
@@ -120,6 +123,53 @@ namespace Altus.Suffūz.Serialization.Binary
             
 
             return typeBuilder.CreateType();
+        }
+
+        private PropertyInfo ImplementProtocolBufferProperty(TypeBuilder typeBuilder, Type interfaceType)
+        {
+            var propType = typeof(byte[]);
+            var piName = "__ProtocolBuffer";
+            var fld = typeBuilder.DefineField("_" + piName.ToLower(), propType, FieldAttributes.Public);
+
+            var property = typeBuilder.DefineProperty(piName,
+                PropertyAttributes.HasDefault,
+                propType,
+                null);
+
+            var getter = typeBuilder.DefineMethod("get_" + piName,
+                MethodAttributes.Public
+                | MethodAttributes.SpecialName
+                | MethodAttributes.HideBySig
+                | MethodAttributes.NewSlot
+                | MethodAttributes.Final
+                | MethodAttributes.Virtual,
+                propType,
+                Type.EmptyTypes);
+
+            var getterCode = getter.GetILGenerator();
+            getterCode.Emit(OpCodes.Ldarg_0);
+            getterCode.Emit(OpCodes.Ldfld, fld);
+            getterCode.Emit(OpCodes.Ret);
+            property.SetGetMethod(getter);
+
+            var setter = typeBuilder.DefineMethod("set_" + piName,
+                MethodAttributes.Public
+                | MethodAttributes.SpecialName
+                | MethodAttributes.HideBySig
+                | MethodAttributes.NewSlot
+                | MethodAttributes.Final
+                | MethodAttributes.Virtual,
+                null,
+                new[] { propType });
+
+            var setterCode = setter.GetILGenerator();
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Ldarg_1);
+            setterCode.Emit(OpCodes.Stfld, fld);
+            setterCode.Emit(OpCodes.Ret);
+            property.SetSetMethod(setter);
+
+            return property;
         }
 
         private string GetTypeName(Type type)
@@ -1876,7 +1926,7 @@ namespace Altus.Suffūz.Serialization.Binary
             return ctorBuilder;
         }
 
-        private MethodInfo ImplementOnSerialize(TypeBuilder typeBuilder, Type interfaceType)
+        private MethodInfo ImplementOnSerialize(TypeBuilder typeBuilder, Type interfaceType, PropertyInfo protoBuff)
         {
             /*
 
@@ -1963,6 +2013,7 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Stloc_2);
 
             SerializeMembers(typeBuilder, interfaceType, methodCode, exit);
+            SerializeProtocolBufferBytes(typeBuilder, interfaceType, methodCode, protoBuff);
 
             methodCode.Emit(OpCodes.Ldloc_1);
             methodCode.Emit(OpCodes.Callvirt, typeof(MemoryStream).GetMethod("ToArray"));
@@ -1984,7 +2035,40 @@ namespace Altus.Suffūz.Serialization.Binary
             return methodBuilder;
         }
 
-        private MethodInfo ImplementOnDeserialize(TypeBuilder typeBuilder, Type interfaceType, ConstructorInfo ctor)
+        private void SerializeProtocolBufferBytes(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, PropertyInfo protoBuff)
+        {
+            /*
+            IL_0013:  ldloc.2
+            IL_0014:  ldloc.0
+            IL_0015:  isinst     ['Altus.Suffūz']'Altus.Suffūz.Serialization'.IProtocolBuffer
+            IL_001a:  brfalse.s  IL_0028
+            IL_001c:  ldloc.2
+            IL_001d:  ldloc.0
+            IL_001e:  callvirt   instance uint8[] 'Altus.Suffūz.Tests'.SimplePOCO::get___ProtoBuffer()
+            IL_0023:  callvirt   instance void [mscorlib]System.IO.BinaryWriter::Write(uint8[])
+            IL_0028:  ldloc.1
+
+
+            */
+
+            // appends extra bytes from forward version to payload, if they exist
+            var jump = methodCode.DefineLabel();
+
+            // check type being serialized is a protocolbuffer
+            methodCode.Emit(OpCodes.Ldloc_0); // object to read
+            methodCode.Emit(OpCodes.Isinst, typeof(IProtocolBuffer));
+            methodCode.Emit(OpCodes.Brfalse_S, jump);
+
+            methodCode.Emit(OpCodes.Ldloc_2); // binary writer
+            methodCode.Emit(OpCodes.Ldloc_0); // object to read
+            methodCode.Emit(OpCodes.Callvirt, protoBuff.GetGetMethod());
+            methodCode.Emit(OpCodes.Callvirt, typeof(BinaryWriter).GetMethod("Write", BindingFlags.Public | BindingFlags.Instance, null, new Type[] { typeof(byte[]) }, null));
+
+            methodCode.MarkLabel(jump);
+            methodCode.Emit(OpCodes.Nop);
+        }
+
+        private MethodInfo ImplementOnDeserialize(TypeBuilder typeBuilder, Type interfaceType, ConstructorInfo ctor, PropertyInfo protoBuff)
         {
             /*
 
@@ -2075,6 +2159,7 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Stloc_2);
 
             DeserializeMembers(typeBuilder, interfaceType, methodCode, exit);
+            DeserializeProtocolBufferBytes(typeBuilder, interfaceType, methodCode, protoBuff);
 
             methodCode.Emit(OpCodes.Leave, exit);
 
@@ -2091,6 +2176,37 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Ret);
 
             return methodBuilder;
+        }
+
+        private void DeserializeProtocolBufferBytes(TypeBuilder typeBuilder, Type interfaceType, ILGenerator methodCode, PropertyInfo protoBuff)
+        {
+            /*
+
+            IL_0014:  ldloc.1
+            IL_0015:  isinst     ['Altus.Suffūz']'Altus.Suffūz.Serialization'.IProtocolBuffer
+            IL_001a:  brfalse.s  IL_0028
+            IL_001c:  ldloc.1
+            IL_001d:  ldloc.0
+            IL_001e:  call       uint8[] ['Altus.Suffūz']'Altus.Suffūz.IO'.StreamHelper::GetBytes(class [mscorlib]System.IO.Stream)
+            IL_0023:  callvirt   instance void 'Altus.Suffūz.Tests'.SimplePOCO::set___ProtoBuffer(uint8[])
+
+
+            */
+
+            var jump = methodCode.DefineLabel();
+
+            // check type being serialized is a protocolbuffer
+            methodCode.Emit(OpCodes.Ldloc_2); // object to write
+            methodCode.Emit(OpCodes.Isinst, typeof(IProtocolBuffer));
+            methodCode.Emit(OpCodes.Brfalse_S, jump);
+
+            methodCode.Emit(OpCodes.Ldloc_2); // object to read
+            methodCode.Emit(OpCodes.Ldloc_0); // memory stream
+            methodCode.Emit(OpCodes.Call, typeof(StreamHelper).GetMethod("GetBytes", BindingFlags.Public | BindingFlags.Static, null, new Type[] { typeof(Stream) }, null));
+            methodCode.Emit(OpCodes.Callvirt, protoBuff.GetSetMethod());
+
+            methodCode.MarkLabel(jump);
+            methodCode.Emit(OpCodes.Nop);
         }
 
         private void ImplementDeserializeGenericStream(TypeBuilder typeBuilder, Type interfaceType, MethodInfo deserializeGeneric)

@@ -29,7 +29,7 @@ namespace Altus.Suffūz
         {
             //FileIO();
             //PerfTest();
-            CollectionPerfTest();
+            //CollectionPerfTest();
             //Console.Read();
             ConfigureApp();
             ConfigureRoutes();
@@ -352,8 +352,8 @@ namespace Altus.Suffūz
             //var sendRate = count / (sw.ElapsedMilliseconds / 1000f);
             //Console.WriteLine("Send Rate: {0} message/sec", bufferRate);
 
+
             
-            Console.Read();
             sw.Reset();
             sw.Start();
             using (var scope = new FlushScope())
@@ -370,7 +370,7 @@ namespace Altus.Suffūz
             sw.Stop();
             Console.WriteLine("Mean Call Time: {0} ms", sw.ElapsedMilliseconds / (count/10f));
             sw.Reset();
-
+            Console.Read();
 
             //// executes the default call on the CHANNEL, with no arguments or response
             Get.From(Channels.CHANNEL).Execute();
