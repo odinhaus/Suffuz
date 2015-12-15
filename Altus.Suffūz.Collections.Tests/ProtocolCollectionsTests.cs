@@ -190,6 +190,7 @@ namespace Altus.Suffūz.Collections.Tests
         public Protocol Protocol { get { return Protocol.Udp; } }
 
         public ulong MessageId { get { return _buffer.LocalMessageId; } }
+        public ulong SegmentId { get { return _buffer.LocalSegmentId; } }
 
         public ServiceLevels ServiceLevels { get { return ServiceLevels.BestEffort; } }
 

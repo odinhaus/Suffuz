@@ -45,9 +45,9 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 if (_hash == null && Data != null)
                 {
-                    _hash = new byte[9];
+                    _hash = new byte[16];
                     for (int i = 0; i < 16; i++)
-                        _hash[i] = Data[i + 25];
+                        _hash[i] = Data[i + 9];
                 }
                 return _hash;
             }

@@ -14,9 +14,19 @@ namespace Altus.Suffūz.Protocols.Udp
     public class BestEffortMulticastChannelService : IPChannelService
     {
         protected bool _loopback = false;
+        protected int _ttl = 2;
         public BestEffortMulticastChannelService()
         {
-            _loopback = bool.Parse(ConfigurationManager.AppSettings["multicastLoopback"]);
+            try
+            {
+                _loopback = bool.Parse(ConfigurationManager.AppSettings["multicastLoopback"]);
+            }
+            catch { }
+            try
+            {
+                _ttl = int.Parse(ConfigurationManager.AppSettings["multicastTTL"]);
+            }
+            catch { }
         }
 
 
@@ -30,7 +40,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected override IChannel Create(string uri, IPEndPoint endpoint)
         {
-            var channel = new BestEffortMulticastChannel(App.Resolve<IBestEffortChannelBuffer<UdpMessage>>(), uri, endpoint, true, !_loopback);
+            var channel = new BestEffortMulticastChannel(App.Resolve<IBestEffortChannelBuffer<UdpMessage>>(), uri, endpoint, true, !_loopback, _ttl);
             lock (_channels)
             {
                 _channels.Add(uri, channel);

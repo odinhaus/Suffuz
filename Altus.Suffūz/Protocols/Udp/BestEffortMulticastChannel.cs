@@ -13,18 +13,19 @@ namespace Altus.Suffūz.Protocols.Udp
 {
     public class BestEffortMulticastChannel : MulticastChannel
     {
-        public BestEffortMulticastChannel(IBestEffortChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen) 
-            : this(buffer, name, mcastGroup, listen, true)
+        public BestEffortMulticastChannel(IBestEffortChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen, int ttl) 
+            : this(buffer, name, mcastGroup, listen, true, ttl)
         { }
 
-        public BestEffortMulticastChannel(IBestEffortChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
-            : this(buffer, name, new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf)
+        public BestEffortMulticastChannel(IBestEffortChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf, int ttl)
+            : this(buffer, name, new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf, ttl)
         { }
 
-        public BestEffortMulticastChannel(IBestEffortChannelBuffer<UdpMessage> buffer, string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
-            : base(buffer, name, udpSocket, mcastGroup, listen, excludeMessagesFromSelf)
-        { }
-
+        public BestEffortMulticastChannel(IBestEffortChannelBuffer<UdpMessage> buffer, string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf, int ttl)
+            : base(buffer, name, udpSocket, mcastGroup, listen, excludeMessagesFromSelf, ttl)
+        {
+            buffer.MissedSegments += Buffer_MissedSegments;
+        }
 
         public override ServiceLevels ServiceLevels
         {
@@ -49,75 +50,30 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
-        public override UdpMessage CreateUdpMessage(Message message)
+
+        public new IBestEffortChannelBuffer<UdpMessage> Buffer { get { return (IBestEffortChannelBuffer<UdpMessage>)base.Buffer; } }
+
+        protected override void SendSegment(MessageSegment segment)
         {
-            var udpMessage = base.CreateUdpMessage(message);
-
-            //_beBuffer.AddRetryMessage(udpMessage);
-
-            return udpMessage;
+            if (segment.SegmentId > 0) // ignore special segments like NAKs
+            {
+                Buffer.AddRetrySegment(segment);
+            }
+            base.SendSegment(segment);
         }
 
-        //protected override void ProcessInboundUdpSegment(MessageSegment segment)
-        //{
-        //    var messageId = _beBuffer[segment.Sender];
-
-        //    if (messageId > 0)
-        //    {
-        //        ulong sequenceNo, lastSequenceNo;
-        //        ushort senderId;
-
-        //        UdpMessage.SplitMessageId(segment.MessageId, out senderId, out sequenceNo);
-        //        UdpMessage.SplitMessageId(messageId, out senderId, out lastSequenceNo);
-
-        //        if (lastSequenceNo < sequenceNo)
-        //        {
-        //            _beBuffer[senderId] = sequenceNo;
-
-        //        }
-
-                
-        //        if (++lastSequenceNo == sequenceNo)
-        //        {
-        //            // this is the expected 
-        //            // check we didn't miss an individual packet
-        //            UdpMessage msg;
-        //            if (_messages.TryGetValue(segment.MessageId, out msg))
-        //            {
-        //                // we've seen this message, check the segment number against our greatest segment number
-        //                var lastSegment = _beBuffer[segment.MessageId];
-        //                if (lastSegment < segment.SegmentNumber)
-        //                {
-        //                    _beBuffer[segment.MessageId] = segment.SegmentNumber;
-        //                }
-
-
-                        
-        //            }
-        //        }
-        //        else if (lastSequenceNo < sequenceNo)
-        //        {
-        //            // we're 
-        //            // we missed a whole message, need to request it again
-        //            SendNACKMessages(lastSequenceNo, sequenceNo);
-        //        }
-        //    }
-
-        //    base.ProcessInboundUdpSegment(segment);
-        //}
-
-        private void SendNACKMessages(ulong lastSequenceNo, ulong sequenceNo)
+        private void Buffer_MissedSegments(object sender, MissedSegmentsEventArgs e)
         {
-            throw new NotImplementedException();
+            // send a NAK for the missed packets
+            var nak = new UdpSegmentNAK(e.SenderId, e.RecipientId, e.StartSegmentId, e.EndSegmentId);
+            SendNAK(nak);
         }
 
-        //protected override void ProcessCompletedInboundUdpMessage(UdpMessage udpMessage)
-        //{
-        //    // adds message and updates the last message Id for sender
-        //    _beBuffer.AddRetryMessage(udpMessage);
+        protected virtual void SendNAK(UdpSegmentNAK nak)
+        {
+            Buffer.AddSegmentNAK(nak);
+            this.SendSegment(nak);
+        }
 
-
-        //    base.ProcessCompletedInboundUdpMessage(udpMessage);
-        //}
     }
 }

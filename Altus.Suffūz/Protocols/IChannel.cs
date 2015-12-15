@@ -26,5 +26,6 @@ namespace Altus.Suffūz.Protocols
         ServiceLevels ServiceLevels { get; }
         TimeSpan DefaultTimeout { get; set; }
         ulong MessageId { get; }
+        ulong SegmentId { get; }
     }
 }

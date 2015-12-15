@@ -6,6 +6,21 @@ namespace Altus.Suffūz.Collections
     public interface IPersistentHeap : IPersistentCollection
     {
         /// <summary>
+        /// Adds a shared resource to a common collection, allowing entries for that resource to be indexed when data is written to the heap.  
+        /// Sharing heaps reduces the number of individual storage files used by persistent types, which can significantly improve 
+        /// performance.
+        /// </summary>
+        /// <param name="resourceName"></param>
+        /// <exception cref="System.InvalidOperationException">The system supports a maximum 4096 shares per heap</exception>
+        /// <returns>The internal numeric index for the share</returns>
+        ushort AddShare(string resourceName);
+        /// <summary>
+        /// Removes the share, and all of its associated data from the heap, if found, and returns true.  Otherwise, returns false.
+        /// </summary>
+        /// <param name="resourceName"></param>
+        /// <returns></returns>
+        bool RemoveShare(string resourceName);
+        /// <summary>
         /// Returns all the location keys for each item in the collection
         /// </summary>
         IEnumerable<ulong> AllKeys { get; }
@@ -66,6 +81,13 @@ namespace Altus.Suffūz.Collections
         /// The next incremental sequence number to assign to a newly added item to the heap
         /// </summary>
         ulong HeapSequenceNumber { get; }
+        /// <summary>
+        /// Gets an actual memory location for the provided key, if found, otherwise returns -1.  
+        /// NOTE: addresses can change, so take care when persisting these values outside of a locked read/write context.
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        int GetAddress(ulong key);
     }
 
     public interface IPersistentHeap<TValue> : IPersistentHeap, ICollection<TValue>, IEnumerable<TValue>

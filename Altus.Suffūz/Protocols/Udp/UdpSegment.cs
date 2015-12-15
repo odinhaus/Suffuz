@@ -16,15 +16,16 @@ namespace Altus.Suffūz.Protocols.Udp
         /* =======================================================================================================================================
         * UDP SEGMENT DESCRIPTOR
         * FIELD                        LENGTH              POS     SUBFIELDS/Description
-        * TAG                          1                   0       NNNNNNSN - Not Used (6 bits), Segment Type (0 = Header, 1 = Segment), Not Used (1 bit)
+        * TAG                          1                   0       Segment Type (0 = Header, 1 = Segment)
         * SENDERID + MESSAGEID         8                   1       Combination of SENDER (16 bits) + MESSAGE SEQUENCE NUMBER (48 bits) = 64 bits
-        * SEGMENTNUMBER                2                   9       Segement sequence number 
-        * SEGMENTCOUNT                 2                   11      Segment total count
-        * TIMETOLIVE                   8                   13      Message segment expiration datetime
-        * DATALENGTH                   2                   21      length in bytes of any included transfer data
-        * DATA                         N (up to 1024 - 23) 23      included message data
+        * SEGMENTID                    8                   9       Unique incremental ulong per packet
+        * SEGMENTNUMBER                2                   17      Segement sequence number 
+        * SEGMENTCOUNT                 2                   19      Segment total count
+        * TIMETOLIVE                   8                   21      Message segment expiration datetime
+        * DATALENGTH                   2                   29      length in bytes of any included transfer data
+        * DATA                         N (up to 1024 - 23) 31      included message data
         * =======================================================================================================================================
-        * Total                        23 bytes     
+        * Total                        31 bytes     
         */
         protected override bool OnIsValid()
         {
@@ -33,7 +34,8 @@ namespace Altus.Suffūz.Protocols.Udp
                 return this.SegmentLength <= this.Data.Length
                     && base.SegmentType == SegmentType.Segment
                     && this.Sender > 0
-                    && this.MessageId != 0
+                    && this.MessageId > 0
+                    && this.SegmentId > 0
                     && this.SegmentNumber > 0;
             }
             catch { return false; }
@@ -46,7 +48,7 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 if (_segNo == 0 && Data != null)
                 {
-                    _segNo = BitConverter.ToUInt16(Data, 9);
+                    _segNo = BitConverter.ToUInt16(Data, 17);
                 }
                 return _segNo;
             }
@@ -59,7 +61,7 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 if (_segCount == 0 && Data != null)
                 {
-                    _segCount = BitConverter.ToUInt16(Data, 11);
+                    _segCount = BitConverter.ToUInt16(Data, 19);
                 }
                 return _segCount;
             }
@@ -72,7 +74,7 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 if (_ttl == TimeSpan.MinValue && Data != null)
                 {
-                    _ttl = TimeSpan.FromMilliseconds(BitConverter.ToDouble(Data, 13));
+                    _ttl = TimeSpan.FromMilliseconds(BitConverter.ToDouble(Data, 21));
                 }
                 return _ttl;
             }
@@ -84,7 +86,7 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 if (_pl == 0 && Data != null)
                 {
-                    _pl = BitConverter.ToUInt16(Data, 21);
+                    _pl = BitConverter.ToUInt16(Data, 29);
                 }
                 return _pl;
             }
@@ -97,14 +99,14 @@ namespace Altus.Suffūz.Protocols.Udp
                 if (_plData == null && Data != null)
                 {
                     _plData = new byte[PayloadLength];
-                    Data.Copy(23, _plData, 0, PayloadLength);
+                    Data.Copy(31, _plData, 0, PayloadLength);
                 }
                 return _plData;
             }
         }
         public int HeaderLength
         {
-            get { return 23; }
+            get { return 31; }
         }
 
         public override int SegmentLength

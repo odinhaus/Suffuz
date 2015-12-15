@@ -1,6 +1,7 @@
 ﻿using Altus.Suffūz.Collections;
 using Altus.Suffūz.Scheduling;
 using Altus.Suffūz.Serialization;
+using Altus.Suffūz.Serialization.Binary;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,11 +13,12 @@ namespace Altus.Suffūz.Protocols.Udp
 {
     public class BestEffortChannelBuffer : ChannelBuffer, IBestEffortChannelBuffer<UdpMessage>
     {
-        IPersistentDictionary<ulong, UdpMessage> _resendBuffer;
+        IPersistentDictionary<ulong, NAKMessage> _nakBuffer;
+        IPersistentList<UdpSegmentNAK> _pendingNAKs;
 
-        List<Tuple<ulong, IScheduledTask>> _expirations = new List<Tuple<ulong, IScheduledTask>>();
+        List<ExpirationTask> _tasks = new List<ExpirationTask>();
 
-        int _added = 0, _removed = 0;
+        public event MissedSegmentsHandler MissedSegments;
 
         public BestEffortChannelBuffer() : base()
         {
@@ -28,33 +30,32 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 var manager = App.Resolve<IManagePersistentCollections>();
 
-               
-
-                _resendBuffer = manager
-                    .GetOrCreate<IPersistentDictionary<ulong, UdpMessage>>(
+                _nakBuffer = manager
+                    .GetOrCreate<IPersistentDictionary<ulong, NAKMessage>>(
                         Channel.Name + "_nak.bin",
-                        (name) => new PersistentDictionary<ulong, UdpMessage>(name, manager.GlobalHeap, false));
-                _resendBuffer.Compact();
+                        (name) => new PersistentDictionary<ulong, NAKMessage> (name, manager.GlobalHeap, false));
+                _nakBuffer.Compact();
+
+                _pendingNAKs = manager
+                    .GetOrCreate<IPersistentList<UdpSegmentNAK>>(
+                        Channel.Name + "_pendingNAKs.bin",
+                        (name) => new PersistentList<UdpSegmentNAK>(name, 1024 * 1024) { AutoGrowSize = 1024 * 1024 });
+                _pendingNAKs.Compact();
 
                 var now = CurrentTime.Now;
-                foreach (var kvp in _resendBuffer)
+                foreach (var nak in _nakBuffer.ToArray())
                 {
-                    //if (now < kvp.Value.UdpHeaderSegment.TimeToLive)
-                    //{
-                    //    // set the message to expire from the retry buffer based on the message's TTL
-                    //    _expirations.Add(new Tuple<ulong, IScheduledTask>(kvp.Value.MessageId,
-                    //        _scheduler.Schedule<ulong>(kvp.Value.UdpHeaderSegment.TimeToLive,
-                    //        (messageId) => _resendBuffer.Remove(messageId),
-                    //        () => kvp.Value.MessageId)));
-                    //    _added++;
-                    //}
-                    //else
-                    //{
-                    //    _resendBuffer.Remove(kvp.Key);
-                    //    _removed++;
-                    //}
+                    var timeout = nak.Value.Created.Add(nak.Value.Segment.TimeToLive);
+                    if (timeout > CurrentTime.Now)
+                    {
+                        var task = this.Scheduler.Schedule(timeout,
+                            (segmentId) => { lock (Channel) { RemoveRetrySegment(segmentId); } },
+                            () => nak.Key);
+                        this.Tasks.Add(new ExpirationTask(nak.Key, task));
+                        continue;
+                    }
+                    _nakBuffer.Remove(nak.Key);
                 }
-
 
                 base.Initialize(this.Channel);
             }
@@ -64,79 +65,70 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             lock(Channel)
             {
-                if (_added != _removed)
-                {
-                    _resendBuffer.Compact();
-                    _added = _removed = 0;
-                }
+                _nakBuffer.Compact();
             }
             base.Compact();
         }
 
         public override void Reset()
         {
-            if (!IsInitialized)
-                throw new InvalidOperationException("The channel buffer has not been initialized");
-
-            _resendBuffer.Clear(true);
-            _resendBuffer.Dispose();
-
-            foreach(var tuple in _expirations)
+            lock(Channel)
             {
-                tuple.Item2.Cancel();
-            }
-            _expirations.Clear();
+                if (!IsInitialized)
+                    throw new InvalidOperationException("The channel buffer has not been initialized");
 
-            base.Reset();
+                _nakBuffer.Clear(true);
+                _nakBuffer.Dispose();
+
+                base.Reset();
+            }
         }
 
-        public void AddRetryMessage(UdpMessage message)
+        public void AddRetrySegment(MessageSegment segment)
         {
             lock(Channel)
             {
-                //if (message.UdpHeaderSegment.TimeToLive > CurrentTime.Now)
-                //{
-                //    // add message to retry buffer
-                //    _resendBuffer.Add(message.MessageId, message);
+                var now = CurrentTime.Now;
+                if (segment.TimeToLive.TotalMilliseconds > 0)
+                {
+                    // add message to nak buffer
+                    _nakBuffer.Add(segment.MessageId, new NAKMessage() { Created = now, Segment = segment });
 
-                //    // set the message to expire from the retry buffer based on the message's TTL
-                //    _expirations.Add(new Tuple<ulong, IScheduledTask>(message.MessageId,
-                //        _scheduler.Schedule<ulong>(message.UdpHeaderSegment.TimeToLive,
-                //        (messageId) => RemoveRetryMessage(messageId),
-                //        () => message.MessageId)));
-                //    _added++;
-                //}
-                //_sequenceNumbers.Add(message.Sender, message.MessageId);
+                    // set the message to expire from the nak buffer based on the message's TTL
+                    var task = this.Scheduler.Schedule(now.Add(segment.TimeToLive),
+                           (segmentId) => { lock (Channel) { RemoveRetrySegment(segmentId); } },
+                           () => segment.SegmentId);
+                    this.Tasks.Add(new ExpirationTask(segment.SegmentId, task));
+                }
             }
         }
 
-        public void RemoveRetryMessage(UdpMessage message)
+        public void RemoveRetrySegment(MessageSegment message)
         {
-            RemoveRetryMessage(message.MessageId);
+            RemoveRetrySegment(message.SegmentId);
         }
 
-        public void RemoveRetryMessage(ulong messageId)
+        public void RemoveRetrySegment(ulong segmentId)
         {
             lock (Channel)
             {
-                _resendBuffer.Remove(messageId);
-                var tuple = _expirations.SingleOrDefault(t => t.Item1 == messageId);
-                if (tuple != null)
+                _nakBuffer.Remove(segmentId);
+                var task = Tasks.SingleOrDefault(t => t.MessageId == segmentId);
+                if (task != null)
                 {
-                    tuple.Item2.Cancel();
-                    _expirations.Remove(tuple);
+                    task.Task.Cancel();
+                    Tasks.Remove(task);
                 }
-                _removed++;
             }
         }
 
-        public UdpMessage GetRetryMessage(ulong messageId)
+        public MessageSegment GetRetrySegement(ulong segmentId)
         {
             lock (Channel)
             {
                 try
                 {
-                    return _resendBuffer[messageId];
+                    return _nakBuffer[segmentId].Segment;
                 }
                 catch(KeyNotFoundException)
                 {
@@ -145,7 +137,57 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
-        public int RetryCount { get { return _resendBuffer.Count; } }
+        public override void AddInboundSegment(MessageSegment segment)
+        {
+            lock(Channel)
+            {
+                ulong lastSegmentId;
+                if (SegmentIds.TryGetValue(segment.Sender, out lastSegmentId)
+                    && segment.SegmentId > lastSegmentId + 1)
+                {
+                    // this packet has jumped forward in time - we missed some packets, tell the channel
+                    OnMissedSegments(segment.Sender, lastSegmentId + 1, segment.SegmentId);
+                }
+                // in any case, allow the packet to be handled
+                base.AddInboundSegment(segment);
+            }
+        }
 
+        protected virtual void OnMissedSegments(ushort senderId, ulong startSegment, ulong endSegment)
+        {
+            if (MissedSegments != null)
+            {
+                MissedSegments(this, new MissedSegmentsEventArgs(senderId, App.InstanceId, startSegment, endSegment));
+            }
+        }
+
+
+        public virtual void AddSegmentNAK(UdpSegmentNAK nak)
+        {
+            _pendingNAKs.Add(nak);
+            var task = this.Scheduler.Schedule(CurrentTime.Now.Add(TimeSpan.FromSeconds(nak.SegmentEnd - nak.SegmentStart + 1)),
+                           (n) => { lock (Channel) { RemoveSegmentNAK(n); } },
+                           () => nak);
+            this.Tasks.Add(new ExpirationTask(nak.SegmentEnd, task));
+        }
+
+        public virtual bool RemoveSegmentNAK(UdpSegmentNAK nak)
+        {
+            var found = _pendingNAKs.Remove(nak);
+            return found;
+        }
+
+        public int RetryCount { get { return _nakBuffer.Count; } }
+
+        protected List<ExpirationTask> Tasks { get { return _tasks; } }
+
+    }
+
+    public class NAKMessage
+    {
+        [BinarySerializable(0)]
+        public DateTime Created { get; set; }
+        [BinarySerializable(1)]
+        public MessageSegment Segment { get; set; }
     }
 }

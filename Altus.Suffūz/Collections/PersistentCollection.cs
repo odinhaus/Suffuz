@@ -12,27 +12,41 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Collections
 {
-    public abstract class PersistentCollectionBase : ICollection, IEnumerable, IDisposable, IFlush, IPersistentCollection
+    public abstract class PersistentCollection : ICollection, IEnumerable, IDisposable, IFlush, IPersistentCollection
     {
         static System.Collections.Generic.Dictionary<Type, ISerializer> _serializers = new System.Collections.Generic.Dictionary<Type, ISerializer>();
-        static Dictionary<string, PersistentCollectionBase> _shares = new Dictionary<string, PersistentCollectionBase>();
+        static Dictionary<string, PersistentCollection> _shares = new Dictionary<string, PersistentCollection>();
         /// <summary>
         /// Default heap size in bytes (10 Mb)
         /// </summary>
         public const int DEFAULT_HEAP_SIZE = 1024 * 1024 * 10;
 
-        protected PersistentCollectionBase() : this(Path.GetTempFileName())
+        protected PersistentCollection() : this(Path.GetTempFileName())
         {
         }
 
-        protected PersistentCollectionBase(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isAtomic = false)
+        protected PersistentCollection(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isAtomic = false)
         {
             SyncRoot = new object();
             IsAtomic = isAtomic;
             First = Next = Last = 0;
-            MaximumSize = maxSize;
             Initialize(filePath, maxSize);
+        }
 
+        protected PersistentCollection(PersistentCollection collection)
+        {
+            SyncRoot = new object();
+            
+            Initialize(collection);
+        }
+
+        protected void Initialize(PersistentCollection collection)
+        {
+            MaximumSize = collection.MaximumSize;
+            BaseFilePath = collection.BaseFilePath;
+            BaseFile = collection.BaseFile;
+            BaseMMF = collection.BaseMMF;
+            Initialize(false, BaseFilePath, collection.MaximumSize);
         }
 
         protected void Initialize(string filePath, int maxSize)

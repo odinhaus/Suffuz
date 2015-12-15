@@ -10,7 +10,6 @@ namespace Altus.Suffūz.Protocols
         ulong MessageId { get; }
         Stream Payload { get; }
         ushort Sender { get; }
-        ulong SequenceNumber { get; }
         void AddSegment(TMessage segment);
 
         byte[] ToBytes();

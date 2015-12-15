@@ -150,8 +150,7 @@ namespace Altus.Suffūz.Collections
 
         public void Insert(int index, object value)
         {
-            var key = Addresses.Skip(index).Take(1).Single();
-            Write(value, key.Key);
+            throw new NotSupportedException("Insert operations are not supported on this collection type");
         }
 
         public void Remove(object value)

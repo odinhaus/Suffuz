@@ -36,6 +36,7 @@
     <Reference Include="System.configuration" />
     <Reference Include="System.Core" />
     <Reference Include="System.ServiceProcess" />
+    <Reference Include="System.Transactions" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml.Linq" />
     <Reference Include="System.Data.DataSetExtensions" />
@@ -59,13 +60,14 @@
     <Compile Include="Collections\IPersistentList.cs" />
     <Compile Include="Collections\IPersistentQueue.cs" />
     <Compile Include="Collections\IPersistentStack.cs" />
-    <Compile Include="Collections\PersistentCollectionBase.cs" />
+    <Compile Include="Collections\PersistentCollection.cs" />
     <Compile Include="Collections\PersistentCollectionManager.cs" />
     <Compile Include="Collections\PersistentDictionary.cs" />
     <Compile Include="Collections\PersistentHeap.cs" />
     <Compile Include="Collections\PersistentList.cs" />
     <Compile Include="Collections\PersistentQueue.cs" />
     <Compile Include="Collections\PersistentStack.cs" />
+    <Compile Include="Collections\PersistentTransaction.cs" />
     <Compile Include="CostFunctions.cs" />
     <Compile Include="Protocols\IChannelBuffer.cs" />
     <Compile Include="Protocols\Udp\BestEffortChannelBuffer.cs" />
@@ -73,6 +75,7 @@
     <Compile Include="Protocols\IProtocolMessage.cs" />
     <Compile Include="Protocols\Udp\ChannelBuffer.cs" />
     <Compile Include="Protocols\MessageSegmentSerializer.cs" />
+    <Compile Include="Protocols\Udp\UdpSegmentNAK.cs" />
     <Compile Include="Scheduling\IScheduler.cs" />
     <Compile Include="Security\Cryptography\Box\Curve25519XSalsa20Poly1305.cs" />
     <Compile Include="Security\Cryptography\Core\HSalsa20.cs" />

@@ -13,13 +13,22 @@ using Altus.Suffūz.Serialization;
 using Altus.Suffūz.IO;
 using System.Security.Cryptography;
 using Altus.Suffūz.Diagnostics;
+using System.Transactions;
 
 namespace Altus.Suffūz.Collections
 {
     public enum WALEntryType : int
     {
-        RecordUpdate = 1,
-        Checkpoint = 2
+        ShareUpdate = 1,
+        ShareHeaderUpdate = 2,
+        RecordUpdate = 20,
+        RecordHeaderUpdate = 21,
+        Checkpoint = 30,
+        TXBegin = 40,
+        TXCommit = 41,
+        TXRollback = 42,
+        TXNewValue = 43,
+        TXOldValue = 44
     }
 
     public class PersistentHeap<TValue> : PersistentHeap, ICollection<TValue>, IEnumerable<TValue>, IPersistentHeap<TValue>
@@ -121,34 +130,28 @@ namespace Altus.Suffūz.Collections
         }
     }
 
-    public unsafe class PersistentHeap : PersistentCollectionBase, IPersistentHeap
+    public unsafe class PersistentHeap : PersistentCollection, IPersistentHeap
     {
+        protected const int SHARED_HEADER_LENGTH = 1024 * 64;
+        protected const int SHARED_HEADER_INDEX_LENGTH = 16;
+        protected const int SHARED_HEADER_NEXT = 0;
+        protected const int SHARED_HEADER_NEXT_LENGTH = 2;
+
         protected int HEAP_HEAD_ROOM;
-        protected const int HEAP_HEADER_LENGTH = 4 + 4 + 4 + 8 + 8;
+        protected const int HEAP_HEADER_LENGTH = SHARED_HEADER_LENGTH + 4 + 4 + 4 + 8;
         protected const int ITEM_ISVALID = 0;
         protected const int ITEM_INDEX = 1;
         protected const int ITEM_LENGTH = 9;
         protected const int ITEM_TYPE = 13;
         protected const int ITEM_DATA = 17;
 
-        protected const int WAL_BLOCK_SIZE = 512;
-        protected const int WAL_RECORD_TYPE = 0;
-        protected const int WAL_SEQ_NO = 4;
-        protected const int WAL_HEAP_SEQ_NO = 12;
-        protected const int WAL_HEAP_ITEM_ADDRESS = 20;
-        protected const int WAL_ITEM_ISVALID = 28;
-        protected const int WAL_ITEM_LENGTH = 29;
-        protected const int WAL_ITEM_TYPE = 32;
-        protected const int WAL_ITEM_MD5 = 37;
-        protected const int WAL_ITEM_DATA = 53;
-        protected const int WAL_ITEM_DATA_LENGTH = WAL_BLOCK_SIZE - WAL_ITEM_DATA;
+
 
         static int COUNTER = 0;
         static object GlobalSyncRoot = new object();
 
         bool _isInitialized = false;
         private byte* _filePtr;
-        private BytePointerAdapter _ptr;
         Dictionary<ulong, int> _addresses = new Dictionary<ulong, int>();
         static Dictionary<int, Type> _typesByCode = new Dictionary<int, Type>();
         static Dictionary<Type, int> _codesByType = new Dictionary<Type, int>();
@@ -164,7 +167,8 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         /// <param name="filePath"></param>
         /// <param name="maxSize"></param>
-        public PersistentHeap(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isAtomic = true) : base(filePath, maxSize, isAtomic)
+        public PersistentHeap(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isAtomic = true) 
+            : base(filePath, maxSize + HEAP_HEADER_LENGTH, isAtomic)
         {
             Interlocked.Increment(ref COUNTER);
         }
@@ -202,13 +206,40 @@ namespace Altus.Suffūz.Collections
 
         protected MemoryMappedViewAccessor MMVA { get; private set; }
         protected static FileStream TypesFile { get; private set; }
+        protected ushort NextShare { get; private set; }
 
         protected Dictionary<ulong, int> Addresses {  get { return _addresses; } }
 
-        public string WALFilePath { get; private set; }
-        public FileStream WALFile { get; private set; }
-        public ulong WALSequenceNumber { get; private set; }
         public ulong HeapSequenceNumber { get; private set; }
+
+        public virtual ushort AddShare(string resourceName)
+        {
+            if ((NextShare - SHARED_HEADER_NEXT_LENGTH) < 1024 * 63)
+            {
+                var hashed = MD5.Create().ComputeHash(UTF8Encoding.UTF8.GetBytes(resourceName));
+                using (var ptr = CreateTransaction())
+                {
+                    ptr.Write(NextShare, hashed);
+                    NextShare += 16;
+                    ptr.Write(0, NextShare);
+                }
+                return NextShare;
+            }
+            else
+            {
+                throw new InvalidOperationException("A single heap may only be shared 4096 resources, or less");
+            }
+        }
+
+        public virtual bool RemoveShare(string resourceName)
+        {
+            return false;
+        }
+
+        protected virtual PersistentTransaction CreateTransaction()
+        {
+            return new PersistentTransaction(ref _filePtr, 0, ViewSize, this);
+        }
 
         /// <summary>
         /// Frees all items in the heap without compacting the heap
@@ -245,6 +276,25 @@ namespace Altus.Suffūz.Collections
         }
 
         /// <summary>
+        /// Gets the storage address for the given key, if it exists, otherwise returns -1.  
+        /// NOTE: storage addresses can change, so be careful when persisting these values.
+        /// </summary>
+        /// <param name="key"></param>
+        /// <returns></returns>
+        public int GetAddress(ulong key)
+        {
+            int address;
+            lock(SyncRoot)
+            {
+                if (Addresses.TryGetValue(key, out address))
+                {
+                    return address;
+                }
+            }
+            return -1;
+        }
+
+        /// <summary>
         /// Writes the item into the next available free location on the heap, and returns a key for that location which can be used for 
         /// subsequent Read, Free and OverwriteUnsafe calls.
         /// </summary>
@@ -263,147 +313,36 @@ namespace Altus.Suffūz.Collections
                 {
                     First = Last = Next;
                 }
-                else if (Next + ITEM_DATA + bytes.Length > BaseFile.Length)
+                else
                 {
-                    if (AutoGrowSize > 0)
-                    {
-                        this.Grow(AutoGrowSize);
-                    }
-                    else
-                    {
-                        throw new OutOfMemoryException("There is no more room at the end of the heap to process this request.  Try compacting the heap to free up more room.");
-                    }
+                    CheckHeadRoom();
                 }
 
                 HeapSequenceNumber++;
                 var typeCode = GetTypeCode(itemType);
-                var walSequenceNumber = WriteWAL(Next, HeapSequenceNumber, true, bytes, typeCode);
-
-                using (var scope = new FlushScope())
+                
+                _addresses.Add(HeapSequenceNumber, Last);
+                using (var ptr = CreateTransaction())
                 {
-                    scope.Enlist(this);
-                    _ptr.Write(Next + ITEM_ISVALID, true); // record is valid
-                    _ptr.Write(Next + ITEM_INDEX, HeapSequenceNumber); // index
-                    _ptr.Write(Next + ITEM_LENGTH, bytes.Length); // length of bytes
-                    _ptr.Write(Next + ITEM_TYPE, typeCode); // type index
-                    _ptr.Write(Next + ITEM_DATA, bytes); // bytes
-                    Last = Next;
-                    Next += ITEM_DATA + bytes.Length;
-                    UpdateHeaders();
+                    using (var scope = new FlushScope())
+                    {
+                        scope.Enlist(this);
+                        ptr.Write(Next + ITEM_ISVALID, true); // record is valid
+                        ptr.Write(Next + ITEM_INDEX, HeapSequenceNumber); // index
+                        ptr.Write(Next + ITEM_LENGTH, bytes.Length); // length of bytes
+                        ptr.Write(Next + ITEM_TYPE, typeCode); // type index
+                        ptr.Write(Next + ITEM_DATA, bytes); // bytes
+                        Last = Next;
+                        Next += ITEM_DATA + bytes.Length;
+                        UpdateHeaders();
+                    }
                 }
                 
-                CheckHeadRoom();
-                _addresses.Add(HeapSequenceNumber, Last);
                 return HeapSequenceNumber;
             }
         }
 
-        private bool _walChanged = false;
-        private MD5 _hasher = MD5.Create();
-        /// <summary>
-        /// Adds a RecordUpdate WAL entry to the WAL for the provided heap entry.  If the serialized entry is less than WAL_ITEM_DATA_LENGTH in total length, 
-        /// the bytes will be recorded with the WAL entry, and might be recoverable in the event of heap corruption.  Serialized data lengths greater than WAL_ITEM_DATA_LENGTH 
-        /// will NOT be recorded, and will therefore not be recoverable.
-        /// </summary>
-        /// <param name="heapAddress">the address of the entry in the heap</param>
-        /// <param name="isValid">boolean indicating whether the entry is valid or invalid</param>
-        /// <param name="bytes">the serialized heap data (if it is less than WAL_ITEM_DATA_LENGTH)</param>
-        /// <param name="typeCode">the deserialized data type code for the entry</param>
-        /// <returns></returns>
-        protected virtual ulong WriteWAL(int heapAddress, ulong key, bool isValid, byte[] bytes, int typeCode)
-        {
-            if (!IsAtomic) return 0;
-            // wal entries are 512 bytes in length (1 disk sector) to ensure atomic write operations
-            // structure is as follows:
-            //
-            // Item                 Position    Type
-            //===========================================
-            // WAL Record Type      0 - 3       int
-            // WAL Sequence No      4 - 11      ulong
-            // Heap Item Index      12 - 19     ulong
-            // Heap Item Address    20 - 27     ulong
-            // Heap Item IsValid    28          bool
-            // Heap Item Length     29 - 32     int
-            // Heap Item Type Code  32 - 36     int
-            // Heap Item Data MD5   37 - 52     byte[]
-            // Heap Item Data       53 - 511    byte[]
-            //
-            // Heap item data is only included if the length is 459 bytes or less
-            lock(SyncRoot)
-            {
-                _walChanged = true;
-                WALSequenceNumber++;
-                WALFile.Write((int)WALEntryType.RecordUpdate);
-                WALFile.Write(WALSequenceNumber);
-                WALFile.Write(key);
-                WALFile.Write((ulong)heapAddress);
-                WALFile.Write(isValid);
-                WALFile.Write(bytes.Length);
-                WALFile.Write(typeCode);
-                WALFile.Write(_hasher.ComputeHash(bytes));
-                if (bytes.Length <= WAL_ITEM_DATA_LENGTH)
-                {
-                    WALFile.Write(bytes);
-                    WALFile.Write(new byte[WAL_ITEM_DATA_LENGTH - bytes.Length]);
-                }
-                else
-                {
-                    // advance the stream and fill with zero
-                    WALFile.Write(new byte[WAL_ITEM_DATA_LENGTH]);
-                }
-                WALFile.Flush(); // write it to disk
-                return WALSequenceNumber;
-            }
-        }
-
-        /// <summary>
-        /// Creates a Checkpoint WAL entry in the WAL, indicating that all data entered prior to this checkpoint in the WAL can be discarded, as it is 
-        /// confirmed to exist in the heap.
-        /// </summary>
-        /// <param name="heapSequenceNumber">the current heap sequence number at the time of commit</param>
-        /// <param name="address">next available writing location to append to the heap</param>
-        /// <returns></returns>
-        protected virtual ulong CommitWAL(ulong heapSequenceNumber, int address)
-        {
-            // Item                 Position    Type
-            //===========================================
-            // WAL Record Type      0 - 3       int
-            // WAL Sequence No      4 - 11      ulong
-            // Heap Sequence No     12 - 19     ulong
-            // Heap Item Address    20 - 27     ulong
-            // Heap Item IsValid    28          bool
-            // Heap Item Length     29 - 32     int
-            // Heap Item Type Code  32 - 36     int
-            // Heap Item Data MD5   37 - 52     byte[]
-            // Heap Item Data       53 - 511    byte[]
-
-            if (!IsAtomic) return 0;
-
-            lock (SyncRoot)
-            {
-                if (_walChanged)
-                {
-                    _walChanged = false;
-                    WALSequenceNumber++;
-                    WALFile.Write((int)WALEntryType.Checkpoint);
-                    WALFile.Write(WALSequenceNumber);
-                    WALFile.Write(heapSequenceNumber);
-                    WALFile.Write((ulong)address);
-                    WALFile.Write(false);
-                    WALFile.Write(0);
-                    WALFile.Write(0);
-                    WALFile.Write(new byte[16]);
-                    // advance the stream and fill with zero
-                    WALFile.Write(new byte[WAL_ITEM_DATA_LENGTH]);
-                    WALFile.Flush(); // write it to disk
-                    return WALSequenceNumber;
-                }
-                else
-                {
-                    return WALSequenceNumber;
-                }
-            }
-        }
+       
 
         /// <summary>
         /// Allows the caller to overwrite the address pointed to by key with item.  This call does not do any bounds checking, so 
@@ -424,16 +363,18 @@ namespace Altus.Suffūz.Collections
                 CheckTypeTable(itemType);
                 var typeCode = GetTypeCode(itemType);
 
-                using (var scope = new FlushScope())
+                using (var ptr = CreateTransaction())
                 {
-                    scope.Enlist(this);
-                    WriteWAL(address, key, true, bytes, typeCode);
+                    using (var scope = new FlushScope())
+                    {
+                        scope.Enlist(this);
 
-                    _ptr.Write(address + ITEM_ISVALID, true); // record is valid
-                    _ptr.Write(address + ITEM_INDEX, key); // index
-                    _ptr.Write(address + ITEM_LENGTH, bytes.Length); // length of bytes
-                    _ptr.Write(address + ITEM_TYPE, typeCode); // type index
-                    _ptr.Write(address + ITEM_DATA, bytes); // bytes
+                        ptr.Write(address + ITEM_ISVALID, true); // record is valid
+                        ptr.Write(address + ITEM_INDEX, key); // index
+                        ptr.Write(address + ITEM_LENGTH, bytes.Length); // length of bytes
+                        ptr.Write(address + ITEM_TYPE, typeCode); // type index
+                        ptr.Write(address + ITEM_DATA, bytes); // bytes
+                    }
                 }
                 return key;
             }
@@ -448,28 +389,28 @@ namespace Altus.Suffūz.Collections
             {
                 var itemType = item.GetType();
                 CheckTypeTable(itemType);
-
-                var length = _ptr.ReadInt32(address + ITEM_LENGTH);
-                var typeCode = GetTypeCode(itemType);
-                using (var scope = new FlushScope())
+                using (var ptr = CreateTransaction())
                 {
-                    scope.Enlist(this);
-                    if (length == bytes.Length
-                        && typeCode == _ptr.ReadInt32(address + ITEM_TYPE))
+                    var length = ptr.ReadInt32(address + ITEM_LENGTH);
+                    var typeCode = GetTypeCode(itemType);
+                    using (var scope = new FlushScope())
                     {
-                        // update the journal
-                        WriteWAL(address, key, true, bytes, typeCode);
-
-                        _ptr.Write(address + ITEM_ISVALID, true); // record is valid
-                        _ptr.Write(address + ITEM_INDEX, key); // index
-                        _ptr.Write(address + ITEM_LENGTH, bytes.Length); // length of bytes
-                        _ptr.Write(address + ITEM_TYPE, typeCode); // type index
-                        _ptr.Write(address + ITEM_DATA, bytes); // bytes
-                    }
-                    else
-                    {
-                        Free(key);
-                        key = Add(item);
+                        scope.Enlist(this);
+                        if (length == bytes.Length
+                            && typeCode == ptr.ReadInt32(address + ITEM_TYPE))
+                        {
+                            // update the journal
+                            ptr.Write(address + ITEM_ISVALID, true); // record is valid
+                            ptr.Write(address + ITEM_INDEX, key); // index
+                            ptr.Write(address + ITEM_LENGTH, bytes.Length); // length of bytes
+                            ptr.Write(address + ITEM_TYPE, typeCode); // type index
+                            ptr.Write(address + ITEM_DATA, bytes); // bytes
+                        }
+                        else
+                        {
+                            Free(key);
+                            key = Add(item);
+                        }
                     }
                 }
                 return key;
@@ -505,16 +446,19 @@ namespace Altus.Suffūz.Collections
             {
                 lock (SyncRoot)
                 {
-                    var isValid = _ptr.ReadBoolean(address + ITEM_ISVALID);
-                    if (isValid)
+                    using (var ptr = CreateTransaction())
                     {
-                        key = _ptr.ReadUInt64(address + ITEM_INDEX);
-                        var len = _ptr.ReadInt32(address + ITEM_LENGTH);
-                        bytes = _ptr.ReadBytes(address + ITEM_DATA, len);
-                        itemType = GetCodeType(_ptr.ReadInt32(address + ITEM_TYPE));
-                        nextAddress = address + HEAP_HEADER_LENGTH + len;
+                        var isValid = ptr.ReadBoolean(address + ITEM_ISVALID);
+                        if (isValid)
+                        {
+                            key = ptr.ReadUInt64(address + ITEM_INDEX);
+                            var len = ptr.ReadInt32(address + ITEM_LENGTH);
+                            bytes = ptr.ReadBytes(address + ITEM_DATA, len);
+                            itemType = GetCodeType(ptr.ReadInt32(address + ITEM_TYPE));
+                            nextAddress = address + HEAP_HEADER_LENGTH + len;
+                        }
+                        else return false;
                     }
-                    else return false;
                 }
                 value = GetSerializer(itemType).Deserialize(bytes, itemType);
                 return true;
@@ -552,10 +496,10 @@ namespace Altus.Suffūz.Collections
                 {
                     scope.Enlist(this);
 
-                    // update journal with Delete record
-                    WriteWAL(address, key, false, new byte[0], 0);
-
-                    _ptr.Write(address, false);
+                    using (var ptr = new PersistentTransaction(ref _filePtr, 0, BaseFile.Length, this))
+                    {
+                        ptr.Write(address, false);
+                    }
                 }
 
                 if (address == First)
@@ -587,48 +531,51 @@ namespace Altus.Suffūz.Collections
                     var delta = 0;
                     var block = 0;
                     First = Last = 0;
-                    using (var scope = new FlushScope())
+                    using (var ptr = CreateTransaction())
                     {
-                        scope.Enlist(this);
-                        while (address != -1)
+                        using (var scope = new FlushScope())
                         {
-                            address = GetNext(address, false); // first deleted block address
-                            if (address > 0)
+                            scope.Enlist(this);
+                            while (address != -1)
                             {
-                                // get next valid address after deleted address
-                                var nextValidStart = GetNext(address, true);
-                                if (nextValidStart == -1)
+                                address = GetNext(address, false); // first deleted block address
+                                if (address > 0)
                                 {
-                                    // if -1, we don't have any valid addresses,
-                                    // so there's no data copying to do
-                                    // just wipe it
-                                    // but we need to include the length of the final item
-                                    Next = address;
-                                    break;
-                                }
-                                else
-                                {
-                                    // get next invalid address after next valid address
-                                    var nextInvalidStart = GetNext(nextValidStart, false);
-                                    if (nextInvalidStart == -1)
+                                    // get next valid address after deleted address
+                                    var nextValidStart = GetNext(address, true);
+                                    if (nextValidStart == -1)
                                     {
-                                        // we're compacted all the way to the end, so set to Capacity
-                                        nextInvalidStart = Next;
+                                        // if -1, we don't have any valid addresses,
+                                        // so there's no data copying to do
+                                        // just wipe it
+                                        // but we need to include the length of the final item
+                                        Next = address;
+                                        break;
                                     }
+                                    else
+                                    {
+                                        // get next invalid address after next valid address
+                                        var nextInvalidStart = GetNext(nextValidStart, false);
+                                        if (nextInvalidStart == -1)
+                                        {
+                                            // we're compacted all the way to the end, so set to Capacity
+                                            nextInvalidStart = Next;
+                                        }
 
-                                    delta = nextValidStart - address; // distance block will move
-                                    block = nextInvalidStart - nextValidStart; // length of block to move
-                                                                               // now move the block up
-                                    for (int i = 0; i < block; i++)
-                                    {
-                                        _ptr.Write(address + i, _ptr.ReadByte(address + delta + i));
+                                        delta = nextValidStart - address; // distance block will move
+                                        block = nextInvalidStart - nextValidStart; // length of block to move
+                                                                                   // now move the block up
+                                        for (int i = 0; i < block; i++)
+                                        {
+                                            ptr.Write(address + i, ptr.ReadByte(address + delta + i));
+                                        }
+                                        // invalidate delta block
+                                        ptr.Write(address + block + ITEM_ISVALID, false);
+                                        ptr.Write(address + block + ITEM_INDEX, (ulong)0);
+                                        ptr.Write(address + block + ITEM_TYPE, 0);
+                                        ptr.Write(address + block + ITEM_LENGTH, delta - ITEM_DATA);
+                                        // repeat, now with valid data at address
                                     }
-                                    // invalidate delta block
-                                    _ptr.Write(address + block + ITEM_ISVALID, false);
-                                    _ptr.Write(address + block + ITEM_INDEX, (ulong)0);
-                                    _ptr.Write(address + block + ITEM_TYPE, 0);
-                                    _ptr.Write(address + block + ITEM_LENGTH, delta - ITEM_DATA);
-                                    // repeat, now with valid data at address
                                 }
                             }
                         }
@@ -686,10 +633,7 @@ namespace Altus.Suffūz.Collections
             {
                 lock (SyncRoot)
                 {
-                    // write current changes to disk - don't move Committed until after Flush finished
-                    UpdateHeaders();
                     MMVA.Flush();
-                    CommitWAL(HeapSequenceNumber, Next);
                 }
             }
         }
@@ -710,12 +654,17 @@ namespace Altus.Suffūz.Collections
             return _typesByCode[code];
         }
 
+
+
+
+
+
         protected override void Initialize(bool isNewFile, string filePath, int maxSize)
         {
             if (!_isInitialized)
             {
                 HEAP_HEAD_ROOM = (int)((float)maxSize * 0.2f);
-                lock(GlobalSyncRoot)
+                lock (GlobalSyncRoot)
                 {
                     if (TypesFile == null)
                     {
@@ -724,180 +673,18 @@ namespace Altus.Suffūz.Collections
                     }
                 }
 
-                LoadWAL();
+                
+
                 ReadHeaders();
                 CreateView();
                 LoadIndices();
                 UpdateHeaders();
-                CheckConsistency();
+                CheckHeadRoom();
 
                 _isInitialized = true;
             }
         }
 
-        protected virtual void LoadWAL()
-        {
-            var walFile = Path.ChangeExtension(BaseFilePath, "wal");
-            this.WALFilePath = walFile;
-            this.WALFile = new FileStream(this.WALFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1024 * 8, false);
-        }
-
-        public virtual void CheckConsistency()
-        {
-            if (!IsAtomic) return;
-            lock(SyncRoot)
-            {
-                // Item                 Position    Type
-                //===========================================
-                // WAL Record Type      0 - 3       int
-                // WAL Sequence No      4 - 11       ulong
-                // Heap Sequence No     12 - 19     ulong
-                // Heap Item Address    20 - 27     ulong
-                // Heap Item IsValid    28          bool
-                // Heap Item Length     29 - 32     int
-                // Heap Item Type Code  32 - 36     int
-                // Heap Item Data MD5   37 - 52     byte[]
-                // Heap Item Data       53 - 511    byte[]
-
-                var walLength = WALFile.Length - 512;
-                var buffer = new byte[512 * 16]; // 8k read buffer = 16 WAL records @ 512 bytes per record
-
-                ulong lastWALSequenceNo = 0, lastHeapSequenceNo = 0; // sequence numbers, as read from latest checkpoint (if found)
-                int lastHeapAddress = HEAP_HEADER_LENGTH;
-
-                // read the WAL backwards from the end, looking for most recent checkpoint record
-                WALFile.Seek(0, SeekOrigin.End);
-                do
-                {
-                    var bytesToRead = (int)Math.Min(buffer.Length, WALFile.Position);
-                    WALFile.Seek(-bytesToRead, SeekOrigin.Current);
-                    var read = WALFile.Read(buffer, 0, bytesToRead);
-                    var blocks = read / 512;
-                    WALFile.Seek(-bytesToRead, SeekOrigin.Current);
-
-                    for (int i = blocks - 1; i >= 0; i--)
-                    {
-                        var ptr = i * 512;
-                        var recordType = (WALEntryType)BitConverter.ToInt32(buffer, ptr + WAL_RECORD_TYPE);
-                        if (recordType == WALEntryType.Checkpoint)
-                        {
-                            lastWALSequenceNo = BitConverter.ToUInt64(buffer, ptr + WAL_SEQ_NO);
-                            lastHeapSequenceNo = BitConverter.ToUInt64(buffer, ptr + WAL_HEAP_SEQ_NO);
-                            lastHeapAddress = (int)BitConverter.ToUInt64(buffer, ptr + WAL_HEAP_ITEM_ADDRESS);
-                            TruncateWAL((int)(WALFile.Position + ptr + 512)); // this will set the WAL file position to 0, and exit the loop
-                            Next = lastHeapAddress;
-                            HeapSequenceNumber = lastHeapSequenceNo;
-                            WALSequenceNumber = lastWALSequenceNo;
-                            break;
-                        }
-                    }
-
-                } while (WALFile.Position > 0);
-
-                // now, read from front of truncated WAL file, verifying the current heap against change records in the WAL
-                do
-                {
-                    var bytesToRead = (int)Math.Min(buffer.Length, WALFile.Length - WALFile.Position);
-                    var read = WALFile.Read(buffer, 0, bytesToRead);
-                    var blocks = read / 512;
-
-                    for (int i = 0; i < blocks; i++)
-                    {
-                        var ptr = i * 512;
-                        var recordType = (WALEntryType)BitConverter.ToInt32(buffer, ptr + WAL_RECORD_TYPE);
-                        var walSeqNo = BitConverter.ToUInt64(buffer, ptr + WAL_SEQ_NO);
-                        var heapSeqNo = BitConverter.ToUInt64(buffer, ptr + WAL_HEAP_SEQ_NO);
-                        var heapAddress = (int)BitConverter.ToUInt64(buffer, ptr + WAL_HEAP_ITEM_ADDRESS);
-                        var isValid = BitConverter.ToBoolean(buffer, ptr + WAL_ITEM_ISVALID);
-                        
-                        var checkHeapIsValid = _ptr.ReadBoolean(heapAddress + ITEM_ISVALID); // record is valid
-                        var checkHeapSeqNo = _ptr.ReadUInt64(heapAddress + ITEM_INDEX); // heap sequence number
-                        var isGood = checkHeapIsValid == isValid && checkHeapSeqNo == heapSeqNo;
-
-                        if (isGood)
-                        {
-                            if (isValid)
-                            {
-                                // check data lengths
-                                var dataLen = BitConverter.ToInt32(buffer, ptr + WAL_ITEM_LENGTH);
-                                var checkDataLen = _ptr.ReadInt32(heapAddress + ITEM_LENGTH);
-                                isGood = dataLen == checkDataLen;
-                                if (isGood)
-                                {
-                                    // we also need to check MD5 hashes for validity
-                                    var md5Hash = new byte[16];
-                                    Buffer.BlockCopy(buffer, ptr + WAL_ITEM_MD5, md5Hash, 0, 16);
-                                    var checkMd5Hash = _hasher.ComputeHash(_ptr.ReadBytes(heapAddress + ITEM_DATA, checkDataLen));
-                                    isGood = md5Hash.SequenceEqual(checkMd5Hash);
-                                    if (!isGood && dataLen < WAL_ITEM_DATA_LENGTH)
-                                    {
-                                        // we can recover the data because we have a copy in the log
-                                        _ptr.Write(heapAddress + ITEM_TYPE, BitConverter.ToInt32(buffer, ptr + WAL_ITEM_TYPE)); // write item's type
-                                        var data = new byte[dataLen];
-                                        Buffer.BlockCopy(buffer, ptr + WAL_ITEM_DATA, data, 0, dataLen);
-                                        _ptr.Write(heapAddress + ITEM_DATA, data);
-                                        isGood = true; // we corrected the error, move to the next one
-                                    }
-                                    heapAddress += ITEM_DATA + dataLen;
-                                }
-                            }
-
-                        }
-
-                        if (isGood)
-                        {
-                            // records match, heap is good from this point
-                            if (heapAddress > lastHeapAddress)
-                                lastHeapAddress = heapAddress;
-                            if (heapSeqNo > lastHeapSequenceNo)
-                                lastHeapSequenceNo = heapSeqNo;
-                            lastWALSequenceNo = walSeqNo;
-                        }
-                        else
-                        {
-                            // records don't match, so heap is corrupted from this point
-                            // truncate tail of WAL file, and bail
-                            WALFile.SetLength(ptr); // cuts off everything from after where we're at
-                        }
-                    }
-
-                    WALFile.Seek(bytesToRead, SeekOrigin.Current);
-                } while (WALFile.Position < WALFile.Length - 1);
-
-                WALSequenceNumber = lastWALSequenceNo;
-                HeapSequenceNumber = lastHeapSequenceNo;
-                Next = lastHeapAddress;
-
-                UpdateHeaders();
-                Compact();
-                // forces a new WAL checkpoint to be written
-                _walChanged = true;
-                var rerun = WALFile.Length != walLength;
-                CommitWAL(HeapSequenceNumber, Next); // add a checkpoint to where we are now
-                if (rerun)
-                {
-                    // this will prune any additional replayed updates applied after the last checkpoint from the WAL file
-                    CheckConsistency();
-                }
-            }
-        }
-
-        private void TruncateWAL(int address)
-        {
-            WALFile.Seek(address, SeekOrigin.Begin);
-
-            var newWalFile = new FileStream(Path.ChangeExtension(this.WALFilePath, "tmp"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1024 * 8, false);
-            newWalFile.SetLength(WALFile.Length - WALFile.Position);
-
-            StreamHelper.Copy(WALFile, newWalFile);
-
-            WALFile.Dispose();
-            newWalFile.Dispose();
-            File.Delete(WALFilePath);
-            File.Move(Path.ChangeExtension(this.WALFilePath, "tmp"), WALFilePath);
-            WALFile = new FileStream(this.WALFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1024 * 8, false);
-            WALFile.Seek(0, SeekOrigin.Begin);
-        }
 
         protected static void LoadTypes()
         {
@@ -922,11 +709,16 @@ namespace Altus.Suffūz.Collections
 
         protected virtual void CreateView()
         {
-            var size = Math.Min(Next + HEAP_HEAD_ROOM + HEAP_HEADER_LENGTH, BaseFile.Length);
-
-            MMVA = BaseMMF.CreateViewAccessor(0, size);
+            MMVA = BaseMMF.CreateViewAccessor(0, ViewSize);
             _filePtr = MMVA.Pointer(0);
-            _ptr = new BytePointerAdapter(ref _filePtr, 0, size);
+        }
+
+        protected long ViewSize
+        {
+            get
+            {
+                return Math.Min(Next + HEAP_HEAD_ROOM + HEAP_HEADER_LENGTH, BaseFile.Length);
+            }
         }
 
         protected virtual void LoadIndices()
@@ -936,17 +728,20 @@ namespace Altus.Suffūz.Collections
             _addresses.Clear();
             while(address < Next)
             {
-                key = _ptr.ReadUInt64(address + 1);
-                if (_ptr.ReadBoolean(address))
+                using (var ptr = CreateTransaction())
                 {
-                    if (First == 0)
+                    key = ptr.ReadUInt64(address + 1);
+                    if (ptr.ReadBoolean(address))
                     {
-                        First = address;
+                        if (First == 0)
+                        {
+                            First = address;
+                        }
+                        Last = address;
+                        _addresses.Add(key, address);
                     }
-                    Last = address;
-                    _addresses.Add(key, address);
+                    address += ITEM_DATA + ptr.ReadInt32(address + ITEM_LENGTH);
                 }
-                address += ITEM_DATA + _ptr.ReadInt32(address + ITEM_LENGTH);
             }
         }
 
@@ -954,12 +749,15 @@ namespace Altus.Suffūz.Collections
         {
             lock(SyncRoot)
             {
-                var currentValid = _ptr.ReadBoolean(address);
-                while(currentValid != isValid && address < Next)
+                using (var ptr = CreateTransaction())
                 {
-                    var len = _ptr.ReadInt32(address + ITEM_LENGTH);
-                    address += ITEM_DATA + len;
-                    currentValid = _ptr.ReadBoolean(address);
+                    var currentValid = ptr.ReadBoolean(address);
+                    while (currentValid != isValid && address < Next)
+                    {
+                        var len = ptr.ReadInt32(address + ITEM_LENGTH);
+                        address += ITEM_DATA + len;
+                        currentValid = ptr.ReadBoolean(address);
+                    }
                 }
             }
             if (address < Next)
@@ -971,11 +769,13 @@ namespace Altus.Suffūz.Collections
         {
             lock (SyncRoot)
             {
-                _ptr.Write(0, First);
-                _ptr.Write(4, Last);
-                _ptr.Write(8, Next);
-                _ptr.Write(12, HeapSequenceNumber);
-                _ptr.Write(20, WALSequenceNumber);
+                using (var ptr = CreateTransaction())
+                {
+                    ptr.Write(0, First);
+                    ptr.Write(4, Last);
+                    ptr.Write(8, Next);
+                    ptr.Write(12, HeapSequenceNumber);
+                }
             }
         }
 
@@ -988,7 +788,6 @@ namespace Altus.Suffūz.Collections
                 Last = BaseFile.ReadInt32();
                 Next = BaseFile.ReadInt32();
                 HeapSequenceNumber = BaseFile.ReadUInt64();
-                WALSequenceNumber = BaseFile.ReadUInt64();
                 BaseFile.Seek(0, SeekOrigin.Begin);
                 if (Next == 0)
                 {
@@ -1022,12 +821,26 @@ namespace Altus.Suffūz.Collections
 
         protected virtual void CheckHeadRoom()
         {
-            if (MMVA.Capacity - Next < (int)((float)HEAP_HEAD_ROOM * 0.1f))
+            lock (SyncRoot)
             {
-                lock (SyncRoot)
+                if (MMVA.Capacity - Next < (int)((float)HEAP_HEAD_ROOM * 0.1f))
                 {
-                    ReleaseViewAccessor();
-                    CreateView();
+                    if (BaseFile.Length - Next < (int)((float)HEAP_HEAD_ROOM * 0.1f))
+                    {
+                        if (AutoGrowSize > 0)
+                        {
+                            this.Grow(AutoGrowSize);
+                        }
+                        else
+                        {
+                            throw new OutOfMemoryException("There is no more room at the end of the heap to process this request.  Try compacting the heap to free up more room.");
+                        }
+                    }
+                    else
+                    {
+                        ReleaseViewAccessor();
+                        CreateView();
+                    }
                 }
             }
         }
@@ -1050,7 +863,6 @@ namespace Altus.Suffūz.Collections
                 MMVA.Dispose();
                 MMVA = null;
             }
-            _ptr = null;
             _filePtr = (byte*)IntPtr.Zero;
         }
 
@@ -1061,13 +873,6 @@ namespace Altus.Suffūz.Collections
             ReleaseViewAccessor();
 
             _addresses.Clear();
-
-            if (WALFile != null)
-            {
-                WALFile.Flush(true);
-                WALFile.Dispose();
-                WALFile = null;
-            }
 
             lock(GlobalSyncRoot)
             {

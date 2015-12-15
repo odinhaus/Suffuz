@@ -47,6 +47,10 @@ namespace Altus.Suffūz.Protocols
         /// </summary>
         ulong LocalMessageId { get; }
         /// <summary>
+        /// Gets latest outbound Segment Id and atomically increments to the next value
+        /// </summary>
+        ulong LocalSegmentId { get; }
+        /// <summary>
         /// Atomically adds 1 to the local message id for the associated channel
         /// </summary>
         /// <returns></returns>

@@ -10,7 +10,8 @@ namespace Altus.Suffūz.Protocols
     {
         Unknown,
         Header,
-        Segment
+        Segment,
+        NAK
     }
 
 }

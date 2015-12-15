@@ -66,17 +66,18 @@ namespace Altus.Suffūz.Protocols.Udp
         IChannelBuffer<UdpMessage> _buffer;
 
 
-        public MulticastChannel(IChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen) : this(buffer, name, mcastGroup, listen, true)
+        public MulticastChannel(IChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen, int ttl) 
+            : this(buffer, name, mcastGroup, listen, true, ttl)
         {
 
         }
 
-        public MulticastChannel(IChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
-            : this(buffer, name, new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf)
+        public MulticastChannel(IChannelBuffer<UdpMessage> buffer, string name, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf, int ttl)
+            : this(buffer, name, new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp), mcastGroup, listen, excludeMessagesFromSelf, ttl)
         {
         }
 
-        public MulticastChannel(IChannelBuffer<UdpMessage> buffer, string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf)
+        public MulticastChannel(IChannelBuffer<UdpMessage> buffer, string name, Socket udpSocket, IPEndPoint mcastGroup, bool listen, bool excludeMessagesFromSelf, int ttl)
         {
             this.Name = name;
 
@@ -93,7 +94,7 @@ namespace Altus.Suffūz.Protocols.Udp
             this.Socket.ExclusiveAddressUse = false;
             this.Socket.Bind(this.EndPoint);
             this.McastEndPoint = mcastGroup;
-            this.JoinGroup(listen);
+            this.JoinGroup(listen, ttl);
             lock (_locks)
             {
                 if (!_locks.ContainsKey(mcastGroup.ToString()))
@@ -138,14 +139,19 @@ namespace Altus.Suffūz.Protocols.Udp
             App.Resolve<ISerializationContext>().TextEncoding = Encoding.GetEncoding(message.Encoding);
             UdpMessage tcpMsg = CreateUdpMessage(message);
 
-            this.Send(tcpMsg.UdpHeaderSegment.Data);
+            this.SendSegment(tcpMsg.UdpHeaderSegment);
 
             for (int i = 0; i < tcpMsg.UdpSegments.Length; i++)
             {
-                this.Send(tcpMsg.UdpSegments[i].Data);
+                this.SendSegment(tcpMsg.UdpSegments[i]);
             }
 
             MsgSentRate.IncrementByFast(1);
+        }
+
+        protected virtual void SendSegment(MessageSegment segment)
+        {
+            this.Send(segment.Data);
         }
 
         public virtual UdpMessage CreateUdpMessage(Message message)
@@ -255,7 +261,10 @@ namespace Altus.Suffūz.Protocols.Udp
         public virtual TimeSpan DefaultTimeout { get { return TimeSpan.FromSeconds(0); } set { } }
         public object SyncRoot { get { return _lock; } }
         public ulong MessageId { get { return _buffer.LocalMessageId; } }
+        public ulong SegmentId { get { return _buffer.LocalSegmentId; } }
         public string Name { get; private set; }
+
+        public IChannelBuffer<UdpMessage> Buffer { get { return _buffer; } }
 
         [ThreadStatic()]
         static Encoding _encoding;
@@ -272,12 +281,12 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public string Format { get { return StandardFormats.BINARY; } }
 
-        public virtual void JoinGroup(bool listen)
+        public virtual void JoinGroup(bool listen, int ttl = 2)
         {
             this.Socket.SetSocketOption(SocketOptionLevel.Socket, SocketOptionName.Broadcast, 1);
             Logger.LogInfo("Joining Multicast Group: " + this.McastEndPoint.ToString() + ", on Local Address: " + this.EndPoint.ToString());
             this.Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.AddMembership, new MulticastOption(((IPEndPoint)this.McastEndPoint).Address, ((IPEndPoint)this.EndPoint).Address));
-            this.Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, 2);
+            this.Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastTimeToLive, ttl);
             this.Socket.SetSocketOption(SocketOptionLevel.IP, SocketOptionName.MulticastLoopback, true);
             if (listen)
             {

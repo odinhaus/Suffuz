@@ -67,7 +67,7 @@ namespace Altus.Suffūz.Collections.Tests
                 {
                     heap.Free(key1); // writes to WAL & heap
                     heap.Add(item); // writes to WAL & heap
-                    heap.CheckConsistency(); // WAL is up to two items ahead of heap, because we're deferring flushes
+                    //heap.CheckConsistency(); // WAL is up to two items ahead of heap, because we're deferring flushes
                 }
             }
             File.Delete(fileName);

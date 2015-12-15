@@ -10,6 +10,13 @@ namespace Altus.Suffūz.Protocols
 {
     public abstract class MessageSegment
     {
+        /*
+        * FIELD                        LENGTH              POS     SUBFIELDS/Description
+        * TAG                          1                   0       Segment Type (0 = Header, 1 = Segment)
+        * SENDERID + MESSAGEID         8                   1       Combination of SENDER (16 bits) + MESSAGE SEQUENCE NUMBER (48 bits) = 64 bits
+        * SEGMENTID                    8                   9       Unique incremental ulong per packet
+        */
+
         public MessageSegment(IChannel connection, Protocol protocol, EndPoint ep, byte[] data)
         {
             Protocol = protocol;
@@ -49,31 +56,33 @@ namespace Altus.Suffūz.Protocols
             }
         }
 
-        private ulong _sequenceNumber;
-        public unsafe ulong SequenceNumber
+        private ulong _segmentId;
+        public unsafe ulong SegmentId
         {
             get
             {
-                if (_sequenceNumber == 0 && Data != null)
+                if (_segmentId == 0 && Data != null)
                 {
                     fixed (byte* Pointer = Data)
                     {
-                        _sequenceNumber = *(((ulong*)(Pointer + 1)));
+                        _segmentId = *(((ulong*)(Pointer + 9)));
                     }
-                    _sequenceNumber = ((_sequenceNumber << 16) >> 16);
                 }
-                return _sequenceNumber;
+                return _segmentId;
             }
         }
 
         private ulong _id = 0;
-        public ulong MessageId
+        public unsafe ulong MessageId
         {
             get
             {
-                if (_id == 0)
+                if (_id == 0 && Data != null)
                 {
-                    _id = ((ulong)Sender << 48) + SequenceNumber;
+                    fixed (byte* Pointer = Data)
+                    {
+                        _id = *(((ulong*)(Pointer + 1)));
+                    }
                 }
                 return _id;
             }
@@ -87,7 +96,12 @@ namespace Altus.Suffūz.Protocols
                 if (_type == SegmentType.Unknown
                     && Data != null)
                 {
-                    if (((int)Data[0] & (1 << 1)) == (1 << 1))
+                    if (((int)Data[0] & (1 << 2)) == (1 << 2))
+                    {
+                        // segment NAK
+                        _type = SegmentType.NAK;
+                    }
+                    else if(((int)Data[0] & (1 << 1)) == (1 << 1))
                     {
                         // segment
                         _type = SegmentType.Segment;
@@ -112,12 +126,17 @@ namespace Altus.Suffūz.Protocols
             {
                 case Protocol.Udp:
                     {
-                        if (((int)buffer[0] & (1 << 1)) == (1 << 1))
+                        if (((int)buffer[0] & (1 << 2)) == (1 << 2))
+                        {
+                            // segment NAK
+                            segment = new UdpSegment(connection, ep, buffer);
+                        }
+                        else if (((int)buffer[0] & (1 << 1)) == (1 << 1))
                         {
                             // segment
                             segment = new UdpSegment(connection, ep, buffer);
                         }
-                        else
+                        else if (buffer[0] == 0)
                         {
                             // header
                             segment = new UdpHeader(connection, ep, buffer);
