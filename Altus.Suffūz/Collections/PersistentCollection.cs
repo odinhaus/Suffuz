@@ -84,7 +84,7 @@ namespace Altus.Suffūz.Collections
         public abstract void Clear();
         public abstract void Clear(bool compact);
         public abstract void Compact();
-
+        public abstract void WriteUnsafe(int address, byte[] data);
 
         protected virtual ISerializer GetSerializer(Type itemType)
         {

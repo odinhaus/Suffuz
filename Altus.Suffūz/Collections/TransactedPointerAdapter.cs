@@ -11,7 +11,7 @@ using System.Transactions;
 
 namespace Altus.Suffūz.Collections
 {
-    public unsafe class PersistentTransaction : BytePointerAdapter, IEnlistmentNotification, IDisposable
+    public unsafe class TransactedPointerAdapter : BytePointerAdapter, IEnlistmentNotification, IDisposable
     {
         protected const int WAL_BLOCK_SIZE = 512;
         protected const int WAL_RECORD_TYPE = 0;
@@ -25,41 +25,68 @@ namespace Altus.Suffūz.Collections
         protected const int WAL_ITEM_DATA = 53;
         protected const int WAL_ITEM_DATA_LENGTH = WAL_BLOCK_SIZE - WAL_ITEM_DATA;
 
-        [ThreadStatic]
-        static PersistentTransaction _base;
-        [ThreadStatic]
-        static FileStream _walFile;
-        [ThreadStatic]
-        static List<IPersistentCollection> _flushables = new List<IPersistentCollection>();
 
-        public PersistentTransaction(ref byte* ptr, long start, long end, IPersistentCollection flushable)
-            :base(ref ptr, start, end)
+        [ThreadStatic]
+        static Dictionary<PersistentCollection, TransactedPointerAdapter> _pointers = new Dictionary<PersistentCollection, TransactedPointerAdapter>();
+
+
+        public static TransactedPointerAdapter Create(ref byte* ptr, long start, long end, PersistentCollection collection)
         {
-            this.Collection = flushable;
-            this.TransactionScope = new TransactionScope();
-            this.HasError = false;
+            TransactedPointerAdapter pointer;
+            if (_pointers == null)
+                _pointers = new Dictionary<PersistentCollection, TransactedPointerAdapter>();
 
-            if (_flushables.Count == 0)
+            if (!_pointers.TryGetValue(collection, out pointer))
             {
-                _base = this;
-                LoadWAL();
-                WriteTxBegin();
+                pointer = new TransactedPointerAdapter(ref ptr, start, end, collection);
+                _pointers.Add(collection, pointer);
             }
-
-            if (!_flushables.Contains(flushable))
+            else if (pointer.TransactionScope == null)
             {
-                _flushables.Add(flushable);
+                pointer.TransactionScope = new TransactionScope();
+            }
+            pointer.RefCount++;
+            return pointer;
+        }
+
+        public static void CheckConsistency(ref byte* ptr, long start, long end, PersistentCollection collection)
+        {
+            lock(collection.SyncRoot)
+            {
+                using (var pointer = new TransactedPointerAdapter(ref ptr, start, end, collection))
+                {
+                    pointer.LoadWAL();
+                    pointer.Recover();
+                    pointer.WALFile.Close();
+                    File.Delete(pointer.WALFilePath);
+                }
             }
         }
 
-        public IPersistentCollection Collection { get; private set; }
+
+        private TransactedPointerAdapter(ref byte* ptr, long start, long end, PersistentCollection flushable)
+            : base(ref ptr, start, end)
+        {
+            this.Collection = flushable;
+            this.HasError = false;
+
+            this.TransactionScope = new TransactionScope();
+            this.RefCount = 0;
+            this.HasUpdates = false;
+            Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
+        }
+
+        public PersistentCollection Collection { get; private set; }
         public bool HasError { get; private set; }
 
         protected virtual void LoadWAL()
         {
-            var walFile = "$journal.wal";
-            this.WALFilePath = walFile;
-            _walFile = new FileStream(this.WALFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1024 * 8, false);
+            var walFile = Path.ChangeExtension(Collection.BaseFilePath, "$");
+            WALFilePath = walFile;
+            WALFile = new FileStream(this.WALFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1024 * 8, false);
+            WALFile.Seek(0, SeekOrigin.End);
+            WALPrevious = -1;
+            WALCurrent = 0;
         }
 
         /*
@@ -204,19 +231,19 @@ namespace Altus.Suffūz.Collections
         */
 
         public string WALFilePath { get; private set; }
-        public FileStream WALFile { get { return _walFile; } }
-        public ulong WALSequenceNumber { get; private set; }
-
-        public BytePointerAdapter Pointer { get; set; }
+        public FileStream WALFile { get; private set; }
+        public long WALPrevious { get; private set; }
+        public long WALCurrent { get; private set; }
+        private int RefCount { get; set; }
         public TransactionScope TransactionScope { get; private set; }
+        public bool HasUpdates { get; private set; }
 
         #region IDisposable Members
-        bool disposed = false;
 
         // Implement IDisposable.
         // Do not make this method virtual.
         // A derived class should not be able to override this method.
-        public void Dispose()
+        public new void Dispose()
         {
             Dispose(true);
             // This object will be cleaned up by the Dispose method.
@@ -227,8 +254,6 @@ namespace Altus.Suffūz.Collections
             GC.SuppressFinalize(this);
         }
 
-        public event EventHandler Disposing;
-        public event EventHandler Disposed;
         //========================================================================================================//
         // Dispose(bool disposing) executes in two distinct scenarios.
         // If disposing equals true, the method has been called directly
@@ -239,47 +264,14 @@ namespace Altus.Suffūz.Collections
         // other objects. Only unmanaged resources can be disposed.
         private void Dispose(bool disposing)
         {
-            // Check to see if Dispose has already been called.
-            if (!this.disposed)
+            RefCount--;
+            if (RefCount <= 0)
             {
-                if (this.Disposing != null)
-                    this.Disposing(this, new EventArgs());
-                // If disposing equals true, dispose all managed 
-                // and unmanaged resources.
-                if (disposing)
-                {
-                    if (!HasError)
-                        TransactionScope.Complete();
-                    TransactionScope.Dispose();
-                    TransactionScope = null;
-                    
-                    // Dispose subclass managed resources.
-                    this.OnDisposeManagedResources();
-                }
-
-                // Call the appropriate methods to clean up 
-                // unmanaged resources here.
-                // If disposing is false, 
-                // only the following code is executed.
-                this.OnDisposeUnmanagedResources();
-                if (this.Disposed != null)
-                    this.Disposed(this, new EventArgs());
+                if (!HasError)
+                    TransactionScope.Complete();
+                TransactionScope.Dispose();
+                TransactionScope = null;
             }
-            disposed = true;
-        }
-
-        /// <summary>
-        /// Dispose managed resources
-        /// </summary>
-        protected virtual void OnDisposeManagedResources()
-        {
-        }
-
-        /// <summary>
-        /// Dispose unmanaged (native resources)
-        /// </summary>
-        protected virtual void OnDisposeUnmanagedResources()
-        {
         }
 
         #endregion
@@ -288,76 +280,181 @@ namespace Altus.Suffūz.Collections
         #region IEnlistmentNotification Members
         public void Commit(Enlistment enlistment)
         {
-            if (_flushables.Count > 0)
+            enlistment.Done();
+            _pointers.Remove(Collection);
+            if (HasUpdates)
             {
+                WALFile.Close();
+                File.Delete(WALFilePath);
+            }
+        }
+
+        public void InDoubt(Enlistment enlistment)
+        {
+            if (HasUpdates)
+            {
+                WriteTxRollback();
+                WALFile.Flush();
+            }
+            enlistment.Done();
+        }
+
+        public void Prepare(PreparingEnlistment preparingEnlistment)
+        {
+            try
+            {
+                if (HasUpdates)
+                {
+                    WriteTxCommit();
+                    WALFile.Flush();
+                    Collection.Flush();
+                }
+                preparingEnlistment.Prepared();
+            }
+            catch
+            {
+                if (HasUpdates)
+                {
+                    WriteTxRollback();
+                }
+                preparingEnlistment.ForceRollback();
+            }
+        }
+
+        public void Rollback(Enlistment enlistment)
+        {
+            if (HasUpdates)
+            {
+                WriteTxRollback();
+                WALFile.Flush();
+
+                Recover();
+
+                _pointers.Remove(Collection);
                 WALFile.Close();
                 File.Delete(WALFilePath);
             }
             enlistment.Done();
         }
 
-        public void InDoubt(Enlistment enlistment)
+        protected virtual void Recover()
         {
-            if (_flushables.Count > 0)
-            {
-            }
-            WriteTxRollback();
-            enlistment.Done();
-        }
-
-        public void Prepare(PreparingEnlistment preparingEnlistment)
-        {
-            if (_flushables.Count > 0)
+            WALFile.Flush();
+            WALFile.Seek(0, SeekOrigin.Begin);
+            long previous = -1;
+            long lastValid = -1;
+            long txBegin = -1;
+            long txCommit = -1;
+            long txRollback = -1;
+            long txRollbackStart = -1;
+            // read to last entry
+            while (WALFile.Position < WALFile.Length)
             {
                 try
                 {
-                    foreach (var flushable in _flushables)
+                    previous = WALFile.ReadInt64();
+                    var type = WALFile.ReadByte();
+                    if (type >= 10)
                     {
-                        flushable.Flush();
+                        // it's an update, variable length
+                        // long - previous address start
+                        // byte - type (0 = TxBegin, TxCommit = 1, TxRollback = 2, 10 = current value, 11 = new)
+                        // long - address
+                        // int - length
+                        // byte[] - data
+                        WALFile.Seek(8, SeekOrigin.Current); // skip the address
+                        var dataLen = WALFile.ReadInt32(); // read the length
+                        WALFile.Seek(dataLen, SeekOrigin.Current);
+                        lastValid = WALFile.Position - 9 - 8 - dataLen - 4;
                     }
-                    WriteTxCommit();
-                    preparingEnlistment.Prepared();
+                    else
+                    {
+                        // it's a TX marker - 9 bytes
+                        lastValid = WALFile.Position - 9;
+                        if (type == 0)
+                            txBegin = lastValid;
+                        else if (type == 1)
+                            txCommit = lastValid;
+                        else if (type == 2)
+                            txRollback = lastValid;
+                    }
+
+                    if (txBegin > -1 && txCommit > -1)
+                    {
+                        // we have a commit chunk here, so we can simply advance to the next chunk, no need to roll these back
+                        txRollbackStart = txCommit + 9; // accomdate the length of the txCommit block
+                        txBegin = -1;
+                        txCommit = -1;
+                        txRollback = -1;
+                    }
+                    else if (txBegin > -1 && txRollback > -1)
+                    {
+                        // we have a rollback chunk
+                        txRollbackStart = txBegin;
+                        Rollback(txRollbackStart, txRollback);
+                        WALFile.Seek(txRollback + 9, SeekOrigin.Begin); // advance the stream
+                        txRollbackStart = txRollback + 9;
+                        txBegin = -1;
+                        txRollback = -1;
+                        txCommit = -1;
+                    }
                 }
                 catch
                 {
-                    WriteTxRollback();
-                    preparingEnlistment.ForceRollback();
-                }
-                finally
-                {
-                    _flushables.Clear();
+                    break;
                 }
             }
-            else
+
+            if (WALFile.Position == WALFile.Length 
+                && txBegin > -1 
+                && txCommit == -1)
             {
-                preparingEnlistment.Prepared();
+                Rollback(txBegin, lastValid);
             }
         }
 
-        public void Rollback(Enlistment enlistment)
+        private void Rollback(long txRollbackStart, long txRollbackEnd)
         {
-            if (_flushables.Count > 0)
+            int type;
+            WALFile.Seek(txRollbackEnd, SeekOrigin.Begin); // we're need to rollback backwards, from end to start
+            while (WALFile.Position > txRollbackStart)
             {
+                var previous = WALFile.ReadInt64(); // previous block's address
+                type = WALFile.ReadByte();
+
+                if (type == 10)
+                {
+                    // this is a copy of the original value that needs to be reverted
+                    var pointerOffset = WALFile.ReadInt64();
+                    var dataLen = WALFile.ReadInt32();
+                    var data = WALFile.ReadBytes(dataLen);
+                    Collection.WriteUnsafe((int)pointerOffset, data);
+                }
+                WALFile.Seek(previous, SeekOrigin.Begin);
             }
-            enlistment.Done();
-            _flushables.Clear();
         }
         #endregion
 
 
         #region BytePointerAdapter Overrides
-        public override void Write(int position, byte[] value)
+        private void PrepForWriting()
+        {
+            if (!HasUpdates)
+            {
+                LoadWAL();
+                WriteTxBegin();
+                HasUpdates = true;
+            }
+        }
+
+        public override int Write(long position, byte[] value)
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, value.Length));
-                    WriteNew(position, value);
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, value.Length));
+                WriteNew(position, value);
+                return base.Write(position, value);
             }
             catch
             {
@@ -366,18 +463,14 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        public override void Write(int position, byte[] value, int start, int length)
+        public override int Write(long position, byte[] value, int start, int length)
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, length));
-                    WriteNew(position, value.Skip(start).Take(length).ToArray());
-                    base.Write(position, value, start, length);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, length));
+                WriteNew(position, value.Skip(start).Take(length).ToArray());
+                return base.Write(position, value, start, length);
             }
             catch
             {
@@ -390,14 +483,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 1));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 1));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -410,14 +499,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 1));
-                    WriteNew(position, new byte[] { value });
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 1));
+                WriteNew(position, new byte[] { value });
+                base.Write(position, value);
             }
             catch
             {
@@ -430,14 +515,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 2));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 2));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -450,14 +531,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 8));
-                    WriteNew(position, BitConverter.GetBytes(value.ToBinary()));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 8));
+                WriteNew(position, BitConverter.GetBytes(value.ToBinary()));
+                base.Write(position, value);
             }
             catch
             {
@@ -470,14 +547,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 16));
-                    WriteNew(position, value.GetBytes());
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 16));
+                WriteNew(position, value.GetBytes());
+                base.Write(position, value);
             }
             catch
             {
@@ -490,14 +563,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 8));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 8));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -510,14 +579,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 4));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 4));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -529,14 +594,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 4));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 4));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -548,14 +609,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 8));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 8));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -568,14 +625,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 2));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 2));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -588,14 +641,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 4));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 4));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -608,14 +657,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 8));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 8));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -628,14 +673,10 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                using (var tx = new TransactionScope())
-                {
-                    Transaction.Current.EnlistVolatile(this, EnlistmentOptions.None);
-                    WriteCurrent(position, ReadBytes(position, 2));
-                    WriteNew(position, BitConverter.GetBytes(value));
-                    base.Write(position, value);
-                    tx.Complete();
-                }
+                PrepForWriting();
+                WriteCurrent(position, ReadBytes(position, 2));
+                WriteNew(position, BitConverter.GetBytes(value));
+                base.Write(position, value);
             }
             catch
             {
@@ -650,13 +691,18 @@ namespace Altus.Suffūz.Collections
             {
                 lock (Collection)
                 {
+                    // long - previous address start
                     // byte - type (0 = current, 1 = new)
                     // int - Collection Index
                     // long - address
                     // int - length
                     // byte[] - data
+
+                    WALFile.Write(WALPrevious);
+                    WALPrevious = WALCurrent;
                     WALFile.Write((byte)10);
                     WriteTx(position, value);
+                    WALCurrent = WALFile.Position;
                 }
             }
             catch
@@ -672,13 +718,16 @@ namespace Altus.Suffūz.Collections
             {
                 lock (Collection)
                 {
+                    // long - previous address start
                     // byte - type (0 = TxBegin, TxCommit = 1, TxRollback = 2, 10 = current value, 11 = new)
-                    // int - Collection Index
                     // long - address
                     // int - length
                     // byte[] - data
+                    WALFile.Write(WALPrevious);
+                    WALPrevious = WALCurrent;
                     WALFile.Write((byte)11);
                     WriteTx(position, value);
+                    WALCurrent = WALFile.Position;
                 }
             }
             catch
@@ -694,12 +743,12 @@ namespace Altus.Suffūz.Collections
             {
                 lock (Collection)
                 {
+                    // long - previous address start
                     // byte - type (0 = TxBegin, TxCommit = 1, TxRollback = 2, 10 = current value, 11 = new)
-                    // int - Collection Index
-                    // long - address
-                    // int - length
-                    // byte[] - data
+                    WALFile.Write(WALPrevious);
+                    WALPrevious = WALCurrent;
                     WALFile.Write((byte)0);
+                    WALCurrent = WALFile.Position;
                 }
             }
             catch
@@ -715,12 +764,12 @@ namespace Altus.Suffūz.Collections
             {
                 lock (Collection)
                 {
+                    // long - previous address start
                     // byte - type (0 = TxBegin, TxCommit = 1, TxRollback = 2, 10 = current value, 11 = new)
-                    // int - Collection Index
-                    // long - address
-                    // int - length
-                    // byte[] - data
+                    WALFile.Write(WALPrevious);
+                    WALPrevious = WALCurrent;
                     WALFile.Write((byte)1);
+                    WALPrevious = WALFile.Position;
                 }
             }
             catch
@@ -736,12 +785,12 @@ namespace Altus.Suffūz.Collections
             {
                 lock (Collection)
                 {
+                    // long - previous address start
                     // byte - type (0 = TxBegin, TxCommit = 1, TxRollback = 2, 10 = current value, 11 = new)
-                    // int - Collection Index
-                    // long - address
-                    // int - length
-                    // byte[] - data
+                    WALFile.Write(WALPrevious);
+                    WALPrevious = WALCurrent;
                     WALFile.Write((byte)2);
+                    WALPrevious = WALFile.Position;
                 }
             }
             catch

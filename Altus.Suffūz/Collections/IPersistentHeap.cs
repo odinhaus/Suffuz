@@ -21,6 +21,10 @@ namespace Altus.Suffūz.Collections
         /// <returns></returns>
         bool RemoveShare(string resourceName);
         /// <summary>
+        /// Verifies and attempts to correct current data store
+        /// </summary>
+        void CheckConsistency();
+        /// <summary>
         /// Returns all the location keys for each item in the collection
         /// </summary>
         IEnumerable<ulong> AllKeys { get; }

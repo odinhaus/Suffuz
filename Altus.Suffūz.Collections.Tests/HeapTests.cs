@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Collections.Generic;
 using Altus.Suffūz.Collections.IO;
 using Altus.Suffūz.Serialization.Binary;
+using System.Transactions;
 
 namespace Altus.Suffūz.Collections.Tests
 {
@@ -32,47 +33,95 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
-            var walName = "Heap.wal";
-            File.Delete(fileName);
             using (var heap = new PersistentHeap(fileName, 1024 * 64))
             {
                 var item = new CustomItem() { A = 12, B = "Foo" };
-
-                var address1 = heap.Add(item);
-                var address2 = heap.Add(item);
-            }
-            File.Delete(fileName);
-            File.Delete(walName);
-        }
-
-
-        [TestMethod]
-        public void CanCheckConsistencyOfObjectHeap()
-        {
-            var fileName = "Heap.loh";
-            File.Delete(fileName);
-            var walName = "Heap.wal";
-            File.Delete(walName);
-            using (var heap = new PersistentHeap(fileName, 1024 * 64))
-            {
-                var item = new CustomItem() { A = 12, B = "Foo" };
-                ulong key1, key2; ;
-                using (var scope = new FlushScope())
+                using (var tx = new TransactionScope())
                 {
-                    key1 = heap.Add(item); // writes to WAL & heap, but doesn't commit
-                    key2 = heap.Add(item); // writes to WAL & heap, but doesn't commit
-                } // creates a checkpoint in the WAL, commits heap
-
-                using (var scope = new FlushScope())
-                {
-                    heap.Free(key1); // writes to WAL & heap
-                    heap.Add(item); // writes to WAL & heap
-                    //heap.CheckConsistency(); // WAL is up to two items ahead of heap, because we're deferring flushes
+                    var address1 = heap.Add(item);
+                    var address2 = heap.Add(item);
+                    tx.Complete();
                 }
             }
             File.Delete(fileName);
-            File.Delete(walName);
         }
+
+        [TestMethod]
+        public void CanRollbackTransaction()
+        {
+            var fileName1 = "Heap1.loh";
+            File.Delete(fileName1);
+            var fileName2 = "Heap2.loh";
+            File.Delete(fileName2);
+            using (var heap1 = new PersistentHeap(fileName1, 1024 * 64, true))
+            using (var heap2 = new PersistentHeap(fileName2, 1024 * 64, true))
+            {
+                var item = new CustomItem() { A = 12, B = "Foo" };
+                ulong key1, key2;
+
+                key1 = heap1.Add(item); // implicit transaction
+                key2 = heap2.Add(item); // implicit transaction
+
+                // file is up-to-date
+
+                using (var tx = new TransactionScope())
+                {
+                    item.B = "Fum";
+                    heap1.WriteUnsafe(item, key1); // we overwrite in transaction
+                    heap2.WriteUnsafe(item, key2);
+
+                    // make sure they were actually written
+                    Assert.IsTrue(((CustomItem)heap1.Read(key1)).B == "Fum");
+                    Assert.IsTrue(((CustomItem)heap2.Read(key2)).B == "Fum");
+
+                    heap1.Add(item);
+                    heap2.Add(item);
+
+                    Assert.IsTrue(heap1.Count == 2);
+                    Assert.IsTrue(heap2.Count == 2);
+
+                    // don't Complete() the transaction, causing a rollback
+                }
+
+                Assert.IsTrue(((CustomItem)heap1.Read(key1)).B == "Foo");
+                Assert.IsTrue(((CustomItem)heap2.Read(key2)).B == "Foo");
+
+                Assert.IsTrue(heap1.Count == 1);
+                Assert.IsTrue(heap2.Count == 1);
+
+            }
+            File.Delete(fileName1);
+            File.Delete(fileName2);
+        }
+
+
+        //[TestMethod]
+        //public void CanCheckConsistencyOfObjectHeap()
+        //{
+        //    var fileName = "Heap.loh";
+        //    File.Delete(fileName);
+        //    using (var heap = new PersistentHeap(fileName, 1024 * 64))
+        //    {
+        //        using (var tx = new TransactionScope())
+        //        {
+        //            var item = new CustomItem() { A = 12, B = "Foo" };
+        //            ulong key1, key2;
+        //            using (var scope = new FlushScope())
+        //            {
+        //                key1 = heap.Add(item); // writes to WAL & heap, but doesn't commit
+        //                key2 = heap.Add(item); // writes to WAL & heap, but doesn't commit
+        //            } // creates a checkpoint in the WAL, commits heap
+
+        //            using (var scope = new FlushScope())
+        //            {
+        //                heap.Free(key1); // writes to WAL & heap
+        //                heap.Add(item); // writes to WAL & heap
+        //                                //heap.CheckConsistency(); // WAL is up to two items ahead of heap, because we're deferring flushes
+        //            }
+        //        }
+        //    }
+        //    File.Delete(fileName);
+        //}
 
         [TestMethod]
         public void CanReadObjectHeap()
@@ -181,7 +230,7 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             float writeRate, readRate, loadRate, enumerateRate;
-            var count = 100000;
+            var count = 10000;
             var sw = new Stopwatch();
             File.Delete(fileName);
             using (var scope = new FlushScope())
@@ -189,14 +238,17 @@ namespace Altus.Suffūz.Collections.Tests
                 using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 100, true))
                 {
                     var addresses = new ulong[count];
-                    sw.Start();
-                    for (int i = 0; i < count; i++)
+                    using (var tx = new TransactionScope())
                     {
-                        addresses[i] = heap.Add(i);
+                        sw.Start();
+                        for (int i = 0; i < count; i++)
+                        {
+                            addresses[i] = heap.Add(i);
+                        }
+                        sw.Stop();
+                        writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+                        tx.Complete();
                     }
-                    sw.Stop();
-                    writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
-
                     sw.Reset();
                     sw.Start();
                     for (int i = 0; i < count; i++)
@@ -213,6 +265,7 @@ namespace Altus.Suffūz.Collections.Tests
                     }
                     sw.Stop();
                     enumerateRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+           
                 }
             }
 

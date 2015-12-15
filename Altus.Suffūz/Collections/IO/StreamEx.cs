@@ -28,5 +28,11 @@ namespace Altus.Suffūz.Collections.IO
             fixed (byte* ptr = ReadBytes(stream, 8))
                return *(((ulong*)ptr));
         }
+
+        public static long ReadInt64(this Stream stream)
+        {
+            fixed (byte* ptr = ReadBytes(stream, 8))
+               return *(((long*)ptr));
+        }
     }
 }

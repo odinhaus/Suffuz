@@ -7,7 +7,7 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz.Collections.IO
 {
-    public unsafe class BytePointerAdapter
+    public unsafe class BytePointerAdapter : IDisposable
     {
         public BytePointerAdapter(ref byte* ptr, long startOffset, long endOffset)
         {
@@ -196,19 +196,27 @@ namespace Altus.Suffūz.Collections.IO
         {
             for (int i = start; i < start + length; i++)
             {
-                Write(position + (i - start) * 8, value[i]);
+                Pointer = BasePointer + position;
+                *(((long*)Pointer)) = value[i];
             }
         }
 
-        public virtual void Write(int position, byte[] value)
-        {
-            Write(position, value, 0, value.Length);
-        }
-
-        public virtual void Write(int position, byte[] value, int start, int length)
+        public virtual int Write(long position, byte[] value)
         {
             byte* ptr = (byte*)0;
-            Marshal.Copy(value, start, IntPtr.Add((IntPtr)BasePointer, position), length);
+            Marshal.Copy(value, 0, (IntPtr)(BasePointer + position), value.Length);
+            return value.Length;
+        }
+
+        public virtual int Write(long position, byte[] value, int start, int length)
+        {
+            byte* ptr = (byte*)0;
+            Marshal.Copy(value, start, (IntPtr)(BasePointer + position), length);
+            return length;
+        }
+
+        public void Dispose()
+        {
         }
     }
 }

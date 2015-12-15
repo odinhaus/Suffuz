@@ -139,6 +139,11 @@ namespace Altus.Suffūz.Collections
 
         protected int HEAP_HEAD_ROOM;
         protected const int HEAP_HEADER_LENGTH = SHARED_HEADER_LENGTH + 4 + 4 + 4 + 8;
+        protected const int HEAP_NEXT = 8;
+        protected const int HEAP_FIRST = 0;
+        protected const int HEAP_LAST = 4;
+        protected const int HEAP_SEQUENCE = 12;
+
         protected const int ITEM_ISVALID = 0;
         protected const int ITEM_INDEX = 1;
         protected const int ITEM_LENGTH = 9;
@@ -153,6 +158,7 @@ namespace Altus.Suffūz.Collections
         bool _isInitialized = false;
         private byte* _filePtr;
         Dictionary<ulong, int> _addresses = new Dictionary<ulong, int>();
+        Dictionary<int, ulong> _keys = new Dictionary<int, ulong>();
         static Dictionary<int, Type> _typesByCode = new Dictionary<int, Type>();
         static Dictionary<Type, int> _codesByType = new Dictionary<Type, int>();
 
@@ -217,7 +223,7 @@ namespace Altus.Suffūz.Collections
             if ((NextShare - SHARED_HEADER_NEXT_LENGTH) < 1024 * 63)
             {
                 var hashed = MD5.Create().ComputeHash(UTF8Encoding.UTF8.GetBytes(resourceName));
-                using (var ptr = CreateTransaction())
+                using (var ptr = CreatePointerAdapter())
                 {
                     ptr.Write(NextShare, hashed);
                     NextShare += 16;
@@ -236,9 +242,12 @@ namespace Altus.Suffūz.Collections
             return false;
         }
 
-        protected virtual PersistentTransaction CreateTransaction()
+        protected virtual BytePointerAdapter CreatePointerAdapter()
         {
-            return new PersistentTransaction(ref _filePtr, 0, ViewSize, this);
+            if (IsAtomic)
+                return TransactedPointerAdapter.Create(ref _filePtr, 0, ViewSize, this);
+            else
+                return new BytePointerAdapter(ref _filePtr, 0, ViewSize);
         }
 
         /// <summary>
@@ -302,8 +311,6 @@ namespace Altus.Suffūz.Collections
         /// <returns></returns>
         public virtual ulong Add(object item)
         {
-            var bytes = GetSerializer(item.GetType()).Serialize(item);
-
             lock (SyncRoot)
             {
                 var itemType = item.GetType();
@@ -319,21 +326,18 @@ namespace Altus.Suffūz.Collections
                 }
 
                 HeapSequenceNumber++;
-                var typeCode = GetTypeCode(itemType);
                 
-                _addresses.Add(HeapSequenceNumber, Last);
-                using (var ptr = CreateTransaction())
+                _addresses.Add(HeapSequenceNumber, Next);
+                _keys.Add(Next, HeapSequenceNumber);
+
+                using (var ptr = CreatePointerAdapter())
                 {
                     using (var scope = new FlushScope())
                     {
                         scope.Enlist(this);
-                        ptr.Write(Next + ITEM_ISVALID, true); // record is valid
-                        ptr.Write(Next + ITEM_INDEX, HeapSequenceNumber); // index
-                        ptr.Write(Next + ITEM_LENGTH, bytes.Length); // length of bytes
-                        ptr.Write(Next + ITEM_TYPE, typeCode); // type index
-                        ptr.Write(Next + ITEM_DATA, bytes); // bytes
+                        var bytes = ptr.Write(Next, CreateItemRecord(item, HeapSequenceNumber, true));
                         Last = Next;
-                        Next += ITEM_DATA + bytes.Length;
+                        Next += ITEM_DATA + bytes;
                         UpdateHeaders();
                     }
                 }
@@ -342,7 +346,33 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-       
+        protected virtual byte[] CreateItemRecord(object item, ulong key, bool isValid)
+        {
+            lock(SyncRoot)
+            {
+                var bytes = isValid ? GetSerializer(item.GetType()).Serialize(item) : new byte[0];
+                var data = new byte[ITEM_DATA + bytes.Length];
+                var itemType = isValid ? item.GetType() : typeof(object);
+                CheckTypeTable(itemType);
+                var typeCode = GetTypeCode(itemType);
+
+                fixed (byte* dataPtr = data)
+                {
+                    byte* p = dataPtr;
+                    *(bool*)p = isValid;
+                    p++;
+                    *(ulong*)p = key;
+                    p += 8;
+                    *(int*)p = bytes.Length;
+                    p += 4;
+                    *(int*)p = typeCode;
+                    p += 4;
+                }
+
+                Buffer.BlockCopy(bytes, 0, data, ITEM_DATA, bytes.Length);
+                return data;
+            }
+        }
 
         /// <summary>
         /// Allows the caller to overwrite the address pointed to by key with item.  This call does not do any bounds checking, so 
@@ -354,57 +384,92 @@ namespace Altus.Suffūz.Collections
         /// <returns></returns>
         public virtual ulong WriteUnsafe(object item, ulong key)
         {
-            var bytes = GetSerializer(item.GetType()).Serialize(item);
             var address = _addresses[key];
 
             lock (SyncRoot)
             {
-                var itemType = item.GetType();
-                CheckTypeTable(itemType);
-                var typeCode = GetTypeCode(itemType);
-
-                using (var ptr = CreateTransaction())
+                using (var ptr = CreatePointerAdapter())
                 {
                     using (var scope = new FlushScope())
                     {
                         scope.Enlist(this);
-
-                        ptr.Write(address + ITEM_ISVALID, true); // record is valid
-                        ptr.Write(address + ITEM_INDEX, key); // index
-                        ptr.Write(address + ITEM_LENGTH, bytes.Length); // length of bytes
-                        ptr.Write(address + ITEM_TYPE, typeCode); // type index
-                        ptr.Write(address + ITEM_DATA, bytes); // bytes
+                        ptr.Write(address, CreateItemRecord(item, key, true));
                     }
                 }
                 return key;
             }
         }
 
+        public override void WriteUnsafe(int address, byte[] data)
+        {
+            // transaction pointer adapter will call back here when it needs to reset a data value during rollback
+            // this gives us a chance to examine the data, and keep our memory keys in sync
+            lock(SyncRoot)
+            {
+                if (address > HEAP_HEADER_LENGTH)
+                {
+                    // this is a data record
+                    bool isValid = BitConverter.ToBoolean(data, ITEM_ISVALID);
+                    ulong key = BitConverter.ToUInt64(data, ITEM_INDEX);
+
+                    if (isValid)
+                    {
+                        _addresses[key] = address;
+                        _keys[address] = key;
+                    }
+                    else
+                    {
+                        if (_keys.TryGetValue(address, out key))
+                        {
+                            _addresses.Remove(key);
+                            _keys.Remove(address);
+                        }
+                    }
+
+                    using (var ptr = new BytePointerAdapter(ref _filePtr, 0, ViewSize))
+                    {
+                        // we don't want this in a transaction
+                        ptr.Write(address + ITEM_ISVALID, data);
+                    }
+                }
+                else
+                {
+                    // this is a header
+                    switch(address)
+                    {
+                        case HEAP_FIRST:
+                            First = BitConverter.ToInt32(data, 0);
+                            break;
+                        case HEAP_LAST:
+                            Last = BitConverter.ToInt32(data, 0);
+                            break;
+                        case HEAP_NEXT:
+                            Next = BitConverter.ToInt32(data, 0);
+                            break;
+                        case HEAP_SEQUENCE:
+                            HeapSequenceNumber = BitConverter.ToUInt64(data, 0);
+                            break;
+                    }
+                }
+            }
+        }
+
         public virtual ulong Write(object item, ulong key)
         {
-            var bytes = GetSerializer(item.GetType()).Serialize(item);
             var address = _addresses[key];
 
             lock (SyncRoot)
             {
-                var itemType = item.GetType();
-                CheckTypeTable(itemType);
-                using (var ptr = CreateTransaction())
+                using (var ptr = CreatePointerAdapter())
                 {
                     var length = ptr.ReadInt32(address + ITEM_LENGTH);
-                    var typeCode = GetTypeCode(itemType);
+                    var bytes = CreateItemRecord(item, key, true);
                     using (var scope = new FlushScope())
                     {
                         scope.Enlist(this);
-                        if (length == bytes.Length
-                            && typeCode == ptr.ReadInt32(address + ITEM_TYPE))
+                        if (length == bytes.Length)
                         {
-                            // update the journal
-                            ptr.Write(address + ITEM_ISVALID, true); // record is valid
-                            ptr.Write(address + ITEM_INDEX, key); // index
-                            ptr.Write(address + ITEM_LENGTH, bytes.Length); // length of bytes
-                            ptr.Write(address + ITEM_TYPE, typeCode); // type index
-                            ptr.Write(address + ITEM_DATA, bytes); // bytes
+                            ptr.Write(address, bytes);
                         }
                         else
                         {
@@ -432,7 +497,7 @@ namespace Altus.Suffūz.Collections
             {
                 return value;
             }
-            return false;
+            return null;
         }
 
         protected virtual bool TryRead(int address, out object value, out ulong key, out int nextAddress)
@@ -446,7 +511,7 @@ namespace Altus.Suffūz.Collections
             {
                 lock (SyncRoot)
                 {
-                    using (var ptr = CreateTransaction())
+                    using (var ptr = CreatePointerAdapter())
                     {
                         var isValid = ptr.ReadBoolean(address + ITEM_ISVALID);
                         if (isValid)
@@ -496,9 +561,9 @@ namespace Altus.Suffūz.Collections
                 {
                     scope.Enlist(this);
 
-                    using (var ptr = new PersistentTransaction(ref _filePtr, 0, BaseFile.Length, this))
+                    using (var ptr = CreatePointerAdapter())
                     {
-                        ptr.Write(address, false);
+                        ptr.Write(address, CreateItemRecord(null, key, false));
                     }
                 }
 
@@ -513,6 +578,7 @@ namespace Altus.Suffūz.Collections
                         First = newFirst;
                 }
                 _addresses.Remove(key);
+                _keys.Remove(address);
             }
         }
 
@@ -531,7 +597,7 @@ namespace Altus.Suffūz.Collections
                     var delta = 0;
                     var block = 0;
                     First = Last = 0;
-                    using (var ptr = CreateTransaction())
+                    using (var ptr = CreatePointerAdapter())
                     {
                         using (var scope = new FlushScope())
                         {
@@ -673,10 +739,9 @@ namespace Altus.Suffūz.Collections
                     }
                 }
 
-                
-
-                ReadHeaders();
                 CreateView();
+                CheckConsistency();
+                ReadHeaders();
                 LoadIndices();
                 UpdateHeaders();
                 CheckHeadRoom();
@@ -685,6 +750,10 @@ namespace Altus.Suffūz.Collections
             }
         }
 
+        public virtual void CheckConsistency()
+        {
+            TransactedPointerAdapter.CheckConsistency(ref _filePtr, 0, MMVA.Capacity, this);
+        }
 
         protected static void LoadTypes()
         {
@@ -726,9 +795,10 @@ namespace Altus.Suffūz.Collections
             var address = HEAP_HEADER_LENGTH;
             ulong key;
             _addresses.Clear();
+            _keys.Clear();
             while(address < Next)
             {
-                using (var ptr = CreateTransaction())
+                using (var ptr = CreatePointerAdapter())
                 {
                     key = ptr.ReadUInt64(address + 1);
                     if (ptr.ReadBoolean(address))
@@ -739,6 +809,7 @@ namespace Altus.Suffūz.Collections
                         }
                         Last = address;
                         _addresses.Add(key, address);
+                        _keys.Add(address, key);
                     }
                     address += ITEM_DATA + ptr.ReadInt32(address + ITEM_LENGTH);
                 }
@@ -749,7 +820,7 @@ namespace Altus.Suffūz.Collections
         {
             lock(SyncRoot)
             {
-                using (var ptr = CreateTransaction())
+                using (var ptr = CreatePointerAdapter())
                 {
                     var currentValid = ptr.ReadBoolean(address);
                     while (currentValid != isValid && address < Next)
@@ -769,7 +840,7 @@ namespace Altus.Suffūz.Collections
         {
             lock (SyncRoot)
             {
-                using (var ptr = CreateTransaction())
+                using (var ptr = CreatePointerAdapter())
                 {
                     ptr.Write(0, First);
                     ptr.Write(4, Last);
@@ -873,6 +944,7 @@ namespace Altus.Suffūz.Collections
             ReleaseViewAccessor();
 
             _addresses.Clear();
+            _keys.Clear();
 
             lock(GlobalSyncRoot)
             {

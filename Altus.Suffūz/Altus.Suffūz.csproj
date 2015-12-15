@@ -67,7 +67,7 @@
     <Compile Include="Collections\PersistentList.cs" />
     <Compile Include="Collections\PersistentQueue.cs" />
     <Compile Include="Collections\PersistentStack.cs" />
-    <Compile Include="Collections\PersistentTransaction.cs" />
+    <Compile Include="Collections\TransactedPointerAdapter.cs" />
     <Compile Include="CostFunctions.cs" />
     <Compile Include="Protocols\IChannelBuffer.cs" />
     <Compile Include="Protocols\Udp\BestEffortChannelBuffer.cs" />
