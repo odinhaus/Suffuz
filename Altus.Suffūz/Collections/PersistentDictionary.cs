@@ -1,4 +1,5 @@
 ﻿using Altus.Suffūz.Serialization.Binary;
+using Altus.Suffūz.Threading;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -20,27 +21,29 @@ namespace Altus.Suffūz.Collections
         {
         }
 
-        public PersistentDictionary(string filePath, int maxSize = 1024 * 1024 * 10, bool allowOverwrites = false)
+        public PersistentDictionary(string filePath, int maxSize = 1024 * 1024 * 10, bool allowOverwrites = false, ExclusiveLock syncLock = null)
         {
             AllowOverwrites = allowOverwrites;
-            Initialize(true, filePath, maxSize);
+            Initialize(true, filePath, maxSize, syncLock);
         }
 
         public PersistentDictionary(string indexFilePath, IPersistentHeap valueHeap, bool allowOverwrites = false)
         {
             AllowOverwrites = allowOverwrites;
             _values = valueHeap;
-            Initialize(false, indexFilePath, valueHeap.MaximumSize);
+            Initialize(false, indexFilePath, valueHeap.MaximumSize, valueHeap.SyncLock);
         }
 
-        protected void Initialize(bool isNewFile, string filePath, int maxSize)
+        protected void Initialize(bool isNewFile, string filePath, int maxSize, ExclusiveLock syncLock)
         {
+            if (syncLock == null) throw new InvalidOperationException("syncLock cannot be null");
+
             OwnsHeap = isNewFile;
             var keyFile = isNewFile ? Path.ChangeExtension(Path.GetFileNameWithoutExtension(filePath) + "_keys", "bin") : filePath;
-            _keys = new PersistentHeap<KVP>(keyFile, maxSize);
+            _keys = new PersistentHeap<KVP>(keyFile, maxSize, syncLock: syncLock);
             if (isNewFile)
             {
-                _values = new PersistentHeap<TValue>(filePath, maxSize);
+                _values = new PersistentHeap<TValue>(filePath, maxSize, syncLock: syncLock);
             }
             _keyToValueKey = new Dictionary<TKey, KVP>();
 
@@ -49,20 +52,20 @@ namespace Altus.Suffūz.Collections
 
         private void LoadDictionary()
         {
-            lock(SyncRoot)
+            SyncLock.Lock(() =>
             {
                 foreach (var kvp in _keys)
                 {
                     _keyToValueKey.Add(kvp.Key, kvp);
                 }
-            }
+            });
         }
 
         public TValue this[TKey key]
         {
             get
             {
-                lock(SyncRoot)
+                return SyncLock.Lock(() =>
                 {
                     if (ContainsKey(key))
                     {
@@ -72,11 +75,11 @@ namespace Altus.Suffūz.Collections
                     {
                         throw new KeyNotFoundException("The key was not found.");
                     }
-                }
+                });
             }
             set
             {
-                lock(SyncRoot)
+                SyncLock.Lock(() =>
                 {
                     KVP kvp;
                     if (_keyToValueKey.TryGetValue(key, out kvp))
@@ -99,7 +102,7 @@ namespace Altus.Suffūz.Collections
                     {
                         Add(key, value);
                     }
-                }
+                });
             }
         }
 
@@ -107,10 +110,7 @@ namespace Altus.Suffūz.Collections
         {
             get
             {
-                lock(SyncRoot)
-                {
-                    return _keyToValueKey.Keys;
-                }
+                return SyncLock.Lock(() => _keyToValueKey.Keys);
             }
         }
 
@@ -118,10 +118,7 @@ namespace Altus.Suffūz.Collections
         {
             get
             {
-                lock (SyncRoot)
-                {
-                    return _keyToValueKey.Values.Select(k => Read(k.ValueKey)).ToList();
-                }
+                return SyncLock.Lock(() => _keyToValueKey.Values.Select(k => Read(k.ValueKey)).ToList());
             }
         }
 
@@ -131,6 +128,8 @@ namespace Altus.Suffūz.Collections
         /// should ALWAYS be False for TValue types whose serialized size can vary from instance to instance.  This value is False by default.
         /// </summary>
         public bool AllowOverwrites { get; private set; }
+
+        public ExclusiveLock SyncLock { get { return _values.SyncLock; } }
 
         public object SyncRoot { get { return _values.SyncRoot; } }
 
@@ -164,7 +163,7 @@ namespace Altus.Suffūz.Collections
                 throw new InvalidOperationException("The key already exists.");
             }
 
-            lock(SyncRoot)
+            SyncLock.Lock(() =>
             {
                 var kvp = new KVP()
                 {
@@ -180,7 +179,7 @@ namespace Altus.Suffūz.Collections
                 }
 
                 _keyToValueKey.Add(key, kvp);
-            }
+            });
         }
 
         public virtual void Clear()
@@ -190,50 +189,53 @@ namespace Altus.Suffūz.Collections
 
         public virtual void Clear(bool compact)
         {
-            if (OwnsHeap)
+            SyncLock.Lock(() =>
             {
-                _values.Clear(compact);
-            }
-            else
-            {
-                foreach (var key in _keyToValueKey.Values)
+                if (OwnsHeap)
                 {
-                    Free(key.ValueKey);
+                    _values.Clear(compact);
                 }
-            }
+                else
+                {
+                    foreach (var key in _keyToValueKey.Values)
+                    {
+                        Free(key.ValueKey);
+                    }
+                }
 
-            _keys.Clear(compact);
-            _keyToValueKey.Clear();
+                _keys.Clear(compact);
+                _keyToValueKey.Clear();
+            });
         }
 
         public bool Contains(KeyValuePair<TKey, TValue> item)
         {
             KVP kvp;
-            lock(SyncRoot)
+            return SyncLock.Lock(() =>
             {
                 if (_keyToValueKey.TryGetValue(item.Key, out kvp))
                 {
                     return Read(kvp.ValueKey).Equals(item.Value);
                 }
-            }
-            return false;
+                return false;
+            });
         }
 
         public bool ContainsKey(TKey key)
         {
-            lock(SyncRoot)
-            {
-                return _keyToValueKey.ContainsKey(key);
-            }
+            return SyncLock.Lock(() => _keyToValueKey.ContainsKey(key));
         }
 
         public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
         {
-            var i = 0;
-            foreach(var x in ((IEnumerable < KeyValuePair < TKey, TValue >> )this))
+            SyncLock.Lock(() =>
             {
-                array[arrayIndex + i] = (KeyValuePair<TKey, TValue>)x;
-            }
+                var i = 0;
+                foreach (var x in ((IEnumerable<KeyValuePair<TKey, TValue>>)this))
+                {
+                    array[arrayIndex + i] = (KeyValuePair<TKey, TValue>)x;
+                }
+            });
         }
 
         public bool Remove(KeyValuePair<TKey, TValue> item)
@@ -244,7 +246,7 @@ namespace Altus.Suffūz.Collections
         public bool Remove(TKey key)
         {
             KVP kvp;
-            lock (SyncRoot)
+            return SyncLock.Lock(() =>
             {
                 if (_keyToValueKey.TryGetValue(key, out kvp))
                 {
@@ -252,37 +254,47 @@ namespace Altus.Suffūz.Collections
                     _keys.Free(kvp.KeyKey);
                     _keyToValueKey.Remove(key);
                 }
-            }
-            return false;
+
+                return false;
+            });
         }
 
         public bool TryGetValue(TKey key, out TValue value)
         {
             KVP kvp;
             value = default(TValue);
-            lock (SyncRoot)
+            try
             {
+                SyncLock.Enter();
                 if (_keyToValueKey.TryGetValue(key, out kvp))
                 {
                     value = Read(kvp.ValueKey);
                     return true;
                 }
+
+                return false;
             }
-            return false;
+            finally
+            {
+                SyncLock.Exit();
+            }
         }
 
         
 
         public virtual void Compact()
         {
-            if (_values != null)
+            SyncLock.Lock(() =>
             {
-                _values.Compact();
-            }
-            if (_keys != null)
-            {
-                _keys.Compact();
-            }
+                if (_values != null)
+                {
+                    _values.Compact();
+                }
+                if (_keys != null)
+                {
+                    _keys.Compact();
+                }
+            });
         }
 
         public virtual void Flush()
@@ -299,17 +311,23 @@ namespace Altus.Suffūz.Collections
 
         public void Grow(int capacityToAdd)
         {
-            _values.Grow(capacityToAdd);
-            _keys.Grow(capacityToAdd);
+            SyncLock.Lock(() =>
+            {
+                _values.Grow(capacityToAdd);
+                _keys.Grow(capacityToAdd);
+            });
         }
 
         public void CopyTo(Array array, int index)
         {
             var i = 0;
-            foreach(var kvp in this)
+            SyncLock.Lock(() =>
             {
-                array.SetValue(kvp, index + i);
-            }
+                foreach (var kvp in this)
+                {
+                    array.SetValue(kvp, index + i);
+                }
+            });
         }
 
         protected virtual TValue Read(ulong key)
@@ -339,10 +357,18 @@ namespace Altus.Suffūz.Collections
 
         public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
         {
-            var en = _keyToValueKey.GetEnumerator();
-            while(en.MoveNext())
+            try
             {
-                yield return new KeyValuePair<TKey, TValue>(en.Current.Key, Read(en.Current.Value.ValueKey));
+                SyncLock.Enter();
+                var en = _keyToValueKey.GetEnumerator();
+                while (en.MoveNext())
+                {
+                    yield return new KeyValuePair<TKey, TValue>(en.Current.Key, Read(en.Current.Value.ValueKey));
+                }
+            }
+            finally
+            {
+                SyncLock.Exit();
             }
         }
 

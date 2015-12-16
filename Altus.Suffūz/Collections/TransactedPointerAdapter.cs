@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Transactions;
 
@@ -44,6 +45,7 @@ namespace Altus.Suffūz.Collections
             else if (pointer.TransactionScope == null)
             {
                 pointer.TransactionScope = new TransactionScope();
+                collection.SyncLock.Enter();
             }
             pointer.RefCount++;
             return pointer;
@@ -53,7 +55,7 @@ namespace Altus.Suffūz.Collections
         {
             lock(collection.SyncRoot)
             {
-                using (var pointer = new TransactedPointerAdapter(ref ptr, start, end, collection))
+                using (var pointer = Create(ref ptr, start, end, collection))
                 {
                     pointer.LoadWAL();
                     pointer.Recover();
@@ -64,10 +66,11 @@ namespace Altus.Suffūz.Collections
         }
 
 
-        private TransactedPointerAdapter(ref byte* ptr, long start, long end, PersistentCollection flushable)
+        private TransactedPointerAdapter(ref byte* ptr, long start, long end, PersistentCollection collection)
             : base(ref ptr, start, end)
         {
-            this.Collection = flushable;
+            collection.SyncLock.Enter(); // we need to lock over the life of the transaction
+            this.Collection = collection;
             this.HasError = false;
 
             this.TransactionScope = new TransactionScope();
@@ -280,12 +283,20 @@ namespace Altus.Suffūz.Collections
         #region IEnlistmentNotification Members
         public void Commit(Enlistment enlistment)
         {
-            enlistment.Done();
-            _pointers.Remove(Collection);
-            if (HasUpdates)
+            try
             {
-                WALFile.Close();
-                File.Delete(WALFilePath);
+                if (HasUpdates)
+                {
+                    WALFile.SetLength(0);
+                    WALFile.Close();
+                    //File.Delete(WALFilePath);
+                }
+            }
+            finally
+            {
+                enlistment.Done();
+                _pointers.Remove(Collection);
+                Collection.SyncLock.Exit(); // allow others to enter now
             }
         }
 
@@ -323,18 +334,26 @@ namespace Altus.Suffūz.Collections
 
         public void Rollback(Enlistment enlistment)
         {
-            if (HasUpdates)
+            try
             {
-                WriteTxRollback();
-                WALFile.Flush();
+                if (HasUpdates)
+                {
+                    WriteTxRollback();
+                    WALFile.Flush();
 
-                Recover();
+                    Recover();
 
-                _pointers.Remove(Collection);
-                WALFile.Close();
-                File.Delete(WALFilePath);
+                    _pointers.Remove(Collection);
+
+                    WALFile.Close();
+                    File.Delete(WALFilePath);
+                }
             }
-            enlistment.Done();
+            finally
+            {
+                Collection.SyncLock.Exit(); // allow others to enter now
+                enlistment.Done();
+            }
         }
 
         protected virtual void Recover()

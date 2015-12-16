@@ -1,6 +1,7 @@
 ﻿using Altus.Suffūz.Collections.IO;
 using Altus.Suffūz.Serialization;
 using Altus.Suffūz.Serialization.Binary;
+using Altus.Suffūz.Threading;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -9,6 +10,7 @@ using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace Altus.Suffūz.Collections
 {
@@ -25,9 +27,13 @@ namespace Altus.Suffūz.Collections
         {
         }
 
-        protected PersistentCollection(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isTransactional = false)
+        protected PersistentCollection(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isTransactional = false, ExclusiveLock syncLock = null)
         {
-            SyncRoot = new object();
+            if (syncLock == null)
+            {
+                syncLock = new ExclusiveLock(filePath);
+            }
+            SyncLock = syncLock;
             IsTransactional = isTransactional;
             First = Next = Last = 0;
             Initialize(filePath, maxSize);
@@ -35,8 +41,7 @@ namespace Altus.Suffūz.Collections
 
         protected PersistentCollection(PersistentCollection collection)
         {
-            SyncRoot = new object();
-            
+            SyncLock = collection.SyncLock;
             Initialize(collection);
         }
 
@@ -51,33 +56,36 @@ namespace Altus.Suffūz.Collections
 
         protected void Initialize(string filePath, int maxSize)
         {
-            MaximumSize = maxSize;
-            BaseFilePath = filePath;
-            BaseFile = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
-            var isNew = BaseFile.Length == 0;
-            
-            if (BaseFile.Length == 0)
+            SyncLock.Lock(() =>
             {
-                BaseFile.SetLength(maxSize);
-                SparseFile.MakeSparse(BaseFile);
-                SparseFile.SetZero(BaseFile, 0, BaseFile.Length);
-            }
-            else if (maxSize != BaseFile.Length)
-            {
-                BaseFile.SetLength(maxSize);
-                SparseFile.SetZero(BaseFile, BaseFile.Length, maxSize);
-            }
+                MaximumSize = maxSize;
+                BaseFilePath = filePath;
+                BaseFile = new FileStream(filePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+                var isNew = BaseFile.Length == 0;
 
-            BaseMMF = MemoryMappedFile.CreateFromFile(
-                   BaseFile,
-                   Path.GetFileNameWithoutExtension(BaseFile.Name) + "_MMF",
-                   maxSize,
-                   MemoryMappedFileAccess.ReadWrite,
-                   null,
-                   HandleInheritability.None,
-                   false);
+                if (BaseFile.Length == 0)
+                {
+                    BaseFile.SetLength(maxSize);
+                    SparseFile.MakeSparse(BaseFile);
+                    SparseFile.SetZero(BaseFile, 0, BaseFile.Length);
+                }
+                else if (maxSize != BaseFile.Length)
+                {
+                    BaseFile.SetLength(maxSize);
+                    SparseFile.SetZero(BaseFile, BaseFile.Length, maxSize);
+                }
 
-            Initialize(isNew, filePath, maxSize);
+                BaseMMF = MemoryMappedFile.CreateFromFile(
+                       BaseFile,
+                       Path.GetFileNameWithoutExtension(BaseFile.Name) + "_MMF",
+                       maxSize,
+                       MemoryMappedFileAccess.ReadWrite,
+                       null,
+                       HandleInheritability.None,
+                       false);
+
+                Initialize(isNew, filePath, maxSize);
+            });
         }
 
         protected abstract void Initialize(bool isNewFile, string filePath, int maxSize);
@@ -113,7 +121,7 @@ namespace Altus.Suffūz.Collections
         public string BaseFilePath { get; private set; }
         protected FileStream BaseFile { get; private set; }
         protected MemoryMappedFile BaseMMF { get; private set; }
-        public object SyncRoot { get; private set; }
+        public object SyncRoot { get { return SyncLock; } }
         public virtual int Length { get { return Next; } }
         /// <summary>
         /// Setting this to a non-zero value allows the collection to automatically grow in size when an OutOfMemory condition occurs.
@@ -151,28 +159,33 @@ namespace Altus.Suffūz.Collections
 
         public virtual void Grow(int capacityToAdd)
         {
-            if (CompactBeforeGrow)
-            {
-                var currentSize = Next;
-                Compact();
-                var delta = currentSize - Next;
-                capacityToAdd -= delta;
-            }
-
-            if (capacityToAdd > 0)
+            SyncLock.Lock(() =>
             {
                 lock (SyncRoot)
                 {
-                    OnDisposeManagedResources();
-                    Initialize(BaseFilePath, MaximumSize + capacityToAdd);
+                    if (CompactBeforeGrow)
+                    {
+                        var currentSize = Next;
+                        Compact();
+                        var delta = currentSize - Next;
+                        capacityToAdd -= delta;
+                    }
+
+                    if (capacityToAdd > 0)
+                    {
+                        OnDisposeManagedResources();
+                        Initialize(BaseFilePath, MaximumSize + capacityToAdd);
+                    }
                 }
-            }
+            });
         }
 
         public abstract void Flush();
         public abstract IEnumerator GetEnumerator();
 
         public bool IsDisposed { get { return disposed; } }
+
+        public ExclusiveLock SyncLock { get; private set; }
 
         #region IDisposable Members
         bool disposed = false;

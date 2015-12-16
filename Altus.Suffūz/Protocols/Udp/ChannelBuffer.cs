@@ -3,30 +3,35 @@ using Altus.Suffūz.Diagnostics;
 using Altus.Suffūz.Scheduling;
 using Altus.Suffūz.Serialization;
 using Altus.Suffūz.Serialization.Binary;
+using Altus.Suffūz.Threading;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace Altus.Suffūz.Protocols.Udp
 {
     public class ChannelBuffer : IChannelBuffer<UdpMessage>
     {
         const int BUFFER_COMPACT_INTERVAL = 30000;
+        const int BUFFER_COMMIT_INTERVAL = 10000;
 
         public event MessageAvailableHandler<UdpMessage> MessageReceived;
 
 
         IPersistentDictionary<ushort, ulong> _messageIds;
         IPersistentDictionary<ushort, ulong> _segmentIds;
-        IPersistentDictionary<ulong, ushort> _segmentNumbers;
-        IPersistentDictionary<ulong, SegmentList> _segments;
+        //IPersistentDictionary<ulong, ushort> _segmentNumbers;
+        //IPersistentDictionary<ulong, SegmentList> _segments;
+
+        ExclusiveLock _syncLock;
 
         //IDictionary<ushort, ulong> _sequenceNumbers;
-        //IDictionary<ulong, ushort> _segmentNumbers;
-        //IDictionary<ulong, SegmentList> _segments;
+        IDictionary<ulong, ushort> _segmentNumbers;
+        IDictionary<ulong, SegmentList> _segments;
 
         IScheduler _scheduler;
         List<ExpirationTask> _tasks = new List<ExpirationTask>();
@@ -49,9 +54,9 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected List<ExpirationTask> InboundTasks { get { return _tasks; } }
         protected IScheduler Scheduler { get { return _scheduler; } }
-        protected IPersistentDictionary<ushort, ulong> MessageIds { get { return _messageIds; } }
-        protected IPersistentDictionary<ulong, ushort> SegmentNumbers { get { return _segmentNumbers; } }
-        protected IPersistentDictionary<ulong, SegmentList> Segments { get { return _segments; } }
+        //protected IPersistentDictionary<ushort, ulong> MessageIds { get { return _messageIds; } }
+        protected IDictionary<ulong, ushort> SegmentNumbers { get { return _segmentNumbers; } }
+        protected IDictionary<ulong, SegmentList> Segments { get { return _segments; } }
         protected IPersistentDictionary<ushort, ulong> SegmentIds {  get { return _segmentIds; } }
 
         ulong _localMessageId = 0;
@@ -67,24 +72,24 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             get
             {
-                lock(Channel)
+                return _syncLock.Lock(() =>
                 {
                     var id = _segmentIds[0];
                     id++;
                     _segmentIds[0] = id;
                     return id;
-                }
+                });
             }
         }
 
         public ulong IncrementLocalMessageId()
         {
-            lock(Channel)
+            return _syncLock.Lock(() =>
             {
                 _localMessageId++;
                 _messageIds[0] = _localMessageId;
                 return _localMessageId;
-            }
+            });
         }
 
         public virtual void Initialize(IChannel channel)
@@ -110,21 +115,23 @@ namespace Altus.Suffūz.Protocols.Udp
                        (name) => new PersistentDictionary<ushort, ulong>(name, manager.GlobalHeap, true));
             _segmentIds.Compact();
 
-            _segmentNumbers = manager
-               .GetOrCreate<IPersistentDictionary<ulong, ushort>>(
-                   Channel.Name + "_segmentNumbers.bin",
-                   (name) => new PersistentDictionary<ulong, ushort>(name, manager.GlobalHeap, true));
-            _segmentNumbers.Compact();
+            //_segmentNumbers = manager
+            //   .GetOrCreate<IPersistentDictionary<ulong, ushort>>(
+            //       Channel.Name + "_segmentNumbers.bin",
+            //       (name) => new PersistentDictionary<ulong, ushort>(name, manager.GlobalHeap, true));
+            //_segmentNumbers.Compact();
 
-            _segments = manager
-              .GetOrCreate<IPersistentDictionary<ulong, SegmentList>>(
-                  Channel.Name + "_segments.bin",
-                  (name) => new PersistentDictionary<ulong, SegmentList>(name, manager.GlobalHeap, false));
-            _segments.Compact();
+            //_segments = manager
+            //  .GetOrCreate<IPersistentDictionary<ulong, SegmentList>>(
+            //      Channel.Name + "_segments.bin",
+            //      (name) => new PersistentDictionary<ulong, SegmentList>(name, manager.GlobalHeap, false));
+            //_segments.Compact();
+
+            _syncLock = _messageIds.SyncLock;
 
             //_sequenceNumbers = new Dictionary<ushort, ulong>();
-            //_segmentNumbers = new Dictionary<ulong, ushort>();
-            //_segments = new Dictionary<ulong, SegmentList>();
+            _segmentNumbers = new Dictionary<ulong, ushort>();
+            _segments = new Dictionary<ulong, SegmentList>();
 
             foreach (var seg in _segments.ToArray())
             {
@@ -134,7 +141,7 @@ namespace Altus.Suffūz.Protocols.Udp
                     if (timeout > CurrentTime.Now)
                     {
                         var task = _scheduler.Schedule(timeout,
-                            (messageId) => { lock (Channel) { RemoveInboundMessage(messageId); } },
+                            (messageId) => { RemoveInboundMessage(messageId); },
                             () => seg.Key);
                         _tasks.Add(new ExpirationTask(seg.Key, task));
                         continue;
@@ -160,9 +167,21 @@ namespace Altus.Suffūz.Protocols.Udp
 
             // keep the buffers compacted
             _scheduler.Schedule(BUFFER_COMPACT_INTERVAL, () => Compact());
+            //Transaction = new TransactionScope();
+            //_scheduler.Schedule(BUFFER_COMMIT_INTERVAL, () =>
+            //{
+            //    _syncLock.Lock(() =>
+            //    {
+            //        Transaction.Complete();
+            //        Transaction.Dispose();
+            //        Transaction = new TransactionScope();
+            //    });
+            //});
 
             IsInitialized = true;
         }
+
+        public TransactionScope Transaction { get; private set; }
 
         protected virtual void OnTaskExpired(object sender, TaskExpiredEventArgs e)
         {
@@ -170,17 +189,18 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void Compact()
         {
-            lock (Channel)
+            _syncLock.Lock(() =>
             {
                 _messageIds.Compact();
-                _segmentNumbers.Compact();
-                _segments.Compact();
-            }
+                _segmentIds.Compact();
+                //_segmentNumbers.Compact();
+                //_segments.Compact();
+            });
         }
 
         public virtual void AddInboundSegment(MessageSegment segment)
         {
-            lock (Channel)
+            _syncLock.Lock(() =>
             {
                 using (var scope = new FlushScope())
                 {
@@ -189,6 +209,7 @@ namespace Altus.Suffūz.Protocols.Udp
                     UpdateMessageSegments(segment.MessageId, segments);
                     UpdateSegmentNumber(segment.MessageId, segment.SegmentNumber);
                     UpdateSegmentId(segment);
+
 
                     if (segments.Segments.Count == segment.SegmentCount)
                     {
@@ -201,32 +222,38 @@ namespace Altus.Suffūz.Protocols.Udp
                         AfterMessageReceived(udpMessage);
                     }
                 }
-            }
+            });
         }
 
         protected virtual void UpdateSegmentId(MessageSegment segment)
         {
-            if (segment.SegmentId > _segmentIds[segment.Sender])
+            _syncLock.Lock(() =>
             {
-                // only update the segment if it's greater than our greatest segment id for this sender
-                _segmentIds[segment.Sender] = segment.SegmentId;
-            }
+                if (!_segmentIds.ContainsKey(segment.Sender) || segment.SegmentId > _segmentIds[segment.Sender])
+                {
+                    // only update the segment if it's greater than our greatest segment id for this sender
+                    _segmentIds[segment.Sender] = segment.SegmentId;
+                }
+            });
         }
 
         protected virtual SegmentList AddMessageSegment(MessageSegment segment)
         {
-            SegmentList segments;
-            if (!_segments.TryGetValue(segment.MessageId, out segments))
+            SegmentList segments = null;
+            _syncLock.Lock(() =>
             {
-                segments = new SegmentList()
+                if (!_segments.TryGetValue(segment.MessageId, out segments))
                 {
-                    Created = CurrentTime.Now
-                };
-                var task = _scheduler.Schedule(segments.Created.Add(segment.TimeToLive),
-                    (messageId) => { lock (Channel) { RemoveInboundMessage(messageId); } },
-                    () => segment.MessageId);
-                _tasks.Add(new ExpirationTask(segment.MessageId, task));
-            }
+                    segments = new SegmentList()
+                    {
+                        Created = CurrentTime.Now
+                    };
+                    var task = _scheduler.Schedule(segments.Created.Add(segment.TimeToLive),
+                        (messageId) => { RemoveInboundMessage(messageId); },
+                        () => segment.MessageId);
+                    _tasks.Add(new ExpirationTask(segment.MessageId, task));
+                }
+            });
 
             if (!segments.Segments.Any(s => s.SegmentNumber == segment.SegmentNumber))
             {
@@ -238,17 +265,26 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void UpdateMessageSegments(ulong messageId, SegmentList segments)
         {
-            _segments[messageId] = segments;
+            _syncLock.Lock(() =>
+            {
+                _segments[messageId] = segments;
+            });
         }
 
         protected virtual void UpdateMessageId(ushort instanceId, ulong messageId)
         {
-            _messageIds[instanceId] = messageId;
+            _syncLock.Lock(() =>
+            {
+                _messageIds[instanceId] = messageId;
+            });
         }
 
         protected virtual void UpdateSegmentNumber(ulong messageId, ushort segmentNumber)
         {
-            _segmentNumbers[messageId] = segmentNumber;
+            _syncLock.Lock(() =>
+            {
+                _segmentNumbers[messageId] = segmentNumber;
+            });
         }
 
         protected virtual void AfterMessageReceived(UdpMessage message)
@@ -271,14 +307,19 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void RemoveInboundMessage(ulong messageId)
         {
-            _segments.Remove(messageId);
-            _segmentNumbers.Remove(messageId);
-            var task = _tasks.SingleOrDefault(t => t.MessageId == messageId);
-            if (task != null)
+            _syncLock.Lock(() =>
             {
-                task.Task.Cancel();
-                _tasks.Remove(task);
-            }
+
+                _segments.Remove(messageId);
+                _segmentNumbers.Remove(messageId);
+
+                var task = _tasks.SingleOrDefault(t => t.MessageId == messageId);
+                if (task != null)
+                {
+                    task.Task.Cancel();
+                    _tasks.Remove(task);
+                }
+            });
         }
 
         protected virtual bool TryCreateMessage(SegmentList segments, out UdpMessage message)
@@ -300,21 +341,18 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public virtual ulong RemoteMessageId(ushort instanceId)
         {
-            lock(Channel)
-            {
-                return _messageIds[instanceId];
-            }
+            return _syncLock.Lock(() => _messageIds[instanceId]);
         }
 
         public virtual void Reset()
         {
-            lock(Channel)
+            _syncLock.Lock(() =>
             {
                 if (!IsInitialized)
                     throw new InvalidOperationException("The channel buffer has not been initialized");
                 _scheduler.TaskExpired -= OnTaskExpired;
 
-                foreach(var item in _tasks)
+                foreach (var item in _tasks)
                 {
                     item.Task.Cancel();
                 }
@@ -322,16 +360,16 @@ namespace Altus.Suffūz.Protocols.Udp
 
                 _messageIds.Clear(true);
                 _messageIds.Dispose();
-                _segments.Clear(true);
-                _segments.Dispose();
-                _segmentNumbers.Clear(true);
-                _segmentNumbers.Dispose();
+                //_segments.Clear(true);
+                //_segments.Dispose();
+                //_segmentNumbers.Clear(true);
+                //_segmentNumbers.Dispose();
                 //_sequenceNumbers.Clear();
-                //_segments.Clear();
-                //_segmentNumbers.Clear();
+                _segments.Clear();
+                _segmentNumbers.Clear();
 
                 Initialize(this.Channel);
-            }
+            });
         }
 
         protected virtual void OnMessageReceived(UdpMessage message)

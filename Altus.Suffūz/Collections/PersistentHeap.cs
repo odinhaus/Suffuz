@@ -14,6 +14,7 @@ using Altus.Suffūz.IO;
 using System.Security.Cryptography;
 using Altus.Suffūz.Diagnostics;
 using System.Transactions;
+using Altus.Suffūz.Threading;
 
 namespace Altus.Suffūz.Collections
 {
@@ -37,7 +38,8 @@ namespace Altus.Suffūz.Collections
         {
         }
 
-        public PersistentHeap(string filePath, int maxSize = 1024 * 1024 * 1024, bool isTransactional = true) : base(filePath, maxSize, isTransactional)
+        public PersistentHeap(string filePath, int maxSize = 1024 * 1024 * 1024, bool isTransactional = true, ExclusiveLock syncLock = null) 
+            : base(filePath, maxSize, isTransactional, syncLock)
         {
 
         }
@@ -173,8 +175,8 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         /// <param name="filePath"></param>
         /// <param name="maxSize"></param>
-        public PersistentHeap(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isTransactional = true) 
-            : base(filePath, maxSize + HEAP_HEADER_LENGTH, isTransactional)
+        public PersistentHeap(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isTransactional = true, ExclusiveLock syncLock = null)
+            : base(filePath, maxSize + HEAP_HEADER_LENGTH, isTransactional, syncLock)
         {
             Interlocked.Increment(ref COUNTER);
         }
@@ -183,9 +185,14 @@ namespace Altus.Suffūz.Collections
         {
             get
             {
-                lock(SyncRoot)
+                try
                 {
+                    SyncLock.Enter();
                     return _addresses.Count;
+                }
+                finally
+                {
+                    SyncLock.Exit();
                 }
             }
         }
@@ -194,9 +201,14 @@ namespace Altus.Suffūz.Collections
         {
             get
             {
-                lock (SyncRoot)
+                try
                 {
+                    SyncLock.Enter();
                     return _addresses.Keys;
+                }
+                finally
+                {
+                    SyncLock.Exit();
                 }
             }
         }
@@ -214,7 +226,7 @@ namespace Altus.Suffūz.Collections
         protected static FileStream TypesFile { get; private set; }
         protected ushort NextShare { get; private set; }
 
-        protected Dictionary<ulong, int> Addresses {  get { return _addresses; } }
+        protected Dictionary<ulong, int> Addresses { get { return _addresses; } }
 
         public ulong HeapSequenceNumber { get; private set; }
 
@@ -264,28 +276,31 @@ namespace Altus.Suffūz.Collections
         /// <param name="compact"></param>
         public override void Clear(bool compact)
         {
-            if (compact)
+            SyncLock.Lock(() =>
             {
-                OnDisposeManagedResources();
-                // just delete the File and start over
-                System.IO.File.Delete(BaseFilePath);
-                First = Next = Last = 0;
-                Initialize(BaseFilePath, MaximumSize);
-            }
-            else
-            {
-                using (var tx = new TransactionScope())
+                if (compact)
                 {
-                    using (var scope = new FlushScope())
-                    {
-                        foreach (var key in AllKeys.ToArray())
-                        {
-                            Free(key);
-                        }
-                    }
-                    tx.Complete();
+                    OnDisposeManagedResources();
+                    // just delete the File and start over
+                    System.IO.File.Delete(BaseFilePath);
+                    First = Next = Last = 0;
+                    Initialize(BaseFilePath, MaximumSize);
                 }
-            }
+                else
+                {
+                    using (var tx = new TransactionScope())
+                    {
+                        using (var scope = new FlushScope())
+                        {
+                            foreach (var key in AllKeys.ToArray())
+                            {
+                                Free(key);
+                            }
+                        }
+                        tx.Complete();
+                    }
+                }
+            });
         }
 
         /// <summary>
@@ -297,12 +312,17 @@ namespace Altus.Suffūz.Collections
         public int GetAddress(ulong key)
         {
             int address;
-            lock(SyncRoot)
+            try
             {
+                SyncLock.Enter();
                 if (Addresses.TryGetValue(key, out address))
                 {
                     return address;
                 }
+            }
+            finally
+            {
+                SyncLock.Exit();
             }
             return -1;
         }
@@ -315,8 +335,9 @@ namespace Altus.Suffūz.Collections
         /// <returns></returns>
         public virtual ulong Add(object item)
         {
-            lock (SyncRoot)
+            try
             {
+                SyncLock.Enter();
                 var itemType = item.GetType();
                 CheckTypeTable(itemType);
 
@@ -330,7 +351,7 @@ namespace Altus.Suffūz.Collections
                 }
 
                 HeapSequenceNumber++;
-                
+
                 _addresses.Add(HeapSequenceNumber, Next);
                 _keys.Add(Next, HeapSequenceNumber);
 
@@ -345,15 +366,20 @@ namespace Altus.Suffūz.Collections
                         UpdateHeaders();
                     }
                 }
-                
+
                 return HeapSequenceNumber;
+            }
+            finally
+            {
+                SyncLock.Exit();
             }
         }
 
         protected virtual byte[] CreateItemRecord(object item, ulong key, bool isValid)
         {
-            lock(SyncRoot)
+            try
             {
+                SyncLock.Enter();
                 byte[] bytes = null;
                 Type type = null;
                 int typeCode = 0;
@@ -393,6 +419,10 @@ namespace Altus.Suffūz.Collections
                 Buffer.BlockCopy(bytes, 0, data, ITEM_DATA, bytes.Length);
                 return data;
             }
+            finally
+            {
+                SyncLock.Exit();
+            }
         }
 
         /// <summary>
@@ -405,10 +435,10 @@ namespace Altus.Suffūz.Collections
         /// <returns></returns>
         public virtual ulong WriteUnsafe(object item, ulong key)
         {
-            var address = _addresses[key];
-
-            lock (SyncRoot)
+            return SyncLock.Lock(() =>
             {
+                var address = _addresses[key];
+
                 using (var ptr = CreatePointerAdapter())
                 {
                     using (var scope = new FlushScope())
@@ -418,14 +448,14 @@ namespace Altus.Suffūz.Collections
                     }
                 }
                 return key;
-            }
+            });
         }
 
         public override void WriteUnsafe(int address, byte[] data)
         {
             // transaction pointer adapter will call back here when it needs to reset a data value during rollback
             // this gives us a chance to examine the data, and keep our memory keys in sync
-            lock(SyncRoot)
+            SyncLock.Lock(() =>
             {
                 if (address >= HEAP_HEADER_LENGTH)
                 {
@@ -456,7 +486,7 @@ namespace Altus.Suffūz.Collections
                 else
                 {
                     // this is a header
-                    switch(address)
+                    switch (address)
                     {
                         case HEAP_FIRST:
                             First = BitConverter.ToInt32(data, 0);
@@ -472,15 +502,14 @@ namespace Altus.Suffūz.Collections
                             break;
                     }
                 }
-            }
+            });
         }
 
         public virtual ulong Write(object item, ulong key)
         {
-            var address = _addresses[key];
-
-            lock (SyncRoot)
+            return SyncLock.Lock(() =>
             {
+                var address = _addresses[key];
                 using (var ptr = CreatePointerAdapter())
                 {
                     var length = ptr.ReadInt32(address + ITEM_LENGTH);
@@ -500,7 +529,7 @@ namespace Altus.Suffūz.Collections
                     }
                 }
                 return key;
-            }
+            });
         }
 
         /// <summary>
@@ -530,8 +559,9 @@ namespace Altus.Suffūz.Collections
             nextAddress = address;
             try
             {
-                lock (SyncRoot)
+                try
                 {
+                    SyncLock.Enter();
                     using (var ptr = CreatePointerAdapter())
                     {
                         var isValid = ptr.ReadBoolean(address + ITEM_ISVALID);
@@ -545,6 +575,10 @@ namespace Altus.Suffūz.Collections
                         }
                         else return false;
                     }
+                }
+                finally
+                {
+                    SyncLock.Exit();
                 }
                 value = GetSerializer(itemType).Deserialize(bytes, itemType);
                 return true;
@@ -574,7 +608,7 @@ namespace Altus.Suffūz.Collections
         /// <param name="key"></param>
         public virtual void Free(ulong key)
         {
-            lock(SyncRoot)
+            SyncLock.Lock(() =>
             {
                 var address = _addresses[key];
 
@@ -600,95 +634,107 @@ namespace Altus.Suffūz.Collections
                 }
                 _addresses.Remove(key);
                 _keys.Remove(address);
-            }
+            });
         }
 
 
         public override void Compact()
         {
-            lock(SyncRoot)
+            SyncLock.Lock(() =>
             {
-                if (Count > 0)
+                lock (SyncRoot)
                 {
-                    try
+                    if (Count > 0)
                     {
-                        Flush();
-                        var compactedFile = Path.ChangeExtension(BaseFilePath, "compact");
-                        int newFirst = 0, newLast = 0, newNext = 0, pos = HEAP_HEADER_LENGTH;
-                        using (var compacted = new FileStream(compactedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
+                        try
                         {
-                            using (var ptr = new BytePointerAdapter(ref _filePtr, 0, ViewSize))
+                            Flush();
+                            var compactedFile = Path.ChangeExtension(BaseFilePath, "compact");
+                            int newFirst = 0, newLast = 0, newNext = 0, pos = HEAP_HEADER_LENGTH;
+                            using (var compacted = new FileStream(compactedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                             {
-                                compacted.Seek(HEAP_HEADER_LENGTH, SeekOrigin.Begin);
-                                newNext = HEAP_HEADER_LENGTH;
-                                while (pos < Next)
+                                using (var ptr = new BytePointerAdapter(ref _filePtr, 0, ViewSize))
                                 {
-                                    var currentValid = ptr.ReadBoolean(pos);
-                                    var len = ptr.ReadInt32(pos + ITEM_LENGTH) + ITEM_DATA;
-                                    if (currentValid)
+                                    compacted.Seek(HEAP_HEADER_LENGTH, SeekOrigin.Begin);
+                                    newNext = HEAP_HEADER_LENGTH;
+                                    while (pos < Next)
                                     {
-                                        if (newFirst == 0)
+                                        var currentValid = ptr.ReadBoolean(pos);
+                                        var len = ptr.ReadInt32(pos + ITEM_LENGTH) + ITEM_DATA;
+                                        if (currentValid)
                                         {
-                                            newFirst = newNext;
+                                            if (newFirst == 0)
+                                            {
+                                                newFirst = newNext;
+                                            }
+                                            newLast = newNext;
+                                            compacted.Write(ptr.ReadBytes(pos, len));
+                                            newNext = (int)compacted.Position;
                                         }
-                                        newLast = newNext;
-                                        compacted.Write(ptr.ReadBytes(pos, len));
-                                        newNext = (int)compacted.Position;
+                                        pos += len;
                                     }
-                                    pos += len;
                                 }
+                                compacted.Seek(0, SeekOrigin.Begin);
+                                compacted.Write(newFirst);
+                                compacted.Write(newLast);
+                                compacted.Write(newNext);
+                                compacted.Write(HeapSequenceNumber);
+                                compacted.Flush();
+                                compacted.Close();
                             }
-                            compacted.Seek(0, SeekOrigin.Begin);
-                            compacted.Write(newFirst);
-                            compacted.Write(newLast);
-                            compacted.Write(newNext);
-                            compacted.Write(HeapSequenceNumber);
-                            compacted.Flush();
-                            compacted.Close();
-                        }
 
-                        OnDisposeManagedResources(); // closes current file handles
-                        File.Move(BaseFilePath, Path.ChangeExtension(BaseFilePath, "bak"));
-                        File.Move(compactedFile, Path.ChangeExtension(compactedFile, Path.GetExtension(BaseFilePath)));
-                        File.Delete(Path.ChangeExtension(BaseFilePath, "bak"));
-                        Initialize(BaseFilePath, MaximumSize);
-                    }
-                    catch
-                    {
-                        if (File.Exists(Path.ChangeExtension(BaseFilePath, "bak")))
-                        {
-                            if (File.Exists(BaseFilePath))
-                            {
-                                File.Delete(BaseFilePath);
-                            }
-                            File.Move(Path.ChangeExtension(BaseFilePath, "bak"), BaseFilePath);
+                            OnDisposeManagedResources(); // closes current file handles
+                            File.Move(BaseFilePath, Path.ChangeExtension(BaseFilePath, "bak"));
+                            File.Move(compactedFile, Path.ChangeExtension(compactedFile, Path.GetExtension(BaseFilePath)));
+                            File.Delete(Path.ChangeExtension(BaseFilePath, "bak"));
                             Initialize(BaseFilePath, MaximumSize);
                         }
-                        
-                        throw;
+                        catch
+                        {
+                            if (File.Exists(Path.ChangeExtension(BaseFilePath, "bak")))
+                            {
+                                if (File.Exists(BaseFilePath))
+                                {
+                                    File.Delete(BaseFilePath);
+                                }
+                                File.Move(Path.ChangeExtension(BaseFilePath, "bak"), BaseFilePath);
+                                Initialize(BaseFilePath, MaximumSize);
+                            }
+
+                            throw;
+                        }
+                    }
+                    else if (Next > HEAP_HEADER_LENGTH)
+                    {
+                        Clear(true); // this will just kill the file and start over
                     }
                 }
-                else if(Next > HEAP_HEADER_LENGTH)
-                {
-                    Clear(true); // this will just kill the file and start over
-                }
-            }
+            });
         }
+
 
         public virtual bool Contains(object item, out ulong key)
         {
-            var en = _addresses.GetEnumerator();
-            while(en.MoveNext())
+            try
             {
-                if (en.Current.Value.Equals(item))
+                SyncLock.Enter();
+                var en = _addresses.GetEnumerator();
+                while (en.MoveNext())
                 {
-                    key = en.Current.Key;
-                    return true;
+                    if (en.Current.Value.Equals(item))
+                    {
+                        key = en.Current.Key;
+                        return true;
+                    }
                 }
-            }
 
-            key = 0;
-            return false;
+                key = 0;
+                return false;
+            }
+            finally
+            {
+                SyncLock.Exit();
+            }
         }
 
         /// <summary>
@@ -697,12 +743,17 @@ namespace Altus.Suffūz.Collections
         /// <returns></returns>
         public override IEnumerator GetEnumerator()
         {
-            lock(SyncRoot)
+            try
             {
+                SyncLock.Enter();
                 foreach (var k in _addresses)
                 {
                     yield return Read(k.Key);
                 }
+            }
+            finally
+            {
+                SyncLock.Exit();
             }
         }
 
@@ -711,13 +762,13 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         public override void Flush()
         {
-            if (MMVA != null && Next > HEAP_HEADER_LENGTH)
+            SyncLock.Lock(() =>
             {
-                lock (SyncRoot)
+                if (MMVA != null && Next > HEAP_HEADER_LENGTH)
                 {
                     MMVA.Flush();
                 }
-            }
+            });
         }
 
         protected virtual int GetTypeCode(Type type)
@@ -733,9 +784,8 @@ namespace Altus.Suffūz.Collections
 
         protected virtual Type GetCodeType(int code)
         {
-            return _typesByCode[code];
+            return SyncLock.Lock(() => _typesByCode[code]);
         }
-
 
         protected override void Initialize(bool isNewFile, string filePath, int maxSize)
         {
@@ -764,7 +814,7 @@ namespace Altus.Suffūz.Collections
 
         public virtual void CheckConsistency()
         {
-            TransactedPointerAdapter.CheckConsistency(ref _filePtr, 0, MMVA.Capacity, this);
+            SyncLock.Lock(() => TransactedPointerAdapter.CheckConsistency(ref _filePtr, 0, MMVA.Capacity, this));
         }
 
         protected static void LoadTypes()
@@ -830,7 +880,7 @@ namespace Altus.Suffūz.Collections
 
         protected virtual int GetNext(int address, bool isValid)
         {
-            lock(SyncRoot)
+            return SyncLock.Lock(() =>
             {
                 using (var ptr = CreatePointerAdapter())
                 {
@@ -842,15 +892,16 @@ namespace Altus.Suffūz.Collections
                         currentValid = ptr.ReadBoolean(address);
                     }
                 }
-            }
-            if (address < Next)
-                return address;
-            else return -1;
+
+                if (address < Next)
+                    return address;
+                else return -1;
+            });
         }
 
         protected virtual void UpdateHeaders()
         {
-            lock (SyncRoot)
+            SyncLock.Lock(() =>
             {
                 using (var ptr = CreatePointerAdapter())
                 {
@@ -859,12 +910,12 @@ namespace Altus.Suffūz.Collections
                     ptr.Write(8, Next);
                     ptr.Write(12, HeapSequenceNumber);
                 }
-            }
+            });
         }
 
         protected virtual void ReadHeaders()
         {
-            lock (SyncRoot)
+            SyncLock.Lock(() =>
             {
                 BaseFile.Seek(0, SeekOrigin.Begin);
                 First = BaseFile.ReadInt32();
@@ -876,12 +927,12 @@ namespace Altus.Suffūz.Collections
                 {
                     Next = HEAP_HEADER_LENGTH;
                 }
-            }
+            });
         }
 
         protected virtual void CheckTypeTable(Type type)
         {
-            lock(SyncRoot)
+            SyncLock.Lock(() =>
             {
                 if (type.Implements<ISerializer>() && type.Assembly.IsDynamic)
                 {
@@ -899,12 +950,12 @@ namespace Altus.Suffūz.Collections
                         sw.WriteLine(type.AssemblyQualifiedName);
                     }
                 }
-            }
+            });
         }
 
         protected virtual void CheckHeadRoom()
         {
-            lock (SyncRoot)
+            SyncLock.Lock(() =>
             {
                 if (MMVA.Capacity - Next < (int)((float)HEAP_HEAD_ROOM * 0.1f))
                 {
@@ -925,28 +976,31 @@ namespace Altus.Suffūz.Collections
                         CreateView();
                     }
                 }
-            }
+            });
         }
 
         protected virtual void ReleaseViewAccessor()
         {
-            try
+            SyncLock.Lock(() =>
             {
-                Flush();
-            }
-            catch(Exception ex)
-            {
-                Logger.Log(ex, "An error occurred while releasing the persistent heap.");
-            }
+                try
+                {
+                    Flush();
+                }
+                catch (Exception ex)
+                {
+                    Logger.Log(ex, "An error occurred while releasing the persistent heap.");
+                }
 
-            if (MMVA != null)
-            {
-                MMVA.Release();
-                MMVA.Flush();
-                MMVA.Dispose();
-                MMVA = null;
-            }
-            _filePtr = (byte*)IntPtr.Zero;
+                if (MMVA != null)
+                {
+                    MMVA.Release();
+                    MMVA.Flush();
+                    MMVA.Dispose();
+                    MMVA = null;
+                }
+                _filePtr = (byte*)IntPtr.Zero;
+            });
         }
 
         protected override void OnDisposeManagedResources()

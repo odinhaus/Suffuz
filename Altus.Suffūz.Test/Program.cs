@@ -20,6 +20,7 @@ using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace Altus.Suffūz
 {
@@ -286,32 +287,36 @@ namespace Altus.Suffūz
 
             var channelService = App.Resolve<IChannelService>();
             var channel = channelService.Create("channel1");
-            var count = 10000f;
+
+            Console.Read();
+
+            var count = 1000f;
             var sw = new Stopwatch();
-            sw.Start();
-            for (int i = 0; i < count; i++)
-            {
-                var message = new Message(StandardFormats.BINARY, "channel1", ServiceType.RequestResponse, App.InstanceName)
-                {
-                    Payload = new RoutablePayload(new TestRequest(), typeof(TestRequest), typeof(TestResponse)),
-                    Recipients = new string[] { "*" }
-                };
+            //sw.Start();
+            //for (int i = 0; i < count; i++)
+            //{
+            //    var message = new Message(StandardFormats.BINARY, "channel1", ServiceType.RequestResponse, App.InstanceName)
+            //    {
+            //        Payload = new RoutablePayload(new TestRequest(), typeof(TestRequest), typeof(TestResponse)),
+            //        Recipients = new string[] { "*" }
+            //    };
 
-                var udpMessage = new UdpMessage(channel, message);
-            }
-            sw.Stop();
+            //    var udpMessage = new UdpMessage(channel, message);
+            //}
+            //sw.Stop();
 
-            var serializationRate = count / (sw.ElapsedMilliseconds / 1000f);
-            Console.WriteLine("Serialization Rate: {0} message/sec", serializationRate);
+            //var serializationRate = count / (sw.ElapsedMilliseconds / 1000f);
+            //Console.WriteLine("Serialization Rate: {0} message/sec", serializationRate);
 
             var buffer = new ChannelBuffer();
             buffer.Initialize(channel);
-
 
             sw.Reset();
             sw.Start();
             using (var scope = new FlushScope())
             {
+                //using (var tx = new TransactionScope())
+                //{
                 for (int i = 0; i < count; i++)
                 {
                     var message = new Message(StandardFormats.BINARY, "channel1", ServiceType.RequestResponse, App.InstanceName)
@@ -326,7 +331,10 @@ namespace Altus.Suffūz
                     {
                         buffer.AddInboundSegment(udpMessage.UdpSegments[x]);
                     }
+
                 }
+                //    tx.Complete();
+                //}
             }
             sw.Stop();
             var bufferRate = count / (sw.ElapsedMilliseconds / 1000f);
@@ -353,7 +361,7 @@ namespace Altus.Suffūz
             //Console.WriteLine("Send Rate: {0} message/sec", bufferRate);
 
 
-            
+
             sw.Reset();
             sw.Start();
             using (var scope = new FlushScope())
@@ -361,7 +369,7 @@ namespace Altus.Suffūz
                 for (int i = 0; i < count / 10; i++)
                 {
 
-                    var r = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute();
+                    var r = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute(1000000);
 
                     //Debug.Assert(r.Size > 0);
                     //Get.From(Channels.CHANNEL, new CommandRequest()).Execute();

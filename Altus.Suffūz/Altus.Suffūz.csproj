@@ -163,6 +163,7 @@
     <Compile Include="Serialization\SerializationContext.cs" />
     <Compile Include="Serialization\StandardFormats.cs" />
     <Compile Include="ServiceContext.cs" />
+    <Compile Include="Threading\ExclusiveLock.cs" />
     <Compile Include="TypeHelper.cs" />
     <Compile Include="ValueTypesEx.cs" />
   </ItemGroup>

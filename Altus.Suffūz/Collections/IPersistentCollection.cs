@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Altus.Suffūz.Threading;
+using System;
 using System.Collections;
 
 namespace Altus.Suffūz.Collections
@@ -50,5 +51,9 @@ namespace Altus.Suffūz.Collections
         /// Indicates whether the instance has been disposed
         /// </summary>
         bool IsDisposed { get; }
+        /// <summary>
+        /// A locking object used to synchronize access to the collection
+        /// </summary>
+        ExclusiveLock SyncLock { get; }
     }
 }

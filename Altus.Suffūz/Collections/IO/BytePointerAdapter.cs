@@ -104,7 +104,8 @@ namespace Altus.Suffūz.Collections.IO
         {
             byte[] arr = new byte[length];
             byte* ptr = (byte*)0;
-            Marshal.Copy((IntPtr)(BasePointer + offset), arr, 0, length);
+            Pointer = BasePointer + offset;
+            Marshal.Copy((IntPtr)Pointer, arr, 0, length);
             return arr;
         }
 
@@ -204,7 +205,8 @@ namespace Altus.Suffūz.Collections.IO
         public virtual int Write(long position, byte[] value)
         {
             byte* ptr = (byte*)0;
-            Marshal.Copy(value, 0, (IntPtr)(BasePointer + position), value.Length);
+            Pointer = BasePointer + position;
+            Marshal.Copy(value, 0, (IntPtr)Pointer, value.Length);
             return value.Length;
         }
 
