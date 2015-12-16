@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace Altus.Suffūz.Collections
 {
@@ -86,8 +87,12 @@ namespace Altus.Suffūz.Collections
                         }
                         else
                         {
-                            Remove(key);
-                            Add(key, value);
+                            using (var tx = new TransactionScope())
+                            {
+                                Remove(key);
+                                Add(key, value);
+                                tx.Complete();
+                            }
                         }
                     }
                     else
@@ -167,9 +172,12 @@ namespace Altus.Suffūz.Collections
                     KeyKey = _keys.HeapSequenceNumber + 1,
                     ValueKey = _values.HeapSequenceNumber + 1
                 };
-                
-                var valueKey = Write(value);
-                var keyKey = _keys.Add(kvp);
+                using (var tx = new TransactionScope())
+                {
+                    var valueKey = Write(value);
+                    var keyKey = _keys.Add(kvp);
+                    tx.Complete();
+                }
 
                 _keyToValueKey.Add(key, kvp);
             }

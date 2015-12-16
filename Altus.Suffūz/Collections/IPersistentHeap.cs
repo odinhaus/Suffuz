@@ -5,21 +5,21 @@ namespace Altus.Suffūz.Collections
 {
     public interface IPersistentHeap : IPersistentCollection
     {
-        /// <summary>
-        /// Adds a shared resource to a common collection, allowing entries for that resource to be indexed when data is written to the heap.  
-        /// Sharing heaps reduces the number of individual storage files used by persistent types, which can significantly improve 
-        /// performance.
-        /// </summary>
-        /// <param name="resourceName"></param>
-        /// <exception cref="System.InvalidOperationException">The system supports a maximum 4096 shares per heap</exception>
-        /// <returns>The internal numeric index for the share</returns>
-        ushort AddShare(string resourceName);
-        /// <summary>
-        /// Removes the share, and all of its associated data from the heap, if found, and returns true.  Otherwise, returns false.
-        /// </summary>
-        /// <param name="resourceName"></param>
-        /// <returns></returns>
-        bool RemoveShare(string resourceName);
+        ///// <summary>
+        ///// Adds a shared resource to a common collection, allowing entries for that resource to be indexed when data is written to the heap.  
+        ///// Sharing heaps reduces the number of individual storage files used by persistent types, which can significantly improve 
+        ///// performance.
+        ///// </summary>
+        ///// <param name="resourceName"></param>
+        ///// <exception cref="System.InvalidOperationException">The system supports a maximum 4096 shares per heap</exception>
+        ///// <returns>The internal numeric index for the share</returns>
+        //ushort AddShare(string resourceName);
+        ///// <summary>
+        ///// Removes the share, and all of its associated data from the heap, if found, and returns true.  Otherwise, returns false.
+        ///// </summary>
+        ///// <param name="resourceName"></param>
+        ///// <returns></returns>
+        //bool RemoveShare(string resourceName);
         /// <summary>
         /// Verifies and attempts to correct current data store
         /// </summary>

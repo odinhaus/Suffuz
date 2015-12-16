@@ -37,7 +37,7 @@ namespace Altus.Suffūz.Collections
         {
         }
 
-        public PersistentHeap(string filePath, int maxSize = 1024 * 1024 * 1024) : base(filePath, maxSize)
+        public PersistentHeap(string filePath, int maxSize = 1024 * 1024 * 1024, bool isTransactional = true) : base(filePath, maxSize, isTransactional)
         {
 
         }
@@ -132,13 +132,13 @@ namespace Altus.Suffūz.Collections
 
     public unsafe class PersistentHeap : PersistentCollection, IPersistentHeap
     {
-        protected const int SHARED_HEADER_LENGTH = 1024 * 64;
-        protected const int SHARED_HEADER_INDEX_LENGTH = 16;
-        protected const int SHARED_HEADER_NEXT = 0;
-        protected const int SHARED_HEADER_NEXT_LENGTH = 2;
+        //protected const int SHARED_HEADER_LENGTH = 1024 * 64;
+        //protected const int SHARED_HEADER_INDEX_LENGTH = 16;
+        //protected const int SHARED_HEADER_NEXT = 0;
+        //protected const int SHARED_HEADER_NEXT_LENGTH = 2;
 
         protected int HEAP_HEAD_ROOM;
-        protected const int HEAP_HEADER_LENGTH = SHARED_HEADER_LENGTH + 4 + 4 + 4 + 8;
+        protected const int HEAP_HEADER_LENGTH = 4 + 4 + 4 + 8;
         protected const int HEAP_NEXT = 8;
         protected const int HEAP_FIRST = 0;
         protected const int HEAP_LAST = 4;
@@ -173,8 +173,8 @@ namespace Altus.Suffūz.Collections
         /// </summary>
         /// <param name="filePath"></param>
         /// <param name="maxSize"></param>
-        public PersistentHeap(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isAtomic = true) 
-            : base(filePath, maxSize + HEAP_HEADER_LENGTH, isAtomic)
+        public PersistentHeap(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isTransactional = true) 
+            : base(filePath, maxSize + HEAP_HEADER_LENGTH, isTransactional)
         {
             Interlocked.Increment(ref COUNTER);
         }
@@ -218,33 +218,33 @@ namespace Altus.Suffūz.Collections
 
         public ulong HeapSequenceNumber { get; private set; }
 
-        public virtual ushort AddShare(string resourceName)
-        {
-            if ((NextShare - SHARED_HEADER_NEXT_LENGTH) < 1024 * 63)
-            {
-                var hashed = MD5.Create().ComputeHash(UTF8Encoding.UTF8.GetBytes(resourceName));
-                using (var ptr = CreatePointerAdapter())
-                {
-                    ptr.Write(NextShare, hashed);
-                    NextShare += 16;
-                    ptr.Write(0, NextShare);
-                }
-                return NextShare;
-            }
-            else
-            {
-                throw new InvalidOperationException("A single heap may only be shared 4096 resources, or less");
-            }
-        }
+        //public virtual ushort AddShare(string resourceName)
+        //{
+        //    if ((NextShare - SHARED_HEADER_NEXT_LENGTH) < 1024 * 63)
+        //    {
+        //        var hashed = MD5.Create().ComputeHash(UTF8Encoding.UTF8.GetBytes(resourceName));
+        //        using (var ptr = CreatePointerAdapter())
+        //        {
+        //            ptr.Write(NextShare, hashed);
+        //            NextShare += 16;
+        //            ptr.Write(0, NextShare);
+        //        }
+        //        return NextShare;
+        //    }
+        //    else
+        //    {
+        //        throw new InvalidOperationException("A single heap may only be shared 4096 resources, or less");
+        //    }
+        //}
 
-        public virtual bool RemoveShare(string resourceName)
-        {
-            return false;
-        }
+        //public virtual bool RemoveShare(string resourceName)
+        //{
+        //    return false;
+        //}
 
         protected virtual BytePointerAdapter CreatePointerAdapter()
         {
-            if (IsAtomic)
+            if (IsTransactional)
                 return TransactedPointerAdapter.Create(ref _filePtr, 0, ViewSize, this);
             else
                 return new BytePointerAdapter(ref _filePtr, 0, ViewSize);
@@ -274,12 +274,16 @@ namespace Altus.Suffūz.Collections
             }
             else
             {
-                using (var scope = new FlushScope())
+                using (var tx = new TransactionScope())
                 {
-                    foreach (var key in AllKeys.ToArray())
+                    using (var scope = new FlushScope())
                     {
-                        Free(key);
+                        foreach (var key in AllKeys.ToArray())
+                        {
+                            Free(key);
+                        }
                     }
+                    tx.Complete();
                 }
             }
         }
@@ -350,11 +354,28 @@ namespace Altus.Suffūz.Collections
         {
             lock(SyncRoot)
             {
-                var bytes = isValid ? GetSerializer(item.GetType()).Serialize(item) : new byte[0];
+                byte[] bytes = null;
+                Type type = null;
+                int typeCode = 0;
+                if (isValid)
+                {
+                    type = item.GetType();
+                    bytes = GetSerializer(type).Serialize(item);
+                    typeCode = GetTypeCode(type);
+                    CheckTypeTable(type);
+                }
+                else
+                {
+                    using (var ptr = new BytePointerAdapter(ref _filePtr, 0, ViewSize))
+                    {
+                        // allocate an empty array of the same length as the existing record
+                        var address = _addresses[key];
+                        bytes = new byte[ptr.ReadInt32(address + ITEM_LENGTH)];
+                        type = _typesByCode[ptr.ReadInt32(address + ITEM_TYPE)];
+                    }
+                }
+
                 var data = new byte[ITEM_DATA + bytes.Length];
-                var itemType = isValid ? item.GetType() : typeof(object);
-                CheckTypeTable(itemType);
-                var typeCode = GetTypeCode(itemType);
 
                 fixed (byte* dataPtr = data)
                 {
@@ -406,7 +427,7 @@ namespace Altus.Suffūz.Collections
             // this gives us a chance to examine the data, and keep our memory keys in sync
             lock(SyncRoot)
             {
-                if (address > HEAP_HEADER_LENGTH)
+                if (address >= HEAP_HEADER_LENGTH)
                 {
                     // this is a data record
                     bool isValid = BitConverter.ToBoolean(data, ITEM_ISVALID);
@@ -582,77 +603,72 @@ namespace Altus.Suffūz.Collections
             }
         }
 
-        /// <summary>
-        /// Reclaims and compresses the heap to include only those items that have not been freed.  This will also shrink the size of the 
-        /// heap on disk in 64kb chunks.
-        /// </summary>
+
         public override void Compact()
         {
             lock(SyncRoot)
             {
                 if (Count > 0)
                 {
-                    var end = MMVA.Capacity;
-                    var address = HEAP_HEADER_LENGTH;
-                    var delta = 0;
-                    var block = 0;
-                    First = Last = 0;
-                    using (var ptr = CreatePointerAdapter())
+                    try
                     {
-                        using (var scope = new FlushScope())
+                        Flush();
+                        var compactedFile = Path.ChangeExtension(BaseFilePath, "compact");
+                        int newFirst = 0, newLast = 0, newNext = 0, pos = HEAP_HEADER_LENGTH;
+                        using (var compacted = new FileStream(compactedFile, FileMode.Create, FileAccess.ReadWrite, FileShare.Read))
                         {
-                            scope.Enlist(this);
-                            while (address != -1)
+                            using (var ptr = new BytePointerAdapter(ref _filePtr, 0, ViewSize))
                             {
-                                address = GetNext(address, false); // first deleted block address
-                                if (address > 0)
+                                compacted.Seek(HEAP_HEADER_LENGTH, SeekOrigin.Begin);
+                                newNext = HEAP_HEADER_LENGTH;
+                                while (pos < Next)
                                 {
-                                    // get next valid address after deleted address
-                                    var nextValidStart = GetNext(address, true);
-                                    if (nextValidStart == -1)
+                                    var currentValid = ptr.ReadBoolean(pos);
+                                    var len = ptr.ReadInt32(pos + ITEM_LENGTH) + ITEM_DATA;
+                                    if (currentValid)
                                     {
-                                        // if -1, we don't have any valid addresses,
-                                        // so there's no data copying to do
-                                        // just wipe it
-                                        // but we need to include the length of the final item
-                                        Next = address;
-                                        break;
-                                    }
-                                    else
-                                    {
-                                        // get next invalid address after next valid address
-                                        var nextInvalidStart = GetNext(nextValidStart, false);
-                                        if (nextInvalidStart == -1)
+                                        if (newFirst == 0)
                                         {
-                                            // we're compacted all the way to the end, so set to Capacity
-                                            nextInvalidStart = Next;
+                                            newFirst = newNext;
                                         }
-
-                                        delta = nextValidStart - address; // distance block will move
-                                        block = nextInvalidStart - nextValidStart; // length of block to move
-                                                                                   // now move the block up
-                                        for (int i = 0; i < block; i++)
-                                        {
-                                            ptr.Write(address + i, ptr.ReadByte(address + delta + i));
-                                        }
-                                        // invalidate delta block
-                                        ptr.Write(address + block + ITEM_ISVALID, false);
-                                        ptr.Write(address + block + ITEM_INDEX, (ulong)0);
-                                        ptr.Write(address + block + ITEM_TYPE, 0);
-                                        ptr.Write(address + block + ITEM_LENGTH, delta - ITEM_DATA);
-                                        // repeat, now with valid data at address
+                                        newLast = newNext;
+                                        compacted.Write(ptr.ReadBytes(pos, len));
+                                        newNext = (int)compacted.Position;
                                     }
+                                    pos += len;
                                 }
                             }
+                            compacted.Seek(0, SeekOrigin.Begin);
+                            compacted.Write(newFirst);
+                            compacted.Write(newLast);
+                            compacted.Write(newNext);
+                            compacted.Write(HeapSequenceNumber);
+                            compacted.Flush();
+                            compacted.Close();
                         }
+
+                        OnDisposeManagedResources(); // closes current file handles
+                        File.Move(BaseFilePath, Path.ChangeExtension(BaseFilePath, "bak"));
+                        File.Move(compactedFile, Path.ChangeExtension(compactedFile, Path.GetExtension(BaseFilePath)));
+                        File.Delete(Path.ChangeExtension(BaseFilePath, "bak"));
+                        Initialize(BaseFilePath, MaximumSize);
                     }
-                    // wipe free space at end of file
-                    SparseFile.SetZero(BaseFile, Next, BaseFile.Length - 1);
-                    // update new index values
-                    LoadIndices();
-                    UpdateHeaders();
+                    catch
+                    {
+                        if (File.Exists(Path.ChangeExtension(BaseFilePath, "bak")))
+                        {
+                            if (File.Exists(BaseFilePath))
+                            {
+                                File.Delete(BaseFilePath);
+                            }
+                            File.Move(Path.ChangeExtension(BaseFilePath, "bak"), BaseFilePath);
+                            Initialize(BaseFilePath, MaximumSize);
+                        }
+                        
+                        throw;
+                    }
                 }
-                else if (Next > HEAP_HEADER_LENGTH)
+                else if(Next > HEAP_HEADER_LENGTH)
                 {
                     Clear(true); // this will just kill the file and start over
                 }
@@ -719,10 +735,6 @@ namespace Altus.Suffūz.Collections
         {
             return _typesByCode[code];
         }
-
-
-
-
 
 
         protected override void Initialize(bool isNewFile, string filePath, int maxSize)

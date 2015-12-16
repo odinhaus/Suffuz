@@ -22,7 +22,7 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(fileName);
             using (var heap = new PersistentHeap(fileName, 1024 * 64))
             {
-                Assert.IsTrue(heap.Length == 28);
+                Assert.IsTrue(heap.Length == 20);
             }
             File.Delete(fileName);
             File.Delete(walName);
@@ -177,7 +177,7 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             float writeRate, readRate, loadRate, enumerateRate;
-            var count = 1000000;
+            var count = 100000;
             var sw = new Stopwatch();
             var item = new CustomItem() { A = 12, B = "some text here" };
             File.Delete(fileName);
@@ -187,9 +187,13 @@ namespace Altus.Suffūz.Collections.Tests
                 {
                     var addresses = new ulong[count];
                     sw.Start();
-                    for (int i = 0; i < count; i++)
+                    using (var tx = new TransactionScope())
                     {
-                        addresses[i] = heap.Add(item);
+                        for (int i = 0; i < count; i++)
+                        {
+                            addresses[i] = heap.Add(item);
+                        }
+                        tx.Complete();
                     }
                     sw.Stop();
                     writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
@@ -230,7 +234,7 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             float writeRate, readRate, loadRate, enumerateRate;
-            var count = 10000;
+            var count = 100000;
             var sw = new Stopwatch();
             File.Delete(fileName);
             using (var scope = new FlushScope())
@@ -318,7 +322,7 @@ namespace Altus.Suffūz.Collections.Tests
                 Assert.IsTrue(heap.Read<int>(3) == 16);
                 Assert.IsTrue(heap.Read<bool>(5) == true);
                 Assert.IsTrue(heap.Read<CustomItem>(6).B == "Some crzy text");
-                Assert.IsTrue(heapSize - heap.Length == 84);
+                Assert.IsTrue(heapSize - heap.Length == 203);
             }
             File.Delete(fileName);
         }
@@ -332,7 +336,7 @@ namespace Altus.Suffūz.Collections.Tests
             var sw = new Stopwatch();
             var count = 100000; // 1024 * 1024 * 500 / size;
             ulong key = 0;
-            using (var heap = new PersistentHeap<byte[]>(fileName, 1024 * 1024 * 80 + 20 ))
+            using (var heap = new PersistentHeap<byte[]>(fileName, 1024 * 1024 * 80 + 20, false ))
             {
                 heap.AutoGrowSize = 1024 * 1024;
                 using (var scope = new FlushScope())
@@ -395,7 +399,7 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
-            using (var heap = new PersistentHeap<CustomItem>(fileName))
+            using (var heap = new PersistentHeap<CustomItem>(fileName, isTransactional: false))
             {
                 using (var scope = new FlushScope())
                 {
@@ -490,7 +494,7 @@ namespace Altus.Suffūz.Collections.Tests
         {
             var fileName = "Heap.loh";
             File.Delete(fileName);
-            using (var heap = new PersistentHeap<ComplexPOCO>(fileName))
+            using (var heap = new PersistentHeap<ComplexPOCO>(fileName, isTransactional: false))
             {
                 heap.AutoGrowSize = 1024 * 1024;
                 var simplePOCO1 = new SimplePOCO()
@@ -518,7 +522,7 @@ namespace Altus.Suffūz.Collections.Tests
             var sw = new Stopwatch();
             var rnd = new Random(1000);
             var readRate = 0f;
-            using (var heap = new PersistentHeap<ComplexPOCO>(fileName))
+            using (var heap = new PersistentHeap<ComplexPOCO>(fileName, isTransactional: true))
             {
                 var count = 10000f;
                 sw.Start();

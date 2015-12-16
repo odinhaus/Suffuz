@@ -87,13 +87,13 @@ namespace Altus.Suffūz.Serialization.Binary
 
         private Type GetElementType(Type listType)
         {
-            if (listType.Implements(typeof(IEnumerable<>)))
-            {
-                return listType.GetGenericArguments()[0];
-            }
-            else if (listType.IsArray)
+            if (listType.IsArray)
             {
                 return listType.GetElementType();
+            }
+            else if(listType.Implements(typeof(IEnumerable<>)))
+            {
+                return listType.GetGenericArguments()[0];
             }
             else return typeof(object);
         }

@@ -25,10 +25,10 @@ namespace Altus.Suffūz.Collections
         {
         }
 
-        protected PersistentCollection(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isAtomic = false)
+        protected PersistentCollection(string filePath, int maxSize = DEFAULT_HEAP_SIZE, bool isTransactional = false)
         {
             SyncRoot = new object();
-            IsAtomic = isAtomic;
+            IsTransactional = isTransactional;
             First = Next = Last = 0;
             Initialize(filePath, maxSize);
         }
@@ -108,7 +108,7 @@ namespace Altus.Suffūz.Collections
             return s;
         }
 
-        public bool IsAtomic { get; private set; }
+        public bool IsTransactional { get; private set; }
         public int MaximumSize { get; private set; }
         public string BaseFilePath { get; private set; }
         protected FileStream BaseFile { get; private set; }
