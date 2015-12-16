@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Transactions;
 
 namespace Altus.Suffūz.Collections.Tests
 {
@@ -25,7 +26,7 @@ namespace Altus.Suffūz.Collections.Tests
                 Assert.IsTrue(dictionary.AllowOverwrites == false);
                 Assert.IsTrue(dictionary.IsReadOnly == false);
                 Assert.IsTrue(dictionary.IsSynchronized == true);
-                Assert.IsTrue(dictionary.MaximumSize == 1024 * 64);
+                Assert.IsTrue(dictionary.MaximumSize == 1024 * 64 + 20);
             }
             File.Delete(fileName);
             File.Delete(keyName);
@@ -217,7 +218,7 @@ namespace Altus.Suffūz.Collections.Tests
                 }
 
                 Assert.IsTrue(dictionary.Count == 0);
-                Assert.IsTrue(dictionary.Length == 28);
+                Assert.IsTrue(dictionary.Length == 20);
             }
             File.Delete(fileName);
             File.Delete(keyName);
@@ -267,21 +268,25 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(fileName);
             File.Delete(keyName);
             float writeRate, readRate, loadRate, enumerateRate;
-            var count = 100000;
+            var count = 10000;
             var sw = new Stopwatch();
             var item = new CustomItem() { A = 12, B = "some text here" };
             using (var scope = new FlushScope())
             {
                 using (var heap = new PersistentDictionary<string, CustomItem>(fileName, 1024 * 1024 * 100))
                 {
-                    var addresses = new ulong[count];
-                    sw.Start();
-                    for (int i = 0; i < count; i++)
+                    using (var tx = new TransactionScope())
                     {
-                        heap.Add(i.ToString(), item);
+                        var addresses = new ulong[count];
+                        sw.Start();
+                        for (int i = 0; i < count; i++)
+                        {
+                            heap.Add(i.ToString(), item);
+                        }
+                        sw.Stop();
+                        writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
+                        tx.Complete();
                     }
-                    sw.Stop();
-                    writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
 
                     sw.Reset();
                     sw.Start();
@@ -343,14 +348,18 @@ namespace Altus.Suffūz.Collections.Tests
                     {
                         var count = 10000f;
                         sw.Start();
-                        using (var scope = new FlushScope())
+                        using (var tx = new TransactionScope())
                         {
-                            for (int i = 0; i < count; i++)
+                            using (var scope = new FlushScope())
                             {
-                                dictionary1.Add(i.ToString(), new CustomItem() { A = i, B = "1 some text" });
-                                dictionary2.Add(i.ToString(), new CustomItem() { A = i, B = "1 some text" });
-                                dictionary3.Add(i.ToString(), i);
+                                for (int i = 0; i < count; i++)
+                                {
+                                    dictionary1.Add(i.ToString(), new CustomItem() { A = i, B = "1 some text" });
+                                    dictionary2.Add(i.ToString(), new CustomItem() { A = i, B = "1 some text" });
+                                    dictionary3.Add(i.ToString(), i);
+                                }
                             }
+                            tx.Complete();
                         }
                         sw.Stop();
                         writeRate = (3f * count) / (sw.ElapsedMilliseconds / 1000f);
