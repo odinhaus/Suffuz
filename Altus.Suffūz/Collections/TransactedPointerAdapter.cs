@@ -87,6 +87,7 @@ namespace Altus.Suffūz.Collections
             var walFile = Path.ChangeExtension(Collection.BaseFilePath, "$");
             WALFilePath = walFile;
             WALFile = new FileStream(this.WALFilePath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete, 1024 * 8, false);
+            File.SetAttributes(WALFilePath, File.GetAttributes(WALFilePath) | FileAttributes.Hidden);
             WALFile.Seek(0, SeekOrigin.End);
             WALPrevious = -1;
             WALCurrent = 0;

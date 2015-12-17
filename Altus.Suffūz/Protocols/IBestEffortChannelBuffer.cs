@@ -24,10 +24,7 @@ namespace Altus.Suffūz.Protocols
     public interface IBestEffortChannelBuffer<TMessage> : IChannelBuffer<TMessage>
     {
         event MissedSegmentsHandler MissedSegments;
-        /// <summary>
-        /// Number of NACK retry items available
-        /// </summary>
-        int RetryCount { get; }
+
         /// <summary>
         /// Adds a message segment to the NACK retry buffer
         /// </summary>
@@ -44,18 +41,6 @@ namespace Altus.Suffūz.Protocols
         /// <param name="segmentId"></param>
         /// <returns></returns>
         MessageSegment GetRetrySegement(ulong segmentId);
-        /// <summary>
-        /// Adds a segment NAK to the channel buffer, which will be used to match any RNACK segments that 
-        /// are returned.
-        /// </summary>
-        /// <param name="nak"></param>
-        void AddSegmentNAK(UdpSegmentNAK nak);
-        /// <summary>
-        /// Removes the given segment NAK, if found, and returns true, otherwise returns false.
-        /// </summary>
-        /// <param name="nak"></param>
-        /// <returns></returns>
-        bool RemoveSegmentNAK(UdpSegmentNAK nak);
 
     }
 }

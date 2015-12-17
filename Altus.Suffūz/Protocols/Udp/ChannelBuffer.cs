@@ -27,7 +27,7 @@ namespace Altus.Suffūz.Protocols.Udp
         //IPersistentDictionary<ulong, ushort> _segmentNumbers;
         //IPersistentDictionary<ulong, SegmentList> _segments;
 
-        ExclusiveLock _syncLock;
+        protected ExclusiveLock _syncLock;
 
         //IDictionary<ushort, ulong> _sequenceNumbers;
         IDictionary<ulong, ushort> _segmentNumbers;
@@ -58,6 +58,8 @@ namespace Altus.Suffūz.Protocols.Udp
         protected IDictionary<ulong, ushort> SegmentNumbers { get { return _segmentNumbers; } }
         protected IDictionary<ulong, SegmentList> Segments { get { return _segments; } }
         protected IPersistentDictionary<ushort, ulong> SegmentIds {  get { return _segmentIds; } }
+
+        protected List<ExpirationTask> Tasks {  get { return _tasks; } }
 
         ulong _localMessageId = 0;
         public ulong LocalMessageId
@@ -360,6 +362,10 @@ namespace Altus.Suffūz.Protocols.Udp
 
                 _messageIds.Clear(true);
                 _messageIds.Dispose();
+
+                _segmentIds.Clear(true);
+                _segmentIds.Dispose();
+
                 //_segments.Clear(true);
                 //_segments.Dispose();
                 //_segmentNumbers.Clear(true);
@@ -367,7 +373,7 @@ namespace Altus.Suffūz.Protocols.Udp
                 //_sequenceNumbers.Clear();
                 _segments.Clear();
                 _segmentNumbers.Clear();
-
+                IsInitialized = false;
                 Initialize(this.Channel);
             });
         }

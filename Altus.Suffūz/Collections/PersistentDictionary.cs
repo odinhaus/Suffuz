@@ -443,7 +443,10 @@ namespace Altus.Suffūz.Collections
 
             if (_values != null)
             {
-                _values.Dispose();
+                if (OwnsHeap)
+                {
+                    _values.Dispose();
+                }
                 _values = null;
             }
 

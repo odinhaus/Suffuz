@@ -71,12 +71,93 @@ namespace Altus.Suffūz.Collections.Tests
             };
 
             cb.AddInboundSegment(msg.UdpHeaderSegment);
-            foreach(var seg in msg.UdpSegments)
+            foreach (var seg in msg.UdpSegments)
             {
                 cb.AddInboundSegment(seg);
             }
 
             Assert.IsTrue(rcvd != null && rcvd.MessageId == msg.MessageId);
+        }
+
+        [TestMethod]
+        public void CanRequestMissedPackets()
+        {
+            var cb = App.Resolve<IBestEffortChannelBuffer<UdpMessage>>();
+            var channel = new FakeBEChannel(cb);
+            cb.Initialize(channel);
+            cb.Reset();
+
+            var msg = new UdpMessage(cb.Channel, new Message(StandardFormats.BINARY, cb.Channel.Name, ServiceType.RequestResponse, App.InstanceName)
+            {
+                TTL = TimeSpan.FromSeconds(2),
+                Payload = new byte[1300 * 5], // make sure we have several packets
+                Recipients = new string[] { "*" }
+            });
+
+            cb.AddInboundSegment(msg.UdpSegments[2]);
+            Assert.IsTrue(channel.MissedSegments.StartSegmentId == msg.UdpHeaderSegment.SegmentId);
+            Assert.IsTrue(channel.MissedSegments.EndSegmentId == msg.UdpSegments[2].SegmentId);
+            Assert.IsTrue(channel.MissedSegments.SenderId == msg.UdpHeaderSegment.Sender);
+            Assert.IsTrue(channel.MissedSegments.RecipientId == App.InstanceId);
+            Assert.IsTrue(channel.MessageReceived == null);
+
+            channel.MissedSegments = null;
+            cb.AddInboundSegment(msg.UdpHeaderSegment);
+            Assert.IsTrue(channel.MissedSegments.StartSegmentId == msg.UdpSegments[0].SegmentId);
+            Assert.IsTrue(channel.MissedSegments.EndSegmentId == msg.UdpSegments[2].SegmentId);
+            Assert.IsTrue(channel.MissedSegments.SenderId == msg.UdpHeaderSegment.Sender);
+            Assert.IsTrue(channel.MissedSegments.RecipientId == App.InstanceId);
+            Assert.IsTrue(channel.MessageReceived == null);
+
+            channel.MissedSegments = null;
+            cb.AddInboundSegment(msg.UdpSegments[0]);
+            Assert.IsTrue(channel.MissedSegments.StartSegmentId == msg.UdpSegments[1].SegmentId);
+            Assert.IsTrue(channel.MissedSegments.EndSegmentId == msg.UdpSegments[2].SegmentId);
+            Assert.IsTrue(channel.MissedSegments.SenderId == msg.UdpHeaderSegment.Sender);
+            Assert.IsTrue(channel.MissedSegments.RecipientId == App.InstanceId);
+            Assert.IsTrue(channel.MessageReceived == null);
+
+            channel.MissedSegments = null;
+            cb.AddInboundSegment(msg.UdpSegments[1]);
+            Assert.IsTrue(channel.MissedSegments == null);
+            Assert.IsTrue(channel.MessageReceived == null);
+
+
+            var msg2 = new UdpMessage(cb.Channel, new Message(StandardFormats.BINARY, cb.Channel.Name, ServiceType.RequestResponse, App.InstanceName)
+            {
+                TTL = TimeSpan.FromSeconds(2),
+                Payload = new byte[400], // make sure we have several packets
+                Recipients = new string[] { "*" }
+            });
+
+            channel.MissedSegments = null;
+            cb.AddInboundSegment(msg2.UdpHeaderSegment);
+            Assert.IsTrue(channel.MissedSegments.StartSegmentId == msg.UdpSegments[3].SegmentId);
+            Assert.IsTrue(channel.MissedSegments.EndSegmentId == msg2.UdpHeaderSegment.SegmentId);
+            Assert.IsTrue(channel.MissedSegments.SenderId == msg.UdpHeaderSegment.Sender);
+            Assert.IsTrue(channel.MissedSegments.RecipientId == App.InstanceId);
+            Assert.IsTrue(channel.MessageReceived == null);
+
+            channel.MissedSegments = null;
+            cb.AddInboundSegment(msg.UdpHeaderSegment); // check we ignore packets we already have
+            Assert.IsTrue(channel.MissedSegments.StartSegmentId == msg.UdpSegments[3].SegmentId);
+            Assert.IsTrue(channel.MissedSegments.EndSegmentId == msg2.UdpHeaderSegment.SegmentId);
+            Assert.IsTrue(channel.MissedSegments.SenderId == msg.UdpHeaderSegment.Sender);
+            Assert.IsTrue(channel.MissedSegments.RecipientId == App.InstanceId);
+            Assert.IsTrue(channel.MessageReceived == null);
+
+            channel.MissedSegments = null;
+            cb.AddInboundSegment(msg.UdpSegments[3]);
+            Assert.IsTrue(channel.MissedSegments.StartSegmentId == msg.UdpSegments[4].SegmentId);
+            Assert.IsTrue(channel.MissedSegments.EndSegmentId == msg2.UdpHeaderSegment.SegmentId);
+            Assert.IsTrue(channel.MissedSegments.SenderId == msg.UdpHeaderSegment.Sender);
+            Assert.IsTrue(channel.MissedSegments.RecipientId == App.InstanceId);
+            Assert.IsTrue(channel.MessageReceived == null);
+
+            channel.MissedSegments = null;
+            cb.AddInboundSegment(msg.UdpSegments[4]);
+            Assert.IsTrue(channel.MissedSegments == null);
+            Assert.IsTrue(channel.MessageReceived != null);
         }
 
 
@@ -128,10 +209,10 @@ namespace Altus.Suffūz.Collections.Tests
             public Resolver()
             {
                 _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
-                    typeof(ISerializationContext), 
+                    typeof(ISerializationContext),
                     new Tuple<Type, object>(typeof(ISerializationContext), new SerializationContext())));
                 _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
-                    typeof(IManagePersistentCollections), 
+                    typeof(IManagePersistentCollections),
                     new Tuple<Type, object>(typeof(IManagePersistentCollections), new PersistentCollectionManager())));
                 _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
                     typeof(IBinarySerializerBuilder),
@@ -142,9 +223,9 @@ namespace Altus.Suffūz.Collections.Tests
                 _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
                     typeof(ISerializer),
                     new Tuple<Type, object>(typeof(ISerializer), new MessageSegmentSerializer())));
-                //_types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
-                //    typeof(IBestEffortChannelBuffer<UdpMessage>),
-                //    new Tuple<Type, object>(typeof(IBestEffortChannelBuffer<UdpMessage>), new BestEffortChannelBuffer(new FakeChannel()))));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(IBestEffortChannelBuffer<UdpMessage>),
+                    new Tuple<Type, object>(typeof(IBestEffortChannelBuffer<UdpMessage>), new BestEffortChannelBuffer())));
                 _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
                     typeof(IChannelBuffer<UdpMessage>),
                     new Tuple<Type, object>(typeof(IChannelBuffer<UdpMessage>), new ChannelBuffer())));
@@ -161,7 +242,7 @@ namespace Altus.Suffūz.Collections.Tests
 
             public IEnumerable<T> ResolveAll<T>()
             {
-                foreach(var v in _types.Where(kvp => kvp.Key == typeof(T)))
+                foreach (var v in _types.Where(kvp => kvp.Key == typeof(T)))
                 {
                     yield return (T)v.Value.Item2;
                 }
@@ -192,7 +273,7 @@ namespace Altus.Suffūz.Collections.Tests
         public ulong MessageId { get { return _buffer.LocalMessageId; } }
         public ulong SegmentId { get { return _buffer.LocalSegmentId; } }
 
-        public ServiceLevels ServiceLevels { get { return ServiceLevels.BestEffort; } }
+        public virtual ServiceLevels ServiceLevels { get { return ServiceLevels.Default; } }
 
         public Encoding TextEncoding { get; set; }
 
@@ -218,6 +299,37 @@ namespace Altus.Suffūz.Collections.Tests
         public void ResetProperties()
         {
             throw new NotImplementedException();
+        }
+    }
+
+    public class FakeBEChannel : FakeChannel
+    {
+        public FakeBEChannel(IBestEffortChannelBuffer<UdpMessage> buffer) : base(buffer)
+        {
+            buffer.MissedSegments += Buffer_MissedSegments;
+            buffer.MessageReceived += Buffer_MessageReceived;
+        }
+
+        private void Buffer_MessageReceived(object sender, MessageAvailableEventArgs<UdpMessage> e)
+        {
+            MessageReceived = e;
+        }
+
+        private void Buffer_MissedSegments(object sender, MissedSegmentsEventArgs e)
+        {
+            MissedSegments = e;
+        }
+
+        public MissedSegmentsEventArgs MissedSegments { get; set; }
+
+        public MessageAvailableEventArgs<UdpMessage> MessageReceived { get; set; }
+
+        public override ServiceLevels ServiceLevels
+        {
+            get
+            {
+                return ServiceLevels.BestEffort;
+            }
         }
     }
 }

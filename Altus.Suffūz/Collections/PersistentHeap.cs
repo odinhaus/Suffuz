@@ -18,20 +18,6 @@ using Altus.Suffūz.Threading;
 
 namespace Altus.Suffūz.Collections
 {
-    public enum WALEntryType : int
-    {
-        ShareUpdate = 1,
-        ShareHeaderUpdate = 2,
-        RecordUpdate = 20,
-        RecordHeaderUpdate = 21,
-        Checkpoint = 30,
-        TXBegin = 40,
-        TXCommit = 41,
-        TXRollback = 42,
-        TXNewValue = 43,
-        TXOldValue = 44
-    }
-
     public class PersistentHeap<TValue> : PersistentHeap, ICollection<TValue>, IEnumerable<TValue>, IPersistentHeap<TValue>
     {
         public PersistentHeap() : base()
@@ -92,10 +78,18 @@ namespace Altus.Suffūz.Collections
 
         public new IEnumerator<TValue> GetEnumerator()
         {
-            var en = base.GetEnumerator();
-            while(en.MoveNext())
+            try
             {
-                yield return (TValue)en.Current;
+                SyncLock.Enter();
+                var en = base.GetEnumerator();
+                while(en.MoveNext())
+                {
+                    yield return (TValue)en.Current;
+                }
+            }
+            finally
+            {
+                SyncLock.Exit();
             }
         }
 
@@ -112,23 +106,29 @@ namespace Altus.Suffūz.Collections
 
         public void CopyTo(TValue[] array, int arrayIndex)
         {
-            var i = 0;
-            foreach(var x in this)
+            SyncLock.Lock(() =>
             {
-                array[arrayIndex + i] = x;
-                i++;
-            }
+                var i = 0;
+                foreach (var x in this)
+                {
+                    array[arrayIndex + i] = x;
+                    i++;
+                }
+            });
         }
 
         bool ICollection<TValue>.Remove(TValue item)
         {
-            ulong key;
-            if (base.Contains(item, out key))
+            return SyncLock.Lock(() => 
             {
-                base.Free(key);
-                return true;
-            }
-            return false;
+                ulong key;
+                if (base.Contains(item, out key))
+                {
+                    base.Free(key);
+                    return true;
+                }
+                return false;
+            });
         }
     }
 

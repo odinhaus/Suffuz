@@ -50,26 +50,29 @@ namespace Altus.Suffūz.Protocols.Udp
         private void FromMessage(Message source)
         {
             /** ======================================================================================================================================
-             * UDP HEADER DESCRIPTOR
-             * FIELD                        LENGTH (bytes)      POS         SUBFIELDS/Description
-             * TAG                          1                   0           Segment Type (0 = Header, 1 = Segment)
-             * SENDERID + MESSAGEID         8                   1           Combination of SENDER (16 bits) + MESSAGE SEQUENCE NUMBER (48 bits) = 64 bits
-             * MESSAGEHASH                  16                  9           byte[] MD5 hash using secret hashkey + message body
-             * SEGEMENTCOUNT                2                   25          total count of message segments, including header segment for complete message
-             * TIMETOLIVE                   8                   27          absolute message expiration date/time in UTC for message reassembly to occur, before message is discarded
-             * DATALENGTH                   2                   35          length in bytes of any included transfer data
-             * DATA                         N (up to 1024 - 36) 37          included message data
-             * =======================================================================================================================================
-             * Total            37 bytes            
-             */
+            * UDP HEADER DESCRIPTOR
+            * FIELD                        LENGTH (bytes)      POS         SUBFIELDS/Description
+            * TAG                          1                   0           VVVVVVSC - Version (6 bits), Segment Type (0 = Header, 1 = Segment), Compressed (0 = false, 1 = true)
+            * SENDERID + MESSAGEID         8                   1           Combination of SENDER (16 bits) + MESSAGE SEQUENCE NUMBER (48 bits) = 64 bits
+            * SEGMENTID                    8                   9
+            * MESSAGEHASH                  16                  17           byte[] MD5 hash using secret hashkey + message body
+            * SEGEMENTCOUNT                2                   33          total count of message segments, including header segment for complete message
+            * TIMETOLIVE                   8                   35          absolute message expiration date/time in UTC for message reassembly to occur, before message is discarded
+            * DATALENGTH                   2                   43          length in bytes of any included transfer data
+            * DATA                         N (up to 1024 - 36) 45          included message data
+            * =======================================================================================================================================
+            * Total                        45 bytes            
+            */
 
             MemoryStream ms = new MemoryStream(source.ToByteArray());
             this.MessageId = Connection.MessageId;
-            ushort headerLength = (ushort)Math.Min(ms.Length, SocketOptions.MTU_SIZE - 37);
-            byte[] hdr = new byte[37];
+            ushort headerLength = (ushort)Math.Min(ms.Length, SocketOptions.MTU_SIZE - 45);
+            byte[] hdr = new byte[45];
             hdr[0] = (byte)0;
             byte[] messageId = BitConverter.GetBytes(this.MessageId);
+            byte[] segmentId = BitConverter.GetBytes(Connection.SegmentId);
             messageId.CopyTo(hdr, 1);
+            segmentId.CopyTo(hdr, 9);
 
             byte[] data = new byte[headerLength];
             ms.Read(data, 0, headerLength);
@@ -80,18 +83,18 @@ namespace Altus.Suffūz.Protocols.Udp
             secretData.CopyTo(cryptoData, 0);
             data.CopyTo(cryptoData, secretData.Length);
 
-            _hasher.ComputeHash(cryptoData).CopyTo(hdr, 9);
+            _hasher.ComputeHash(cryptoData).CopyTo(hdr, 17);
             ushort segmentCount = 1;
-            if (ms.Length > SocketOptions.MTU_SIZE - 37)
+            if (ms.Length > SocketOptions.MTU_SIZE - 45)
             {
-                int len = (int)ms.Length - (SocketOptions.MTU_SIZE - 37);
-                segmentCount += (byte)Math.Ceiling((float)len / (float)(SocketOptions.MTU_SIZE - 37));
+                int len = (int)ms.Length - (SocketOptions.MTU_SIZE - 45);
+                segmentCount += (byte)Math.Ceiling((float)len / (float)(SocketOptions.MTU_SIZE - 45));
             }
-            BitConverter.GetBytes(segmentCount).CopyTo(hdr, 25);
-            BitConverter.GetBytes(source.TTL.TotalMilliseconds).CopyTo(hdr, 27);
-            BitConverter.GetBytes((ushort)data.Length).CopyTo(hdr, 35);
+            BitConverter.GetBytes(segmentCount).CopyTo(hdr, 33);
+            BitConverter.GetBytes(source.TTL.TotalMilliseconds).CopyTo(hdr, 35);
+            BitConverter.GetBytes((ushort)data.Length).CopyTo(hdr, 43);
             hdr.CopyTo(hdrData, 0);
-            data.CopyTo(hdrData, 37);
+            data.CopyTo(hdrData, 45);
 
             var ths = new UdpHeader(Connection, Connection.EndPoint, hdrData);
             ushort segNo = 2;

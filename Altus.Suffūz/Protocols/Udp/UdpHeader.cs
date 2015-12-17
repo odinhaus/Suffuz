@@ -18,13 +18,14 @@ namespace Altus.Suffūz.Protocols.Udp
         * FIELD                        LENGTH (bytes)      POS         SUBFIELDS/Description
         * TAG                          1                   0           VVVVVVSC - Version (6 bits), Segment Type (0 = Header, 1 = Segment), Compressed (0 = false, 1 = true)
         * SENDERID + MESSAGEID         8                   1           Combination of SENDER (16 bits) + MESSAGE SEQUENCE NUMBER (48 bits) = 64 bits
-        * MESSAGEHASH                  16                  9           byte[] MD5 hash using secret hashkey + message body
-        * SEGEMENTCOUNT                2                   25          total count of message segments, including header segment for complete message
-        * TIMETOLIVE                   8                   27          absolute message expiration date/time in UTC for message reassembly to occur, before message is discarded
-        * DATALENGTH                   2                   35          length in bytes of any included transfer data
-        * DATA                         N (up to 1024 - 36) 37          included message data
+        * SEGMENTID                    8                   9
+        * MESSAGEHASH                  16                  17           byte[] MD5 hash using secret hashkey + message body
+        * SEGEMENTCOUNT                2                   33          total count of message segments, including header segment for complete message
+        * TIMETOLIVE                   8                   35          absolute message expiration date/time in UTC for message reassembly to occur, before message is discarded
+        * DATALENGTH                   2                   43          length in bytes of any included transfer data
+        * DATA                         N (up to 1024 - 36) 45          included message data
         * =======================================================================================================================================
-        * Total                        37 bytes            
+        * Total                        45 bytes            
         */
         protected override bool OnIsValid()
         {
@@ -47,7 +48,7 @@ namespace Altus.Suffūz.Protocols.Udp
                 {
                     _hash = new byte[16];
                     for (int i = 0; i < 16; i++)
-                        _hash[i] = Data[i + 9];
+                        _hash[i] = Data[i + 17];
                 }
                 return _hash;
             }
@@ -59,7 +60,7 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 if (_count == 0 && Data != null)
                 {
-                    _count = Data[25];
+                    _count = Data[33];
                 }
                 return _count;
             }
@@ -71,7 +72,7 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 if (_ttl == TimeSpan.MinValue && Data != null)
                 {
-                    _ttl = TimeSpan.FromMilliseconds(BitConverter.ToDouble(Data, 27));
+                    _ttl = TimeSpan.FromMilliseconds(BitConverter.ToDouble(Data, 35));
                 }
                 return _ttl;
             }
@@ -83,7 +84,7 @@ namespace Altus.Suffūz.Protocols.Udp
             {
                 if (_pl == 0 && Data != null)
                 {
-                    _pl = BitConverter.ToUInt16(Data, 35);
+                    _pl = BitConverter.ToUInt16(Data, 43);
                 }
                 return _pl;
             }
@@ -96,14 +97,14 @@ namespace Altus.Suffūz.Protocols.Udp
                 if (_plData == null && Data != null)
                 {
                     _plData = new byte[PayloadLength];
-                    Data.Copy(37, _plData, 0, PayloadLength);
+                    Data.Copy(45, _plData, 0, PayloadLength);
                 }
                 return _plData;
             }
         }
         public int HeaderLength
         {
-            get { return 37; }
+            get { return 45; }
         }
 
         public override int SegmentLength

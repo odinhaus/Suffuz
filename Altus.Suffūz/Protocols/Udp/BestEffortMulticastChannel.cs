@@ -71,7 +71,6 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void SendNAK(UdpSegmentNAK nak)
         {
-            Buffer.AddSegmentNAK(nak);
             this.SendSegment(nak);
         }
 

@@ -14,9 +14,6 @@ namespace Altus.Suffūz.Protocols.Udp
     public class BestEffortChannelBuffer : ChannelBuffer, IBestEffortChannelBuffer<UdpMessage>
     {
         IPersistentDictionary<ulong, NAKMessage> _nakBuffer;
-        IPersistentList<UdpSegmentNAK> _pendingNAKs;
-
-        List<ExpirationTask> _tasks = new List<ExpirationTask>();
 
         public event MissedSegmentsHandler MissedSegments;
 
@@ -28,19 +25,15 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             if (!IsInitialized)
             {
+               
+
                 var manager = App.Resolve<IManagePersistentCollections>();
 
                 _nakBuffer = manager
                     .GetOrCreate<IPersistentDictionary<ulong, NAKMessage>>(
-                        Channel.Name + "_nak.bin",
+                        channel.Name + "_nak.bin",
                         (name) => new PersistentDictionary<ulong, NAKMessage> (name, manager.GlobalHeap, false));
                 _nakBuffer.Compact();
-
-                _pendingNAKs = manager
-                    .GetOrCreate<IPersistentList<UdpSegmentNAK>>(
-                        Channel.Name + "_pendingNAKs.bin",
-                        (name) => new PersistentList<UdpSegmentNAK>(name, 1024 * 1024) { AutoGrowSize = 1024 * 1024 });
-                _pendingNAKs.Compact();
 
                 var now = CurrentTime.Now;
                 foreach (var nak in _nakBuffer.ToArray())
@@ -49,7 +42,7 @@ namespace Altus.Suffūz.Protocols.Udp
                     if (timeout > CurrentTime.Now)
                     {
                         var task = this.Scheduler.Schedule(timeout,
-                            (segmentId) => { lock (Channel) { RemoveRetrySegment(segmentId); } },
+                            (segmentId) => { RemoveRetrySegment(segmentId);  },
                             () => nak.Key);
                         this.Tasks.Add(new ExpirationTask(nak.Key, task));
                         continue;
@@ -57,22 +50,22 @@ namespace Altus.Suffūz.Protocols.Udp
                     _nakBuffer.Remove(nak.Key);
                 }
 
-                base.Initialize(this.Channel);
+                base.Initialize(channel);
             }
         }
 
         protected override void Compact()
         {
-            lock(Channel)
+            _syncLock.Lock(() =>
             {
                 _nakBuffer.Compact();
-            }
-            base.Compact();
+                base.Compact();
+            });
         }
 
         public override void Reset()
         {
-            lock(Channel)
+            _syncLock.Lock(() =>
             {
                 if (!IsInitialized)
                     throw new InvalidOperationException("The channel buffer has not been initialized");
@@ -80,13 +73,15 @@ namespace Altus.Suffūz.Protocols.Udp
                 _nakBuffer.Clear(true);
                 _nakBuffer.Dispose();
 
+                _sortedSegments.Clear();
+
                 base.Reset();
-            }
+            });
         }
 
         public void AddRetrySegment(MessageSegment segment)
         {
-            lock(Channel)
+            _syncLock.Lock(() =>
             {
                 var now = CurrentTime.Now;
                 if (segment.TimeToLive.TotalMilliseconds > 0)
@@ -96,11 +91,11 @@ namespace Altus.Suffūz.Protocols.Udp
 
                     // set the message to expire from the nak buffer based on the message's TTL
                     var task = this.Scheduler.Schedule(now.Add(segment.TimeToLive),
-                           (segmentId) => { lock (Channel) { RemoveRetrySegment(segmentId); } },
+                           (segmentId) => RemoveRetrySegment(segmentId),
                            () => segment.SegmentId);
                     this.Tasks.Add(new ExpirationTask(segment.SegmentId, task));
                 }
-            }
+            });
         }
 
         public void RemoveRetrySegment(MessageSegment message)
@@ -110,7 +105,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public void RemoveRetrySegment(ulong segmentId)
         {
-            lock (Channel)
+            _syncLock.Lock(() =>
             {
                 _nakBuffer.Remove(segmentId);
                 var task = Tasks.SingleOrDefault(t => t.MessageId == segmentId);
@@ -119,68 +114,130 @@ namespace Altus.Suffūz.Protocols.Udp
                     task.Task.Cancel();
                     Tasks.Remove(task);
                 }
-            }
+            });
         }
 
         public MessageSegment GetRetrySegement(ulong segmentId)
         {
-            lock (Channel)
+            return _syncLock.Lock(() =>
             {
                 try
                 {
                     return _nakBuffer[segmentId].Segment;
                 }
-                catch(KeyNotFoundException)
+                catch (KeyNotFoundException)
                 {
                     return null;
                 }
-            }
+            });
         }
 
+        Dictionary<ushort, List<MessageSegment>> _sortedSegments = new Dictionary<ushort, List<MessageSegment>>();
         public override void AddInboundSegment(MessageSegment segment)
         {
-            lock(Channel)
+            _syncLock.Lock(() =>
             {
-                ulong lastSegmentId;
-                if (SegmentIds.TryGetValue(segment.Sender, out lastSegmentId)
-                    && segment.SegmentId > lastSegmentId + 1)
-                {
-                    // this packet has jumped forward in time - we missed some packets, tell the channel
-                    OnMissedSegments(segment.Sender, lastSegmentId + 1, segment.SegmentId);
-                }
+                // add the new segment in sorted order to the existing segment list
+                AddSortedSegment(segment);
+                // request any missing segments
+                RequestMissingSegments(segment.Sender);
                 // in any case, allow the packet to be handled
                 base.AddInboundSegment(segment);
-            }
+            });
         }
 
-        protected virtual void OnMissedSegments(ushort senderId, ulong startSegment, ulong endSegment)
+        protected virtual void RequestMissingSegments(ushort sender)
+        {
+            // this will aggressively request missing packets whenever a new packet arrives
+            // in the event of several missing packets, this might end up requesting the same packets being resent multiple times
+            // as the range of missed packets is reduced when new packets arrive.  The only way to avoid this would be to 
+            // move the NAK/retry process onto a more complex and separate background process that uses its own timing loop
+            // to request missing items, rather than using the arrival of new packets as the trigger to check for missed items
+            _syncLock.Lock(() =>
+            {
+                MessageSegment segment = null, lastSegment = null;
+                List<MessageSegment> segments = _sortedSegments[sender];
+                for (int i = 0; i < segments.Count; i++)
+                {
+                    segment = segments[i];
+                    if (i == 0 && segment.SegmentNumber > 1)
+                    {
+                        // we need to check that we didn't pick up the first segment mid-message
+                        // if so, we can ask for the missing start packets
+                        OnMissedSegments(segment.Sender, segment.SegmentId - segment.SegmentNumber + 1, segment.SegmentId, segment.TimeToLive);
+                    }
+                    if (i > 0)
+                    {
+                        // after the first segment, just look for breaks in segment sequence and request to fill the gaps
+                        if (segment.SegmentId - lastSegment.SegmentId > 1)
+                        {
+                            // we skipped some packets, ask for them
+                            OnMissedSegments(segment.Sender, lastSegment.SegmentId + 1, segment.SegmentId, segment.TimeToLive);
+                        }
+                    }
+                    lastSegment = segment;
+                }
+            });
+        }
+
+        protected virtual void AddSortedSegment(MessageSegment segment)
+        {
+            _syncLock.Lock(() =>
+            {
+                List<MessageSegment> segments;
+                if (!_sortedSegments.TryGetValue(segment.Sender, out segments))
+                {
+                    segments = new List<MessageSegment>();
+                    _sortedSegments.Add(segment.Sender, segments);
+                }
+
+                int index = segments.Count;
+                bool exists = false;
+                for (int i = segments.Count; i > 0; i--)
+                {
+                    index = i - 1;
+                    // assume new segments will usually be at the bottom of the list, 
+                    // so we go backwards from bottom to top
+                    if (segment.SegmentId > segments[i - 1].SegmentId)
+                    {
+                        index++;
+                        break;
+                    }
+                    else if (segment.SegmentId == segments[i - 1].SegmentId)
+                    {
+                        // we already have it, so ignore it
+                        exists = true;
+                        break;
+                    }
+                }
+
+                if (!exists)
+                {
+                    segments.Insert(index, segment);
+                    var task = Scheduler.Schedule(CurrentTime.Now.Add(segment.TimeToLive),
+                        (seg) => RemoveSortedSegment(seg),
+                        () => segment);
+                }
+            });
+        }
+
+        protected virtual void RemoveSortedSegment(MessageSegment segment)
+        {
+            _syncLock.Lock(() =>
+            {
+                var segments = _sortedSegments[segment.Sender];
+                segments.Remove(segment);
+            });
+        }
+
+        protected virtual void OnMissedSegments(ushort senderId, ulong startSegment, ulong endSegment, TimeSpan timeToLive)
         {
             if (MissedSegments != null)
             {
-                MissedSegments(this, new MissedSegmentsEventArgs(senderId, App.InstanceId, startSegment, endSegment));
+                var e = new MissedSegmentsEventArgs(senderId, App.InstanceId, startSegment, endSegment);
+                MissedSegments(this, e);
             }
         }
-
-
-        public virtual void AddSegmentNAK(UdpSegmentNAK nak)
-        {
-            _pendingNAKs.Add(nak);
-            var task = this.Scheduler.Schedule(CurrentTime.Now.Add(TimeSpan.FromSeconds(nak.SegmentEnd - nak.SegmentStart + 1)),
-                           (n) => { lock (Channel) { RemoveSegmentNAK(n); } },
-                           () => nak);
-            this.Tasks.Add(new ExpirationTask(nak.SegmentEnd, task));
-        }
-
-        public virtual bool RemoveSegmentNAK(UdpSegmentNAK nak)
-        {
-            var found = _pendingNAKs.Remove(nak);
-            return found;
-        }
-
-        public int RetryCount { get { return _nakBuffer.Count; } }
-
-        protected List<ExpirationTask> Tasks { get { return _tasks; } }
-
     }
 
     public class NAKMessage
