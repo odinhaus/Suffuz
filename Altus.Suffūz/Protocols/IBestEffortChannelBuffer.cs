@@ -4,6 +4,7 @@ using System;
 namespace Altus.Suffūz.Protocols
 {
     public delegate void MissedSegmentsHandler(object sender, MissedSegmentsEventArgs e);
+    public delegate void ResendSegmentHandler(object sender, ResendSegmentEventArgs e);
 
     public class MissedSegmentsEventArgs : EventArgs
     {
@@ -21,10 +22,20 @@ namespace Altus.Suffūz.Protocols
         public ulong StartSegmentId { get; private set; }
     }
 
+    public class ResendSegmentEventArgs
+    {
+        public ResendSegmentEventArgs(MessageSegment segment)
+        {
+            Segment = segment;
+        }
+
+        public MessageSegment Segment { get; private set; }
+    }
+
     public interface IBestEffortChannelBuffer<TMessage> : IChannelBuffer<TMessage>
     {
         event MissedSegmentsHandler MissedSegments;
-
+        event ResendSegmentHandler ResendSegment;
         /// <summary>
         /// Adds a message segment to the NACK retry buffer
         /// </summary>

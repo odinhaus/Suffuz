@@ -18,6 +18,7 @@ namespace Altus.Suffūz.Collections
         {
             get
             {
+
                 return GetOrCreate<PersistentHeap>(GLOBAL_HEAP, (name) =>
                 {
                     var heap = new PersistentHeap(name)

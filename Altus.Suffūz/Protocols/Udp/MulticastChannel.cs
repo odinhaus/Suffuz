@@ -365,7 +365,7 @@ namespace Altus.Suffūz.Protocols.Udp
                     return; // don't process our own mutlicast publications
 
                 if (!message.Recipients.Any(r => r.Equals("*") || r.Equals(App.InstanceName)))
-                    return;
+                    return; // it's not for this instance
 
                 HandleNewMessage(message);
             }

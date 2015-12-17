@@ -46,5 +46,9 @@ namespace Altus.Suffūz.Scheduling
         IScheduledTask Schedule<T, U>(Schedule schedule, Func<T, U> action, Func<U> args);
         IScheduledTask Schedule<T, U>(int interval, Func<T, U> action, Func<U> args);
         IScheduledTask Schedule<T, U>(DateTime when, Func<T, U> action, Func<U> args);
+        /// <summary>
+        /// Gets the currently executing task for the current thread
+        /// </summary>
+        IScheduledTask CurrentTask { get; }
     }
 }

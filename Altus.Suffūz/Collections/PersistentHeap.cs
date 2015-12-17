@@ -157,6 +157,7 @@ namespace Altus.Suffūz.Collections
         static int COUNTER = 0;
         static object GlobalSyncRoot = new object();
 
+
         bool _isInitialized = false;
         private byte* _filePtr;
         Dictionary<ulong, int> _addresses = new Dictionary<ulong, int>();

@@ -28,7 +28,7 @@ namespace Altus.Suffūz.Protocols.Udp
         * TAG                          1                   0       Segment Type (0 = Header, 1 = Segment)
         * SENDERID + MESSAGEID         8                   1       Combination of SENDER (16 bits) + MESSAGE SEQUENCE NUMBER (48 bits) = 64 bits
         * SEGMENTID                    8                   9       Unique incremental ulong per packet
-        * RECIPIENT                    2                   11      The sender the NAK is directed to
+        * RECIPIENT                    2                   17      The sender the NAK is directed to
         * SEGMENT START                8                   19      Segement sequence number 
         * SEGMENT END                  8                   27      Segment total count
         * =======================================================================================================================================
@@ -109,6 +109,19 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
+        ushort _recipient = 0;
+        public ulong Recipient
+        {
+            get
+            {
+                if (_recipient == 0 && Data != null)
+                {
+                    _recipient = BitConverter.ToUInt16(Data, 17);
+                }
+                return _recipient;
+            }
+        }
+
         protected override bool OnIsValid()
         {
             return this.MessageId == 0
@@ -125,7 +138,7 @@ namespace Altus.Suffūz.Protocols.Udp
             BitConverter.GetBytes((ulong)0).CopyTo(bytes, 9);
             BitConverter.GetBytes(recipient).CopyTo(bytes, 17);
             BitConverter.GetBytes(startSegmentId).CopyTo(bytes, 19);
-            BitConverter.GetBytes(endSegmentId).CopyTo(bytes, 25);
+            BitConverter.GetBytes(endSegmentId).CopyTo(bytes, 27);
             return bytes;
         }
     }

@@ -82,6 +82,7 @@ namespace Altus.Suffūz.Protocols
                     fixed (byte* Pointer = Data)
                     {
                         _id = *(((ulong*)(Pointer + 1)));
+                        _id = (_id << 16) >> 16; // trim off the sender id
                     }
                 }
                 return _id;
@@ -129,7 +130,7 @@ namespace Altus.Suffūz.Protocols
                         if (((int)buffer[0] & (1 << 2)) == (1 << 2))
                         {
                             // segment NAK
-                            segment = new UdpSegment(connection, ep, buffer);
+                            segment = new UdpSegmentNAK(connection, ep, buffer);
                         }
                         else if (((int)buffer[0] & (1 << 1)) == (1 << 1))
                         {

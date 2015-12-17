@@ -273,7 +273,7 @@ namespace Altus.Suffūz.Collections.Tests
             var item = new CustomItem() { A = 12, B = "some text here" };
             using (var scope = new FlushScope())
             {
-                using (var heap = new PersistentDictionary<string, CustomItem>(fileName, 1024 * 1024 * 100))
+                using (var dictionary = new PersistentDictionary<string, CustomItem>(fileName, 1024 * 1024 * 100))
                 {
                     using (var tx = new TransactionScope())
                     {
@@ -281,7 +281,7 @@ namespace Altus.Suffūz.Collections.Tests
                         sw.Start();
                         for (int i = 0; i < count; i++)
                         {
-                            heap.Add(i.ToString(), item);
+                            dictionary.Add(i.ToString(), item);
                         }
                         sw.Stop();
                         writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
@@ -292,14 +292,14 @@ namespace Altus.Suffūz.Collections.Tests
                     sw.Start();
                     for (int i = 0; i < count; i++)
                     {
-                        item = heap[i.ToString()];
+                        item = dictionary[i.ToString()];
                     }
                     sw.Stop();
                     readRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
 
                     sw.Reset();
                     sw.Start();
-                    foreach (var thing in heap)
+                    foreach (var thing in dictionary)
                     {
                     }
                     sw.Stop();

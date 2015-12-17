@@ -25,8 +25,10 @@ namespace Altus.Suffūz.Protocols.Udp
             : base(buffer, name, udpSocket, mcastGroup, listen, excludeMessagesFromSelf, ttl)
         {
             buffer.MissedSegments += Buffer_MissedSegments;
+            buffer.ResendSegment += Buffer_ResendSegment;
         }
 
+        
         public override ServiceLevels ServiceLevels
         {
             get
@@ -55,7 +57,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected override void SendSegment(MessageSegment segment)
         {
-            if (segment.SegmentId > 0) // ignore special segments like NAKs
+            if (segment.MessageId > 0) // ignore special segments like NAKs
             {
                 Buffer.AddRetrySegment(segment);
             }
@@ -69,10 +71,14 @@ namespace Altus.Suffūz.Protocols.Udp
             SendNAK(nak);
         }
 
+        private void Buffer_ResendSegment(object sender, ResendSegmentEventArgs e)
+        {
+            this.SendSegment(e.Segment);
+        }
+
         protected virtual void SendNAK(UdpSegmentNAK nak)
         {
             this.SendSegment(nak);
         }
-
     }
 }

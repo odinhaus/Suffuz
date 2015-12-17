@@ -24,7 +24,7 @@ namespace Altus.Suffūz.Scheduling
 
         public ScheduledDelegate(DateTime when, Delegate executor)
         {
-            Schedule = new FixedCalendricalSchedule(new DateRange(when, DateTime.MaxValue), 0, TimeSpan.FromSeconds(0));
+            Schedule = new FixedCalendricalSchedule(new DateRange(when, DateTime.MaxValue), 0, DateTime.MaxValue.Subtract(when));
             Executor = executor;
             ExecuteArgs = new Func<object[]>(() => new object[0]);
         }
@@ -44,7 +44,7 @@ namespace Altus.Suffūz.Scheduling
         }
         public ScheduledDelegate(DateTime when, Delegate executor, Func<object[]> executionArgs)
         {
-            Schedule = new FixedCalendricalSchedule(new DateRange(when, DateTime.MaxValue), 0, TimeSpan.FromSeconds(0));
+            Schedule = new FixedCalendricalSchedule(new DateRange(when, DateTime.MaxValue), 0, DateTime.MaxValue.Subtract(when));
             Executor = executor;
             ExecuteArgs = executionArgs;
         }

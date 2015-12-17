@@ -96,6 +96,10 @@ namespace Altus.Suffūz.Scheduling
             }
         }
 
+        [ThreadStatic]
+        IScheduledTask _currentTask = null;
+        public IScheduledTask CurrentTask { get { return _currentTask; } }
+
         private List<IScheduledTask> Tasks
         {
             get
@@ -123,7 +127,7 @@ namespace Altus.Suffūz.Scheduling
                 Stopwatch sw = new Stopwatch();
                 long elapsed = 0;
                 sw.Start();
-                
+                Scheduler.Current._currentTask = Task;
                 while (!IsExpired)
                 {
                     Task.Execute(Task.ExecuteArgs());

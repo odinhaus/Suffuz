@@ -133,7 +133,7 @@ namespace Altus.Suffūz.Collections
 
         public object SyncRoot { get { return _values.SyncRoot; } }
 
-        public int Count { get { lock (SyncRoot) { return _keyToValueKey.Count; } } }
+        public int Count { get { return SyncLock.Lock(() => _keyToValueKey.Count); } }
 
         public bool IsReadOnly { get { return false; } }
 
@@ -234,6 +234,7 @@ namespace Altus.Suffūz.Collections
                 foreach (var x in ((IEnumerable<KeyValuePair<TKey, TValue>>)this))
                 {
                     array[arrayIndex + i] = (KeyValuePair<TKey, TValue>)x;
+                    i++;
                 }
             });
         }
