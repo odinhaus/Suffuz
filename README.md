@@ -349,10 +349,10 @@ As a point of comparison, we benchmarked our compiled binary serializer against 
 
 Operation         | Suffūz    | JSON.Net
 ------------------|-----------|---------
-Serialization
+Serialization     |           |
 Throughput [Mb/s] | 96        | 15
 Rate [MHz]        | 1.335     | 0.129
-Deserialization   
+Deserialization   |           | 
 Throughput [Mb/s] | 85        | 12
 Rate [MHz]        | 1.180     | 0.100
 
