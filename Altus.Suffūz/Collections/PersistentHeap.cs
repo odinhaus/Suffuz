@@ -255,9 +255,9 @@ namespace Altus.Suffūz.Collections
         //    return false;
         //}
 
-        protected virtual BytePointerAdapter CreatePointerAdapter()
+        protected virtual BytePointerAdapter CreatePointerAdapter(bool isWriting)
         {
-            if (IsTransactional)
+            if (IsTransactional && isWriting)
                 return TransactedPointerAdapter.Create(ref _filePtr, 0, ViewSize, this);
             else
                 return new BytePointerAdapter(ref _filePtr, 0, ViewSize);
@@ -356,7 +356,7 @@ namespace Altus.Suffūz.Collections
                 _addresses.Add(HeapSequenceNumber, Next);
                 _keys.Add(Next, HeapSequenceNumber);
 
-                using (var ptr = CreatePointerAdapter())
+                using (var ptr = CreatePointerAdapter(true))
                 {
                     using (var scope = new FlushScope())
                     {
@@ -440,7 +440,7 @@ namespace Altus.Suffūz.Collections
             {
                 var address = _addresses[key];
 
-                using (var ptr = CreatePointerAdapter())
+                using (var ptr = CreatePointerAdapter(true))
                 {
                     using (var scope = new FlushScope())
                     {
@@ -511,7 +511,7 @@ namespace Altus.Suffūz.Collections
             return SyncLock.Lock(() =>
             {
                 var address = _addresses[key];
-                using (var ptr = CreatePointerAdapter())
+                using (var ptr = CreatePointerAdapter(true))
                 {
                     var length = ptr.ReadInt32(address + ITEM_LENGTH);
                     var bytes = CreateItemRecord(item, key, true);
@@ -563,7 +563,7 @@ namespace Altus.Suffūz.Collections
                 try
                 {
                     SyncLock.Enter();
-                    using (var ptr = CreatePointerAdapter())
+                    using (var ptr = CreatePointerAdapter(false))
                     {
                         var isValid = ptr.ReadBoolean(address + ITEM_ISVALID);
                         if (isValid)
@@ -617,7 +617,7 @@ namespace Altus.Suffūz.Collections
                 {
                     scope.Enlist(this);
 
-                    using (var ptr = CreatePointerAdapter())
+                    using (var ptr = CreatePointerAdapter(true))
                     {
                         ptr.Write(address, CreateItemRecord(null, key, false));
                     }
@@ -861,7 +861,7 @@ namespace Altus.Suffūz.Collections
             _keys.Clear();
             while(address < Next)
             {
-                using (var ptr = CreatePointerAdapter())
+                using (var ptr = CreatePointerAdapter(false))
                 {
                     key = ptr.ReadUInt64(address + 1);
                     if (ptr.ReadBoolean(address))
@@ -883,7 +883,7 @@ namespace Altus.Suffūz.Collections
         {
             return SyncLock.Lock(() =>
             {
-                using (var ptr = CreatePointerAdapter())
+                using (var ptr = CreatePointerAdapter(false))
                 {
                     var currentValid = ptr.ReadBoolean(address);
                     while (currentValid != isValid && address < Next)
@@ -904,7 +904,7 @@ namespace Altus.Suffūz.Collections
         {
             SyncLock.Lock(() =>
             {
-                using (var ptr = CreatePointerAdapter())
+                using (var ptr = CreatePointerAdapter(true))
                 {
                     ptr.Write(0, First);
                     ptr.Write(4, Last);

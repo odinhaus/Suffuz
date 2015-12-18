@@ -71,7 +71,7 @@ namespace Altus.Suffūz.Test
             return new TypeResolver(
                 new Container(c =>
             {
-                // define mappings here
+                // define additional mappings here
             }));
         }
     }

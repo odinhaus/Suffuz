@@ -274,6 +274,7 @@ namespace Altus.Suffūz
                   .Nominate(() => CostFunctions.CapacityCost(25d, 0d, 100d))
                   .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
 
+            // route BestEffort messages
             router.Route<Handler, TestRequest, TestResponse>(Channels.BESTEFFORT_CHANNEL, (handler, request) => handler.HandleBE(request));
         }
 
@@ -370,7 +371,7 @@ namespace Altus.Suffūz
                 for (int i = 0; i < count / 10; i++)
                 {
 
-                    var r = Get<TestResponse>.From(Channels.BESTEFFORT_CHANNEL, new TestRequest()).Execute();
+                    var r = Post<TestResponse>.Via(Channels.BESTEFFORT_CHANNEL, new TestRequest()).Execute();
 
                     //Debug.Assert(r.Size > 0);
                     //Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
@@ -380,20 +381,18 @@ namespace Altus.Suffūz
             Console.WriteLine("Mean Call Time: {0} ms", sw.ElapsedMilliseconds / (count/10f));
             sw.Reset();
 
+            var testRequest = new TestRequest();
+            var commandRequest = new CommandRequest();
+
             //// executes the default call on the CHANNEL, with no arguments or response
-            Get.From(Channels.CHANNEL).Execute();
-            //Console.Read();
+            Put.Via(Channels.CHANNEL).Execute();
 
             //// executes with no result on the CHANNEL
-            Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
-            //Console.Read();
+            Put.Via(Channels.CHANNEL, commandRequest).Execute();
 
             // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
             // blocks for the default timeout (Get.DefaultTimeout)
-            var result1 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute();
-            Debug.Assert(result1 != null);
-            //Console.Read();
-
+            var result1 = Post<TestRequest, TestResponse>.Via(Channels.CHANNEL, testRequest).Execute();
 
             // executes the request on respondants whose capacity exceeds an arbitrary threshold
             // the first respondant passing the nomination predicate test and returning a signaling message to the caller
@@ -403,11 +402,10 @@ namespace Altus.Suffūz
             // the Delegate expression is evaluated within the respondants' process, such that failing 
             // test prevent the request from beng dispatched to their corresponding handlers, 
             // thus preventing both evaluation and responses
-            var result2 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+            TestResponse result2 = Post<TestRequest, TestResponse>
+                                            .Via(Channels.CHANNEL, testRequest)
                                             .Nominate(response => response.Score > TestResponse.SomeNumber())
                                             .Execute();
-            Debug.Assert(result2 != null);
-            //Console.Read();
 
             // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
             // blocks for the default timeout (Get.DefaultTimeout)
@@ -415,71 +413,77 @@ namespace Altus.Suffūz
             // a timeout exception is throw in this case, or if none of the respondant results are received in time
             try
             {
-                var result3 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest()).Execute(500);
+                var result3 = Post<CommandRequest, TestResponse>.Via(Channels.CHANNEL, commandRequest).Execute(500);
             }
             catch (TimeoutException)
             {
                 Logger.LogInfo("Handled Timeout");
             }
-            //Console.Read();
 
             // executes a directed TestRequest call on the CHANNEL, for a specific recipient (App.InstanceName), 
             // and returns the first result returned from any respondant
             // blocks for up to 500ms
-            var result4 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute(500, App.InstanceName);
-            Debug.Assert(result4 != null);
-            //Console.Read();
+            var result4 = Post<TestRequest, TestResponse>.Via(Channels.CHANNEL, testRequest).Execute(500, App.InstanceName);
 
             // executes a TestRequest call on the CHANNEL, and returns all responses received within one second
-            var enResult1 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+            var enResult1 = Post<TestRequest, TestResponse>.Via(Channels.CHANNEL, testRequest)
                                             .All()
                                             .Execute(1000)
                                             .ToArray();
             Debug.Assert(enResult1.Length > 0);
-            //Console.Read();
 
             // executes a TestRequest call on the CHANNEL, and returns the first two responses received within the Get.DefaultTimeout time period
             // if the terminator condition is not met within the timeout period, the result will contain the responses received up to that time
-            var enResult2 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+            var enResult2 = Post<TestRequest, TestResponse>
+                                            .Via(Channels.CHANNEL, testRequest)
                                             .Take(2)
                                             .Execute()
                                             .ToArray();
-            Debug.Assert(enResult2.Length > 0);
-            //Console.Read();
 
             // executes the request on respondants whose capacity exceeds and arbitrary threshold
             // returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
             // and blocks for 2000 milliseconds while waiting for responses
             // if no responses are received within the timeout, and empty set is returned
             // any responses received after the timeout are ignored
-            var enResult3 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+            var enResult3 = Post<TestRequest, TestResponse>
+                                            .Via(Channels.CHANNEL, testRequest)
                                             .Nominate(cr => cr.Score > 0.9)
                                             .Take(r => r.Size > 2)
                                             .Execute(2000)
                                             .ToArray();
-            Debug.Assert(enResult3.Length > 0);
-            //Console.Read();
 
             // executes the request on respondants whose capacity exceeds and arbitrary threshold
             // returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
             // and blocks until the terminal condition is met (ChannelContext.Current.Count > 1)
-            var enResult4 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
+            var enResult4 = Post<TestRequest, TestResponse>
+                                            .Via(Channels.CHANNEL, testRequest)
                                             .Nominate(cr => cr.Score > 0.9)
                                             .Take(r => r.Size > 2)
                                             .Until(r => ChannelContext.Current.Count > 1)
                                             .Execute()
                                             .ToArray();
-            Debug.Assert(enResult4.Length > 0);
-            //Console.Read();
 
             // in this case, because we're executing an enumeration for an unmapped request/response pair, the call will simply block for the 
             // timeout period, and return no results.  Enumerations DO NOT throw timeout exceptions in the absence of any responses, only scalar
             // execution calls can produce timeout exceptions.
-            var enResult5 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest())
+            var enResult5 = Post<CommandRequest, TestResponse>
+                                            .Via(Channels.CHANNEL, commandRequest)
                                             .All()
                                             .Execute(500)
                                             .ToArray();
-            Debug.Assert(enResult5.Length == 0);
+
+            // an alternative calling pattern, allowing the response type to be deferred until after the channel designation.
+            // for factory calling patterns, where the construction of the call in terms of what types to return may differ 
+            // from one channel to the next for the same request type, but your pipeline determines the channel to call 
+            // before it determines the response.
+            var ebResult6 = Post.Via(Channels.CHANNEL, testRequest)
+                                .Return<TestResponse>()
+                                .Nominate(cr => cr.Score > 0.5)
+                                .Take(r => r.Size > 2)
+                                .Until(r => ChannelContext.Current.Count > 1)
+                                .Execute()
+                                .ToArray(); 
+                                
 
             // give the scheduler time to clean up
             System.Threading.Thread.Sleep(20);

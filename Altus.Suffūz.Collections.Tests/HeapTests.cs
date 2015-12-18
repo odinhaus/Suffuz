@@ -239,11 +239,11 @@ namespace Altus.Suffūz.Collections.Tests
             File.Delete(fileName);
             using (var scope = new FlushScope())
             {
-                using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 100, true))
+                using (var heap = new PersistentHeap(fileName, 1024 * 1024 * 100, false))
                 {
                     var addresses = new ulong[count];
-                    using (var tx = new TransactionScope())
-                    {
+                    //using (var tx = new TransactionScope())
+                    //{
                         sw.Start();
                         for (int i = 0; i < count; i++)
                         {
@@ -251,8 +251,8 @@ namespace Altus.Suffūz.Collections.Tests
                         }
                         sw.Stop();
                         writeRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
-                        tx.Complete();
-                    }
+                        //tx.Complete();
+                    //}
                     sw.Reset();
                     sw.Start();
                     for (int i = 0; i < count; i++)
@@ -269,7 +269,7 @@ namespace Altus.Suffūz.Collections.Tests
                     }
                     sw.Stop();
                     enumerateRate = (float)count / (sw.ElapsedMilliseconds / 1000f);
-           
+
                 }
             }
 

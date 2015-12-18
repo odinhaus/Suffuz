@@ -16,7 +16,7 @@ namespace Altus.Suffūz
 {
     public static class Extensions
     {
-        public static TResponse Execute<TRequest, TResponse>(this Get<TRequest, TResponse> request, int timeout = -1, params string[] recipients)
+        public static TResponse Execute<TRequest, TResponse>(this ChannelAction<TRequest, TResponse> request, int timeout = -1, params string[] recipients)
         {
             var executor = new TerminalExecutor<TRequest, TResponse>(request,
                     (r) => true, // select any
@@ -26,21 +26,21 @@ namespace Altus.Suffūz
             return executor.Execute(timeout, recipients).FirstOrDefault();
         }
 
-        public static EnumerableExecutor<TRequest, TResponse> All<TRequest, TResponse>(this Get<TRequest, TResponse> request)
+        public static EnumerableExecutor<TRequest, TResponse> All<TRequest, TResponse>(this ChannelAction<TRequest, TResponse> request)
         {
             return new Extensions.EnumerableExecutor<TRequest, TResponse>(request, 
                 (response) => true, 
                 (responses) => true);
         }
 
-        public static EnumerableExecutor<TRequest, TResponse> Take<TRequest, TResponse>(this Get<TRequest, TResponse> request, 
+        public static EnumerableExecutor<TRequest, TResponse> Take<TRequest, TResponse>(this ChannelAction<TRequest, TResponse> request, 
             Func<TResponse, bool> selector)
         {
             return new Extensions.EnumerableExecutor<TRequest, TResponse>(request, 
                 selector, (responses) => false);
         }
 
-        public static TerminalExecutor<TRequest, TResponse> Take<TRequest, TResponse>(this Get<TRequest, TResponse> request,
+        public static TerminalExecutor<TRequest, TResponse> Take<TRequest, TResponse>(this ChannelAction<TRequest, TResponse> request,
             int countLimit)
         {
             return new Extensions.TerminalExecutor<TRequest, TResponse>(request, 
@@ -50,7 +50,7 @@ namespace Altus.Suffūz
                 false);
         }
 
-        public static NominateExecutor<TRequest, TResponse> Nominate<TRequest, TResponse>(this Get<TRequest, TResponse> request, 
+        public static NominateExecutor<TRequest, TResponse> Nominate<TRequest, TResponse>(this ChannelAction<TRequest, TResponse> request, 
             Expression<Func<NominateResponse, bool>> nominator)
         {
             return new Extensions.NominateExecutor<TRequest, TResponse>(request, nominator);
@@ -59,23 +59,23 @@ namespace Altus.Suffūz
         public class EnumerableExecutor<TRequest, TResponse>
         {
             private Func<TResponse, bool> _selector;
-            private Get<TRequest, TResponse> _request;
+            private ChannelAction<TRequest, TResponse> _request;
             private Expression<Func<NominateResponse, bool>> _nominator;
 
-            public EnumerableExecutor(Get<TRequest, TResponse> request, Func<TResponse, bool> selector)
+            public EnumerableExecutor(ChannelAction<TRequest, TResponse> request, Func<TResponse, bool> selector)
             {
                 this._selector = selector;
                 this._request = request;
                 this._nominator = null;
             }
 
-            public EnumerableExecutor(Get<TRequest, TResponse> request, Func<TResponse, bool> selector, Expression<Func<NominateResponse, bool>> nominator)
+            public EnumerableExecutor(ChannelAction<TRequest, TResponse> request, Func<TResponse, bool> selector, Expression<Func<NominateResponse, bool>> nominator)
                 : this(request, selector)
             {
                 this._nominator = nominator;
             }
 
-            public EnumerableExecutor(Get<TRequest, TResponse> request, Func<int> countLimit, Expression<Func<NominateResponse, bool>> nominator)
+            public EnumerableExecutor(ChannelAction<TRequest, TResponse> request, Func<int> countLimit, Expression<Func<NominateResponse, bool>> nominator)
                 : this(request, (r) => ChannelContext.Current.Count < countLimit())
             {
                 this._nominator = nominator;
@@ -100,9 +100,9 @@ namespace Altus.Suffūz
         public class NominateExecutor<TRequest, TResponse>
         {
             private Expression<Func<NominateResponse, bool>> _nominator;
-            private Get<TRequest, TResponse> _request;
+            private ChannelAction<TRequest, TResponse> _request;
 
-            public NominateExecutor(Get<TRequest, TResponse> request, Expression<Func<NominateResponse, bool>> nominator)
+            public NominateExecutor(ChannelAction<TRequest, TResponse> request, Expression<Func<NominateResponse, bool>> nominator)
             {
                 this._nominator = nominator;
                 this._request = request;
@@ -137,12 +137,12 @@ namespace Altus.Suffūz
         public class TerminalExecutor<TRequest, TResponse>
         {
             private Func<TResponse, bool> _terminator;
-            private Get<TRequest, TResponse> _request;
+            private ChannelAction<TRequest, TResponse> _request;
             private Func<TResponse, bool> _selector;
             private Expression<Func<NominateResponse, bool>> _nominator;
             private bool _isScalar;
 
-            public TerminalExecutor(Get<TRequest, TResponse> request, 
+            public TerminalExecutor(ChannelAction<TRequest, TResponse> request, 
                 Func<TResponse, bool> selector, 
                 Func<TResponse, bool> terminalPredicate, 
                 Expression<Func<NominateResponse, bool>> nominator,
@@ -160,7 +160,7 @@ namespace Altus.Suffūz
                 return ChannelContext.Execute(this, timeout, recipients);
             }
 
-            public Get<TRequest, TResponse> Get { get { return _request; } }
+            public ChannelAction<TRequest, TResponse> Get { get { return _request; } }
             public Func<TResponse, bool> Selector { get { return _selector; } }
             public Func<TResponse, bool> Terminator { get { return _terminator; } }
             public Expression<Func<NominateResponse, bool>> Nominator { get { return _nominator; } }
@@ -170,6 +170,12 @@ namespace Altus.Suffūz
         
     }
 
+    /// <summary>
+    /// Gets the execution context for a channel request for the current thread.  As results from various respondants 
+    /// are enumerated, this class can be accessed to determine the current result set, as well as the count of responses received. 
+    /// This class would typically be accessed from an Until predicate to determine if enough responses have been collected to 
+    /// stop processing any additional respones.
+    /// </summary>
     public class ChannelContext
     {
         [ThreadStatic]

@@ -12,9 +12,14 @@ namespace Altus.Suffūz.Test
     /// </summary>
     public class Channels
     {
+        /// <summary>
+        /// channel1
+        /// </summary>
         public static readonly string CHANNEL = "channel1";
+        /// <summary>
+        /// 224.0.0.0
+        /// </summary>
         public static readonly IPEndPoint CHANNEL_EP = new IPEndPoint(IPAddress.Parse("224.0.0.0"), 5000);
-
         /// <summary>
         /// channel2
         /// </summary>

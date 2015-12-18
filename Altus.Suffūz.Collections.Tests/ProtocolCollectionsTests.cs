@@ -346,7 +346,10 @@ namespace Altus.Suffūz.Collections.Tests
 
         protected virtual void SendSegment(MessageSegment segment)
         {
-            
+            var serializationContext = App.Resolve<ISerializationContext>();
+            var serializer = serializationContext.GetSerializer<ComplexPOCO>(StandardFormats.BINARY);
+            var bytes = serializer.Serialize(new ComplexPOCO());
+            var poco = serializer.Deserialize(bytes);
         }
 
         public void Dispose()
