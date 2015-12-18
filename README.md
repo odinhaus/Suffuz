@@ -501,6 +501,10 @@ Over time, for non-fixed sized instances, heap sizes will grow.  Calling Free() 
 #####Compact()
 All IPersistentCollection types provide a Compact() method that will scan the entire storage system, shrinking all relevant files to their minimum size.
 
+#####Flush()
+All IPersistentCollection types provide a Flush() method allowing the caller to explicity force the collection to write its buffered content to disk.
+
+
 ####Performance
 To give some qualitative impact of using the TransactionScope and FlushScope objects describe previously, we benchmarked a simple operation that wrote and read thousands of 32-bit integer values to a PersistentHeap using various combinations of scopes and transactional/non-transactional settings. The results are shown below for a relatively modern i7 laptop with SSD storage.
 
@@ -517,6 +521,4 @@ As you can see, you can gain or lose much as two orders of magnitude of performa
 
 
 
-#####Flush()
-All IPersistentCollection types provide a Flush() method allowing the caller to explicity force the collection to write its buffered content to disk.
 
