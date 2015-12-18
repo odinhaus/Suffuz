@@ -347,27 +347,15 @@ var poco = serializer.Deserialize(bytes);
 ##Performance
 As a point of comparison, we benchmarked our compiled binary serializer against the latest version of JSON.Net, in both terms of throughput and payload sizes.  On the whole, our serializer outperformed JSON.Net by about an order of magnitude (10x) on throughput, with a bandwidth reduction of around 40%.
 
-####Serialization Benchmarks
-######Suffūz Binary Protocol Serialization
-```
-Suffūz Bandwidth [Kb]: 72,265
-Serialization:
-Suffuz Throughput [Mb/s]: 96
-Suffūz Rate [MHz]: 1.335
-Deserialization:
-Suffūz Throughput [Mb/s]: 85
-Suffūz Rate [MHz]: 1.180
-```
-######NewtonSoft.Json v7
-```
-Json Bandwidth [Kb]: 121,093
-Serialization:
-Json Throughput [Mb/s]: 15
-Json Rate [MHz]: 0.129
-Deserialization:
-Json Throughput [Mb/s]: 12
-Json Rate [MHz]: 0.100
-```
+Operation         | Suffūz    | JSON.Net
+------------------|-----------|---------
+Serialization
+Throughput [Mb/s] | 96        | 15
+Rate [MHz]        | 1.335     | 0.129
+Deserialization   
+Throughput [Mb/s] | 85        | 12
+Rate [MHz]        | 1.180     | 0.100
+
 
 #Persistent Collections
 Another significant component system built to support the communications framework consists of a RDMS-Free persistence platform for storing serializable types in an efficient and transacted manner.
@@ -442,7 +430,7 @@ using (var heap = new PersistentHeap("MyHeap", 1024 * 64, false))
 ```
 
 For these heap types, records will be flushed to disk after each write, unless the flush is suppressed by a FlushScope instance, as follows:
-
+```C#
 using (var heap = new PersistentHeap("MyHeap", 1024 * 64))
 {
     var item = new CustomItem() { A = 12, B = "Foo" };
@@ -452,6 +440,7 @@ using (var heap = new PersistentHeap("MyHeap", 1024 * 64))
         var key2 = heap.Add(item);
     }
 }
+```
 
 The FlushScope instance will trigger a disk Flush when it disposes, for all the heaps contained within its scope.  There is no guarantee that one or more disk flushes won't occur during the write, as those are goverened by lower-level operating system behaviors.  It will only ensure that any write operations within its scope do not explicitly trigger a buffer flush.  In practice (as you will see in the following benchmark section), wrapping nested write operations inside a flush scope can increase write throuput by several orders of magnitude, and likewise for transacted write operations.
 
@@ -503,6 +492,12 @@ All IPersistentCollection types provide a Compact() method that will scan the en
 
 #####Flush()
 All IPersistentCollection types provide a Flush() method allowing the caller to explicity force the collection to write its buffered content to disk.
+
+#####Grow()
+Grow() allows your application to explicitly increase the size of your collection by a fixed amount.
+
+#####AutoGrowSize
+The AutoGrowSize property allows your application to specify a size to automatizally grow your collection by, in the event that it runs out of capacity.  Setting this to 0 disable auto-growth (default), and causes your collection to maintain a fixed size on disk.
 
 
 ####Performance
