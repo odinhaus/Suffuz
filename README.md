@@ -344,26 +344,111 @@ var bytes = serializer.Serialize(new ComplexPOCO());
 var poco = serializer.Deserialize(bytes);
 ```
 
-
 ##Performance
+As a point of comparison, we benchmarked our compiled binary serializer against the latest version of JSON.Net, in both terms of throughput and payload sizes.  On the whole, our serializer outperformed JSON.Net by about an order of magnitude (10x) on throughput, with a bandwidth reduction of around 40%.
+
 ####Serialization Benchmarks
 ######Suffūz Binary Protocol Serialization
 ```
-Suffūz Bandwidth [Kb]: 72265.625
+Suffūz Bandwidth [Kb]: 72,265
 Serialization:
-Suffuz Throughput [Mb/s]: 96.4828104138852
-Suffūz Rate [Hz]: 1335113.48464619
+Suffuz Throughput [Mb/s]: 96
+Suffūz Rate [MHz]: 1.335
 Deserialization:
-Suffūz Throughput [Mb/s]: 85.3195100354191
-Suffūz Rate [Hz]: 1180637.54427391
+Suffūz Throughput [Mb/s]: 85
+Suffūz Rate [MHz]: 1.180
 ```
 ######NewtonSoft.Json v7
 ```
-Json Bandwidth [Kb]: 121093.75
+Json Bandwidth [Kb]: 121,093
 Serialization:
-Json Throughput [Mb/s]: 15.6290332989158
-Json Rate [Hz]: 129065.565307176
+Json Throughput [Mb/s]: 15
+Json Rate [MHz]: 0.129
 Deserialization:
-Json Throughput [Mb/s]: 12.1506873369456
-Json Rate [Hz]: 100341.15994380
+Json Throughput [Mb/s]: 12
+Json Rate [MHz]: 0.100
 ```
+
+#Persistent Collections
+Another significant component system built to support the communications framework consists of a RDMS-Free persistence platform for storing serializable types in an efficient and transacted manner.
+
+To that end, the Altus.Suffūz.Collections namespace supports a number of core ICollection types, that have built-in support for serialization and persistence to disk for collected instances.
+
+Transacted disk writes can also be opted into/out of using familiar System.Transactions.TransactionScope sematics.  Obviously, transacted write operations cause considerable impact to write performance, which is why we allow you to determine the transaction scope in your application.  You can also create collection types where transaction scope is completely disabled.  In those situations, you can influence disk I/O latency by deferring disk flushing behavior by the use of a IDisposable FlushScope, allowing you to nest tight looping updates inside a flush scope, and then flushing them all to disk together in a single operation.
+
+To further enhance performance, we also allow your individual collections to share a common PersistentHeap.  This places all of your serialized types into a single file, reducing disk seeking across many separate files scattered across the disk.
+
+Taken together, the persistent collection types can provide extremely efficient options to replace cumbersome RDMS or NO-SQL alternatives, when you really just need to store a list of serializable types to disk.
+
+##Sample Code
+###PersistentHeap
+A PersistentHeap places new items at the unwritten end of a file, and allows random access to those items by a numeric key returned after the write operation.
+
+```C#
+using (var heap = new PersistentHeap("MyHeap", 1024 * 64))
+{
+    var item = new CustomItem() { A = 12, B = "Foo" };
+    var key1 = heap.Add(item);
+    var key2 = heap.Add(item);
+}
+```
+
+The sample above creates a new heap called "MyHeap", of a 64 KB fixed size, and adds two items to the heap.  By default, the heap is constructed with implicit transactional writing supported, and fixed length.  The file management system uses NTFS Sparse File support when available, allocating actual disk usage in 64 KB chunks, as needed.  So even though you may commit a 10 MB file to disk, initially, in reality, the file will initially only occupy 64 KB on disk, adding 64 KB as you continue to add to the file.
+
+If you needed both of the Add operations shown above to commit as an atomic unit, then simply wrap the operations in a TransactionScope and Complete() them when finished, as shown below.
+
+```C#
+using (var heap = new PersistentHeap("MyHeap", 1024 * 64))
+{
+    var item = new CustomItem() { A = 12, B = "Foo" };
+    using (var tx = new TransactionScope())
+    {
+        var key1 = heap.Add(item);
+        var key2 = heap.Add(item);
+        tx.Complete();
+    }
+}
+```
+
+If either Add fails in the example above, they will both be rolled back from the Heap's file store.
+
+TransactionScopes can also span multiple PersistentHeaps, like so:
+
+```C#
+using (var heap1 = new PersistentHeap("MyHeap1", 1024 * 64))
+using (var heap2 = new PersistentHeap("MyHeap2", 1024 * 64))
+{
+    var item = new CustomItem() { A = 12, B = "Foo" };
+    using (var tx = new TransactionScope())
+    {
+        var key1 = heap1.Add(item);
+        var key2 = heap2.Add(item);
+        tx.Complete();
+    }
+}
+```
+
+If either Add fails, both heap changes will rollback together.
+
+
+####Writing 
+PersistentHeaps support the following writing operations:
+- Add()
+- Write()
+- WriteUnsafe()
+- Free()
+
+#####Add()
+Add() takes an instance to store, appends it to the heap, and returns a ulong key that can be used to access the stored item.
+
+#####Write()
+Write() takes an instance to store, plus an existing key value, and, if the new value's serialized length exactly matches the length of the existing item in the storage location provided by the key, then it overwites the current location with the new item, otherwise it marks the current item's storage location as no longer in use, and then Adds the item to the heap, returning a new key.
+
+#####Free()
+Free() simply marks the stored item as no longer in use and invalidates its key.
+
+#####WriteUnsafe()
+WriteUnsafe() performs an overwrite operation at the address specified by key, without bounds checking.  If you know that the serialized size of your items will ALWAYS be the same length throughout the life of your application, then WriteUnsafe offers a higher performance option for storing items.  However, if the size of the item changes, the heap will be corrupted and will become unusuable.
+
+
+
