@@ -430,6 +430,31 @@ using (var heap2 = new PersistentHeap("MyHeap2", 1024 * 64))
 
 If either Add fails, both heap changes will rollback together.
 
+If you don't want transaction support for your heap, then you can specify an optional constructor argument to disable it, like so:
+
+```C#
+using (var heap = new PersistentHeap("MyHeap", 1024 * 64, false))
+{
+    var item = new CustomItem() { A = 12, B = "Foo" };
+    var key1 = heap.Add(item);
+    var key2 = heap.Add(item);
+}
+```
+
+For these heap types, records will be flushed to disk after each write, unless the flush is suppressed by a FlushScope instance, as follows:
+
+using (var heap = new PersistentHeap("MyHeap", 1024 * 64))
+{
+    var item = new CustomItem() { A = 12, B = "Foo" };
+    using (var tx = new FlushScope())
+    {
+        var key1 = heap.Add(item);
+        var key2 = heap.Add(item);
+    }
+}
+
+The FlushScope instance will trigger a disk Flush when it disposes, for all the heaps contained within its scope.  There is no guarantee that one or more disk flushes won't occur during the write, as those are goverened by lower-level operating system behaviors.  It will only ensure that any write operations within its scope do not explicitly trigger a buffer flush.  In practice (as you will see in the following benchmark section), wrapping nested write operations inside a flush scope can increase write throuput by several orders of magnitude, and likewise for transacted write operations.
+
 
 ####Writing 
 PersistentHeaps support the following writing operations:
@@ -460,19 +485,38 @@ PersistenHeaps support the following reading operations:
 #####Read()
 Read() returns the deserialized item at the specified key as Object, allowing you to persist mixed types in the non-generic form of PersistentHeap.
 
-#####Read<<TValue>>()
-Read<<TValue>>() returns the deserialized item at the specified key as TValue, assuming the cast operation is successful for non-generic PersistentHeaps.  For generic PersistentHeap<TValue>, there is no cast operation, as only TValue can be serialized into the heap, and the heap will only use the serializer that is associated with TValue.
+#####Read\<TValue\>()
+Read\<TValue\>() returns the deserialized item at the specified key as TValue, assuming the cast operation is successful for non-generic PersistentHeaps.  For generic PersistentHeap<TValue>, there is no cast operation, as only TValue can be serialized into the heap, and the heap will only use the serializer that is associated with TValue.
 
 #####GetEnumerable()
 GetEnumerable() essentially calls Read() for all items in the heap, and returns them as Object in their storage order on disk.
 
 
-#####GetEnumerable<<TValue>>()
-GetEnumerable<<TValue>>() essentially calls Read<TValue>() for all items in the heap, and returns them as TValue in their storage order on disk.  The collection supports all the Linq to Objects extensions provided for IEnumerable<TValue> types.
+#####GetEnumerable\<TValue\>()
+GetEnumerable\<TValue\>() essentially calls Read<TValue>() for all items in the heap, and returns them as TValue in their storage order on disk.  The collection supports all the Linq to Objects extensions provided for IEnumerable<TValue> types.
 
 ####Management
 Over time, for non-fixed sized instances, heap sizes will grow.  Calling Free() does not reclaim the memory used by the item, it simply marks it as no longer valid, and therefore available for collection.  Compacting the heap can be expensive, so it is therefore left up to the application to determine when the heap should be compacted (if ever).
 
 #####Compact()
 All IPersistentCollection types provide a Compact() method that will scan the entire storage system, shrinking all relevant files to their minimum size.
+
+####Performance
+To give some qualitative impact of using the TransactionScope and FlushScope objects describe previously, we benchmarked a simple operation that wrote and read thousands of 32-bit integer values to a PersistentHeap using various combinations of scopes and transactional/non-transactional settings. The results are shown below for a relatively modern i7 laptop with SSD storage.
+
+
+Operation       | Write Rate      | Read Rate      | Flush Scoped | Transaction Scoped
+----------------|-----------------|----------------|--------------|-----------------------
+Int32 Type      | 2,751 op/sec    | 632,911 op/sec | No           | No (Non-Transactional)
+Int32 Type      | 194,931 op/sec  | 662,251 op/sec | Yes          | No (Non-Transactional)
+Int32 Type      | 1,611 op/sec    | 625,000 op/sec | No           | No
+Int32 Type      | 1,612 op/sec    | 625,000 op/sec | Yes/No       | No
+Int32 Type      | 68,493 op/sec   | 625,000 op/sec | Yes/No       | Yes    
+
+As you can see, you can gain or lose much as two orders of magnitude of performance by applying the FlushScope and TransactionScope items to the nested updates.  Read speed was primarily the same as the transaction system allows for uncommitted reads, and uses the same reading technique as the non-transactional collection. 
+
+
+
+#####Flush()
+All IPersistentCollection types provide a Flush() method allowing the caller to explicity force the collection to write its buffered content to disk.
 
