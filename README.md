@@ -61,17 +61,18 @@ Any other simple distributed computing scenarios you might imagine, Suffūz can 
 ##Sample Usage
 ####Remote Execution
 ```C#
-// executes the default call on the CHANNEL, with no arguments or response
-Get.From(Channels.CHANNEL).Execute();
+var testRequest = new TestRequest();
+var commandRequest = new CommandRequest();
 
+//// executes the default call on the CHANNEL, with no arguments or response
+Put.Via(Channels.CHANNEL).Execute();
 
-// executes with no result on the CHANNEL
-Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
-
+//// executes with no result on the CHANNEL
+Put.Via(Channels.CHANNEL, commandRequest).Execute();
 
 // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
 // blocks for the default timeout (Get.DefaultTimeout)
-var result1 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute();
+var result1 = Post<TestRequest, TestResponse>.Via(Channels.CHANNEL, testRequest).Execute();
 
 
 // executes the request on respondants whose capacity exceeds an arbitrary threshold
@@ -82,10 +83,10 @@ var result1 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execut
 // the Delegate expression is evaluated within the respondants' process, such that failing 
 // test prevent the request from beng dispatched to their corresponding handlers, 
 // thus preventing both evaluation and responses
-var result2 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
-                              .Nominate(response => response.Score > TestResponse.SomeNumber())
-                              .Execute();
-
+TestResponse result2 = Post<TestRequest, TestResponse>
+                                .Via(Channels.CHANNEL, testRequest)
+                                .Nominate(response => response.Score > TestResponse.SomeNumber())
+                                .Execute();
 
 // executes a TestRequest call on the CHANNEL, and returns the first result returned from any respondant
 // blocks for the default timeout (Get.DefaultTimeout)
@@ -93,63 +94,77 @@ var result2 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
 // a timeout exception is throw in this case, or if none of the respondant results are received in time
 try
 {
-  var result3 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest()).Execute(500);
+    var result3 = Post<CommandRequest, TestResponse>.Via(Channels.CHANNEL, commandRequest).Execute(500);
 }
-catch(TimeoutException)
+catch (TimeoutException)
 {
-  Logger.LogInfo("Handled Timeout");
+    Logger.LogInfo("Handled Timeout");
 }
 
 // executes a directed TestRequest call on the CHANNEL, for a specific recipient (App.InstanceName), 
 // and returns the first result returned from any respondant
 // blocks for up to 500ms
-var result4 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute(500, App.InstanceName);
-
+var result4 = Post<TestRequest, TestResponse>.Via(Channels.CHANNEL, testRequest).Execute(500, App.InstanceName);
+Debug.Assert(result4 != null);
 
 // executes a TestRequest call on the CHANNEL, and returns all responses received within one second
-var enResult1 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
-                              .Enumerate()
-                              .Execute(1000)
-                              .ToArray();
+var enResult1 = Post<TestRequest, TestResponse>.Via(Channels.CHANNEL, testRequest)
+                                .All()
+                                .Execute(1000)
+                                .ToArray();
+Debug.Assert(enResult1.Length > 0);
 
 // executes a TestRequest call on the CHANNEL, and returns the first two responses received within the Get.DefaultTimeout time period
 // if the terminator condition is not met within the timeout period, the result will contain the responses received up to that time
-var enResult2 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
-                              .Enumerate((responses) => responses.Count() > 2)
-                              .Execute()
-                              .ToArray();
-
+var enResult2 = Post<TestRequest, TestResponse>
+                                .Via(Channels.CHANNEL, testRequest)
+                                .Take(2)
+                                .Execute()
+                                .ToArray();
 
 // executes the request on respondants whose capacity exceeds and arbitrary threshold
 // returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
 // and blocks for 2000 milliseconds while waiting for responses
 // if no responses are received within the timeout, and empty set is returned
 // any responses received after the timeout are ignored
-var enResult3 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
-                              .Nominate(cr => cr.Score > 0.9)
-                              .Enumerate((responses) => responses.Where(r => r.Size > 2))
-                              .Execute(2000)
-                              .ToArray();
-
+var enResult3 = Post<TestRequest, TestResponse>
+                                .Via(Channels.CHANNEL, testRequest)
+                                .Nominate(cr => cr.Score > 0.9)
+                                .Take(r => r.Size > 2)
+                                .Execute(2000)
+                                .ToArray();
 
 // executes the request on respondants whose capacity exceeds and arbitrary threshold
 // returns enumerable results from all respondants where responses meet an arbitrary predicate (Size > 2) which is evaluated locally
-// and blocks until the terminal condition is met (responses.Count() > 0)
-var enResult4 = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest())
-                              .Nominate(cr => cr.Score > 0.9)
-                              .Enumerate((responses) => responses.Where(r => r.Size > 2),
-                                         (reponses) => reponses.Count() > 0)
-                              .Execute()
-                              .ToArray();
-
+// and blocks until the terminal condition is met (ChannelContext.Current.Count > 1)
+var enResult4 = Post<TestRequest, TestResponse>
+                                .Via(Channels.CHANNEL, testRequest)
+                                .Nominate(cr => cr.Score > 0.9)
+                                .Take(r => r.Size > 2)
+                                .Until(r => ChannelContext.Current.Count > 1)
+                                .Execute()
+                                .ToArray();
 
 // in this case, because we're executing an enumeration for an unmapped request/response pair, the call will simply block for the 
-// timeout period, and return no results.  Enumerations DO NOT through timeout exceptions in the absence of any responses, only scalar
+// timeout period, and return no results.  Enumerations DO NOT throw timeout exceptions in the absence of any responses, only scalar
 // execution calls can produce timeout exceptions.
-var enResult5 = Get<TestResponse>.From(Channels.CHANNEL, new CommandRequest())
-                              .Enumerate(responses => responses)
-                              .Execute(500)
-                              .ToArray();
+var enResult5 = Post<CommandRequest, TestResponse>
+                                .Via(Channels.CHANNEL, commandRequest)
+                                .All()
+                                .Execute(500)
+                                .ToArray();
+
+// an alternative calling pattern, allowing the response type to be deferred until after the channel designation.
+// for factory calling patterns, where the construction of the call in terms of what types to return may differ 
+// from one channel to the next for the same request type, but your pipeline determines the channel to call 
+// before it determines the response.
+var ebResult6 = Post.Via(Channels.CHANNEL, testRequest)
+                    .Return<TestResponse>()
+                    .Nominate(cr => cr.Score > 0.5)
+                    .Take(r => r.Size > 2)
+                    .Until(r => ChannelContext.Current.Count > 1)
+                    .Execute()
+                    .ToArray(); 
 ```
 
 ####Message Routing
