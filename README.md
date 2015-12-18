@@ -235,20 +235,22 @@ public class TypeRegistry : IBootstrapper
     /// <returns></returns>
     public IResolveTypes Initialize()
     {
-        var channelService = new MulticastChannelService();
-        // create our channel mappings
-        channelService.Register(Channels.CHANNEL, Channels.CHANNEL_EP);
+        var channelService = App.ResolveAll<IChannelService>().Single(cs => cs.AvailableServiceLevels == ServiceLevels.Default);
+            // create our channel mappings
+            channelService.Register(Channels.CHANNEL, Channels.CHANNEL_EP);
 
-        return new TypeResolver(
-            new Container(c =>
-        {
-            c.For<ISerializationContext>().Use<SerializationContext>();
-            c.For<IServiceRouter>().Use<ServiceRouter>().Singleton();
-            // use the mapped channels above
-            c.For<IChannelService>().Use<MulticastChannelService>(channelService).Singleton();
-            c.For<IBinarySerializerBuilder>().Use<BinarySerializerBuilder>().Singleton();
-            c.For<ISerializer>().Use<ComplexSerializer>();
-        }));
+            var beChannelService = App.ResolveAll<IChannelService>().Single(cs => cs.AvailableServiceLevels == ServiceLevels.BestEffort);
+            // create our best-effort mcast channel mappings
+            beChannelService.Register(
+                Channels.BESTEFFORT_CHANNEL,
+                Channels.BESTEFFORT_CHANNEL_EP,
+                Channels.BESTEFFORT_CHANNEL_TTL);
+
+            return new TypeResolver(
+                new Container(c =>
+            {
+                // define additional mappings here
+            }));
     }
 }
 
@@ -278,10 +280,28 @@ public class TypeResolver : IResolveTypes
 /// Simple Channel mapping constants
 /// </summary>
 public class Channels
-{
-    public static readonly string CHANNEL = "channel1";
-    public static readonly IPEndPoint CHANNEL_EP = new IPEndPoint(IPAddress.Parse("224.0.0.0"), 5000);
-}
+    {
+        /// <summary>
+        /// channel1
+        /// </summary>
+        public static readonly string CHANNEL = "channel1";
+        /// <summary>
+        /// 224.0.0.0
+        /// </summary>
+        public static readonly IPEndPoint CHANNEL_EP = new IPEndPoint(IPAddress.Parse("224.0.0.0"), 5000);
+        /// <summary>
+        /// channel2
+        /// </summary>
+        public static readonly string BESTEFFORT_CHANNEL = "channel2";
+        /// <summary>
+        /// 224.0.0.1
+        /// </summary>
+        public static readonly IPEndPoint BESTEFFORT_CHANNEL_EP = new IPEndPoint(IPAddress.Parse("224.0.0.1"), 5000);
+        /// <summary>
+        /// 30 seconds
+        /// </summary>
+        public static readonly TimeSpan BESTEFFORT_CHANNEL_TTL = TimeSpan.FromSeconds(30);
+    }
 ```
 ##Performance
 ####Serialization Benchmarks
