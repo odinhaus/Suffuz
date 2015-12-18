@@ -455,7 +455,7 @@ PersistenHeaps support the following reading operations:
 - Read()
 - Read<TValue>()
 - GetEnumerable()
-- GetEnumerable<TValue>()
+- GetEnumerable\<TValue\>()
 
 #####Read()
 Read() returns the deserialized item at the specified key as Object, allowing you to persist mixed types in the non-generic form of PersistentHeap.
