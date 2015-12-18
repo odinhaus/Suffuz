@@ -105,7 +105,6 @@ catch (TimeoutException)
 // and returns the first result returned from any respondant
 // blocks for up to 500ms
 var result4 = Post<TestRequest, TestResponse>.Via(Channels.CHANNEL, testRequest).Execute(500, App.InstanceName);
-Debug.Assert(result4 != null);
 
 // executes a TestRequest call on the CHANNEL, and returns all responses received within one second
 var enResult1 = Post<TestRequest, TestResponse>.Via(Channels.CHANNEL, testRequest)
