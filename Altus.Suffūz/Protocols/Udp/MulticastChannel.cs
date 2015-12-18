@@ -117,12 +117,12 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public virtual void Send(byte[] data)
         {
-            lock (SyncRoot)
+            Buffer.SyncLock.Lock(() =>
             {
                 Socket.SendTo(data, SocketFlags.None, this.McastEndPoint);
                 BytesSentRate.IncrementBy(data.Length);
                 BytesSentTotal.IncrementBy(data.Length);
-            }
+            });
         }
 
         public virtual void Send(Message message)
@@ -156,11 +156,11 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public virtual UdpMessage CreateUdpMessage(Message message)
         {
-            lock (SyncRoot)
+            return Buffer.SyncLock.Lock(() =>
             {
                 _buffer.IncrementLocalMessageId();
                 return new UdpMessage(this, message);
-            }
+            });
         }
 
         protected virtual Message Call(Message message, Type responseType)
@@ -259,7 +259,6 @@ namespace Altus.Suffūz.Protocols.Udp
         public bool ExcludeSelf { get; private set; }
         public virtual ServiceLevels ServiceLevels { get { return ServiceLevels.Default; } }
         public virtual TimeSpan DefaultTimeout { get { return TimeSpan.FromSeconds(0); } set { } }
-        public object SyncRoot { get { return _lock; } }
         public ulong MessageId { get { return _buffer.LocalMessageId; } }
         public ulong SegmentId { get { return _buffer.LocalSegmentId; } }
         public string Name { get; private set; }

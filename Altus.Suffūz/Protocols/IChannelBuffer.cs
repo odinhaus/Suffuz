@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Altus.Suffūz.Threading;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -61,5 +62,9 @@ namespace Altus.Suffūz.Protocols
         /// <param name="instanceId"></param>
         /// <returns></returns>
         ulong RemoteMessageId(ushort instanceId);
+        /// <summary>
+        /// Exclusive locking mechanism for the channel buffer
+        /// </summary>
+        ExclusiveLock SyncLock { get; }
     }
 }

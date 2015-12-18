@@ -53,12 +53,12 @@ namespace Altus.Suffūz.Protocols.Udp
             get;
             private set;
         }
+        public ExclusiveLock SyncLock { get { return _syncLock; } }
         protected IScheduler Scheduler { get { return _scheduler; } }
         //protected IPersistentDictionary<ushort, ulong> MessageIds { get { return _messageIds; } }
         protected IDictionary<ulong, ushort> SegmentNumbers { get { return _segmentNumbers; } }
         protected IDictionary<ulong, SegmentList> Segments { get { return _segments; } }
         protected IPersistentDictionary<ushort, ulong> SegmentIds {  get { return _segmentIds; } }
-
         protected List<ExpirationTask> Tasks {  get { return _tasks; } }
 
         ulong _localMessageId = 0;
@@ -74,7 +74,7 @@ namespace Altus.Suffūz.Protocols.Udp
         {
             get
             {
-                return _syncLock.Lock(() =>
+                return SyncLock.Lock(() =>
                 {
                     var id = _segmentIds[0];
                     id++;
@@ -86,7 +86,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public ulong IncrementLocalMessageId()
         {
-            return _syncLock.Lock(() =>
+            return SyncLock.Lock(() =>
             {
                 _localMessageId++;
                 _messageIds[0] = _localMessageId;
@@ -163,7 +163,8 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void Compact()
         {
-            _syncLock.Lock(() =>
+            return;
+            SyncLock.Lock(() =>
             {
                 _messageIds.Compact();
                 _segmentIds.Compact();
@@ -174,7 +175,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public virtual void AddInboundSegment(MessageSegment segment)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 using (var scope = new FlushScope())
                 {
@@ -201,7 +202,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void UpdateSegmentId(MessageSegment segment)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 if (!_segmentIds.ContainsKey(segment.Sender) || segment.SegmentId > _segmentIds[segment.Sender])
                 {
@@ -214,7 +215,7 @@ namespace Altus.Suffūz.Protocols.Udp
         protected virtual SegmentList AddMessageSegment(MessageSegment segment)
         {
             SegmentList segments = null;
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 if (!_segments.TryGetValue(segment.MessageId, out segments))
                 {
@@ -243,7 +244,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void UpdateMessageSegments(ulong messageId, SegmentList segments)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 _segments[messageId] = segments;
             });
@@ -251,7 +252,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void UpdateMessageId(ushort instanceId, ulong messageId)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 _messageIds[instanceId] = messageId;
             });
@@ -259,7 +260,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void UpdateSegmentNumber(ulong messageId, ushort segmentNumber)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 _segmentNumbers[messageId] = segmentNumber;
             });
@@ -272,7 +273,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void RemoveInboundMessage(ulong messageId)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 _segments.Remove(messageId);
                 _segmentNumbers.Remove(messageId);
@@ -305,12 +306,12 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public virtual ulong RemoteMessageId(ushort instanceId)
         {
-            return _syncLock.Lock(() => _messageIds[instanceId]);
+            return SyncLock.Lock(() => _messageIds[instanceId]);
         }
 
         public virtual void Reset()
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 if (!IsInitialized)
                     throw new InvalidOperationException("The channel buffer has not been initialized");

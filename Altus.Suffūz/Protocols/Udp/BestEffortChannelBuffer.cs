@@ -55,7 +55,8 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected override void Compact()
         {
-            _syncLock.Lock(() =>
+            return;
+            SyncLock.Lock(() =>
             {
                 _nakBuffer.Compact();
                 base.Compact();
@@ -64,7 +65,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public override void Reset()
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 if (!IsInitialized)
                     throw new InvalidOperationException("The channel buffer has not been initialized");
@@ -80,7 +81,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public void AddRetrySegment(MessageSegment segment)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 var now = CurrentTime.Now;
                 if (segment.TimeToLive.TotalMilliseconds > 0)
@@ -104,7 +105,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public void RemoveRetrySegment(ulong segmentId)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 _nakBuffer.Remove(segmentId);
                 var task = Tasks.SingleOrDefault(t => t.Task == Scheduler.CurrentTask);
@@ -118,7 +119,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         public MessageSegment GetRetrySegement(ulong segmentId)
         {
-            return _syncLock.Lock(() =>
+            return SyncLock.Lock(() =>
             {
                 try
                 {
@@ -134,7 +135,7 @@ namespace Altus.Suffūz.Protocols.Udp
         Dictionary<ushort, List<MessageSegment>> _sortedSegments = new Dictionary<ushort, List<MessageSegment>>();
         public override void AddInboundSegment(MessageSegment segment)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 if (!(segment is UdpSegmentNAK))
                 {
@@ -150,7 +151,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected override void RemoveInboundMessage(ulong messageId)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 ushort sender;
                 ulong seqNo;
@@ -194,7 +195,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void SendMissingSegments(UdpSegmentNAK udpSegmentNAK)
         {
-            _syncLock.Lock(() => 
+            SyncLock.Lock(() => 
             {
                 for(ulong i = udpSegmentNAK.SegmentStart; i < udpSegmentNAK.SegmentEnd; i++)
                 {
@@ -222,7 +223,7 @@ namespace Altus.Suffūz.Protocols.Udp
             // as the range of missed packets is reduced when new packets arrive.  The only way to avoid this would be to 
             // move the NAK/retry process onto a more complex and separate background process that uses its own timing loop
             // to request missing items, rather than using the arrival of new packets as the trigger to check for missed items
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 MessageSegment segment = null, lastSegment = null;
                 List<MessageSegment> segments = _sortedSegments[sender];
@@ -251,7 +252,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void AddSortedSegment(MessageSegment segment)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 List<MessageSegment> segments;
                 if (!_sortedSegments.TryGetValue(segment.Sender, out segments))
@@ -292,7 +293,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void RemoveSortedSegment(MessageSegment segment)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 var segments = _sortedSegments[segment.Sender];
                 segments.Remove(segment);
@@ -302,7 +303,7 @@ namespace Altus.Suffūz.Protocols.Udp
         Dictionary<ushort, List<MissedSegmentsEventArgs>> _pendingNAKs = new Dictionary<ushort, List<MissedSegmentsEventArgs>>();
         protected virtual void OnMissedSegments(ushort senderId, ulong startSegment, ulong endSegment, TimeSpan timeToLive)
         {
-            _syncLock.Lock(() => 
+            SyncLock.Lock(() => 
             {
                 List<MissedSegmentsEventArgs> missed;
                 if (!_pendingNAKs.TryGetValue(senderId, out missed))
@@ -329,7 +330,7 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void RemoveMissedSegment(MissedSegmentsEventArgs me)
         {
-            _syncLock.Lock(() =>
+            SyncLock.Lock(() =>
             {
                 List<MissedSegmentsEventArgs> missed;
                 if (_pendingNAKs.TryGetValue(me.SenderId, out missed))

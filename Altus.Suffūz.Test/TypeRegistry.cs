@@ -61,12 +61,12 @@ namespace Altus.Suffūz.Test
             // create our channel mappings
             channelService.Register(Channels.CHANNEL, Channels.CHANNEL_EP);
 
-            //var beChannelService = new BestEffortMulticastChannelService();
-            //// create our best-effort mcast channel mappings
-            //beChannelService.Register(
-            //    Channels.BESTEFFORT_CHANNEL, 
-            //    Channels.BESTEFFORT_CHANNEL_EP, 
-            //    Channels.BESTEFFORT_CHANNEL_TTL);
+            var beChannelService = App.ResolveAll<IChannelService>().Single(cs => cs.AvailableServiceLevels == ServiceLevels.BestEffort);
+            // create our best-effort mcast channel mappings
+            beChannelService.Register(
+                Channels.BESTEFFORT_CHANNEL,
+                Channels.BESTEFFORT_CHANNEL_EP,
+                Channels.BESTEFFORT_CHANNEL_TTL);
 
             return new TypeResolver(
                 new Container(c =>

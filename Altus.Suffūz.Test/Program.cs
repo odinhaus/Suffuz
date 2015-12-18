@@ -273,7 +273,7 @@ namespace Altus.Suffūz
                   .Nominate(() => CostFunctions.CapacityCost(25d, 0d, 100d))
                   .Delay((capacity) => TimeSpan.FromMilliseconds(5000d * (1d - capacity.Score)));
 
-            //router.Route<Handler, TestRequest, TestResponse>(Channels.BESTEFFORT_CHANNEL, (handler, request) => handler.HandleBE(request));
+            router.Route<Handler, TestRequest, TestResponse>(Channels.BESTEFFORT_CHANNEL, (handler, request) => handler.HandleBE(request));
         }
 
 
@@ -290,7 +290,7 @@ namespace Altus.Suffūz
 
             Console.Read();
 
-            var count = 1000f;
+            var count = 10000f;
             var sw = new Stopwatch();
             //sw.Start();
             //for (int i = 0; i < count; i++)
@@ -315,26 +315,26 @@ namespace Altus.Suffūz
             sw.Start();
             using (var scope = new FlushScope())
             {
-                //using (var tx = new TransactionScope())
-                //{
-                for (int i = 0; i < count; i++)
+                using (var tx = new TransactionScope())
                 {
-                    var message = new Message(StandardFormats.BINARY, "channel1", ServiceType.RequestResponse, App.InstanceName)
+                    for (int i = 0; i < count; i++)
                     {
-                        Payload = new RoutablePayload(new TestRequest(), typeof(TestRequest), typeof(TestResponse)),
-                        Recipients = new string[] { "*" }
-                    };
+                        var message = new Message(StandardFormats.BINARY, "channel1", ServiceType.RequestResponse, App.InstanceName)
+                        {
+                            Payload = new RoutablePayload(new TestRequest(), typeof(TestRequest), typeof(TestResponse)),
+                            Recipients = new string[] { "*" }
+                        };
 
-                    var udpMessage = new UdpMessage(channel, message);
-                    buffer.AddInboundSegment(udpMessage.UdpHeaderSegment);
-                    for (int x = 0; x < udpMessage.UdpSegments.Length; x++)
-                    {
-                        buffer.AddInboundSegment(udpMessage.UdpSegments[x]);
+                        var udpMessage = new UdpMessage(channel, message);
+                        buffer.AddInboundSegment(udpMessage.UdpHeaderSegment);
+                        for (int x = 0; x < udpMessage.UdpSegments.Length; x++)
+                        {
+                            buffer.AddInboundSegment(udpMessage.UdpSegments[x]);
+                        }
+
                     }
-
+                    tx.Complete();
                 }
-                //    tx.Complete();
-                //}
             }
             sw.Stop();
             var bufferRate = count / (sw.ElapsedMilliseconds / 1000f);
@@ -369,7 +369,7 @@ namespace Altus.Suffūz
                 for (int i = 0; i < count / 10; i++)
                 {
 
-                    var r = Get<TestResponse>.From(Channels.CHANNEL, new TestRequest()).Execute(1000000);
+                    var r = Get<TestResponse>.From(Channels.BESTEFFORT_CHANNEL, new TestRequest()).Execute(100000);
 
                     //Debug.Assert(r.Size > 0);
                     //Get.From(Channels.CHANNEL, new CommandRequest()).Execute();

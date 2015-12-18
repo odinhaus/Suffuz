@@ -45,7 +45,7 @@ namespace Altus.Suffūz.Collections
             else if (pointer.TransactionScope == null)
             {
                 pointer.TransactionScope = new TransactionScope();
-                collection.SyncLock.Enter();
+                //collection.SyncLock.Enter();
             }
             pointer.RefCount++;
             return pointer;
@@ -286,17 +286,23 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                if (HasUpdates)
+                try
                 {
-                    WALFile.SetLength(0);
-                    WALFile.Close();
-                    //File.Delete(WALFilePath);
+                    if (HasUpdates)
+                    {
+                        WALFile.SetLength(0);
+                        WALFile.Close();
+                        //File.Delete(WALFilePath);
+                    }
+                }
+                finally
+                {
+                    enlistment.Done();
+                    _pointers.Remove(Collection);
                 }
             }
             finally
             {
-                enlistment.Done();
-                _pointers.Remove(Collection);
                 Collection.SyncLock.Exit(); // allow others to enter now
             }
         }
@@ -337,23 +343,29 @@ namespace Altus.Suffūz.Collections
         {
             try
             {
-                if (HasUpdates)
+                try
                 {
-                    WriteTxRollback();
-                    WALFile.Flush();
+                    if (HasUpdates)
+                    {
+                        WriteTxRollback();
+                        WALFile.Flush();
 
-                    Recover();
+                        Recover();
 
-                    _pointers.Remove(Collection);
+                        _pointers.Remove(Collection);
 
-                    WALFile.Close();
-                    File.Delete(WALFilePath);
+                        WALFile.Close();
+                        File.Delete(WALFilePath);
+                    }
+                }
+                finally
+                {
+                    enlistment.Done();
                 }
             }
             finally
             {
                 Collection.SyncLock.Exit(); // allow others to enter now
-                enlistment.Done();
             }
         }
 
