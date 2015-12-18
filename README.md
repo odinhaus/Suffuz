@@ -58,8 +58,8 @@ In the latter case, where the same work request is distributed across N concurre
 Any other simple distributed computing scenarios you might imagine, Suffūz can probably give you a good place to start.
 
 
-#Sample Usage
-###Remote Execution
+#Remote Execution
+###Sample Code
 ```C#
 var testRequest = new TestRequest();
 var commandRequest = new CommandRequest();
@@ -450,5 +450,29 @@ Free() simply marks the stored item as no longer in use and invalidates its key.
 #####WriteUnsafe()
 WriteUnsafe() performs an overwrite operation at the address specified by key, without bounds checking.  If you know that the serialized size of your items will ALWAYS be the same length throughout the life of your application, then WriteUnsafe offers a higher performance option for storing items.  However, if the size of the item changes, the heap will be corrupted and will become unusuable.
 
+####Reading
+PersistenHeaps support the following reading operations:
+- Read()
+- Read<TValue>()
+- GetEnumerable()
+- GetEnumerable<TValue>()
 
+#####Read()
+Read() returns the deserialized item at the specified key as Object, allowing you to persist mixed types in the non-generic form of PersistentHeap.
+
+#####Read<TValue>()
+Read<TValue>() returns the deserialized item at the specified key as TValue, assuming the cast operation is successful for non-generic PersistentHeaps.  For generic PersistentHeap<TValue>, there is no cast operation, as only TValue can be serialized into the heap, and the heap will only use the serializer that is associated with TValue.
+
+#####GetEnumerable()
+GetEnumerable() essentially calls Read() for all items in the heap, and returns them as Object in their storage order on disk.
+
+
+#####GetEnumerable<TValue>()
+GetEnumerable<TValue>() essentially calls Read<TValue>() for all items in the heap, and returns them as TValue in their storage order on disk.  The collection supports all the Linq to Objects extensions provided for IEnumerable<TValue> types.
+
+####Management
+Over time, for non-fixed sized instances, heap sizes will grow.  Calling Free() does not reclaim the memory used by the item, it simply marks it as no longer valid, and therefore available for collection.  Compacting the heap can be expensive, so it is therefore left up to the application to determine when the heap should be compacted (if ever).
+
+#####Compact()
+All IPersistentCollection types provide a Compact() method that will scan the entire storage system, shrinking all relevant files to their minimum size.
 
