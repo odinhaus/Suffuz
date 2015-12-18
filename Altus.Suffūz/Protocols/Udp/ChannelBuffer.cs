@@ -28,13 +28,12 @@ namespace Altus.Suffūz.Protocols.Udp
         //IPersistentDictionary<ulong, SegmentList> _segments;
 
         protected ExclusiveLock _syncLock;
-
-        //IDictionary<ushort, ulong> _sequenceNumbers;
+        
         IDictionary<ulong, ushort> _segmentNumbers;
         IDictionary<ulong, SegmentList> _segments;
 
         IScheduler _scheduler;
-        List<ExpirationTask> _tasks = new List<ExpirationTask>();
+        Dictionary<Guid, ExpirationTask> _tasks = new Dictionary<Guid, ExpirationTask>();
 
         public ChannelBuffer()
         {
@@ -55,11 +54,10 @@ namespace Altus.Suffūz.Protocols.Udp
         }
         public ExclusiveLock SyncLock { get { return _syncLock; } }
         protected IScheduler Scheduler { get { return _scheduler; } }
-        //protected IPersistentDictionary<ushort, ulong> MessageIds { get { return _messageIds; } }
         protected IDictionary<ulong, ushort> SegmentNumbers { get { return _segmentNumbers; } }
         protected IDictionary<ulong, SegmentList> Segments { get { return _segments; } }
         protected IPersistentDictionary<ushort, ulong> SegmentIds {  get { return _segmentIds; } }
-        protected List<ExpirationTask> Tasks {  get { return _tasks; } }
+        protected Dictionary<Guid, ExpirationTask> Tasks {  get { return _tasks; } }
 
         ulong _localMessageId = 0;
         public ulong LocalMessageId
@@ -104,13 +102,11 @@ namespace Altus.Suffūz.Protocols.Udp
                    .GetOrCreate<IPersistentDictionary<ushort, ulong>>(
                        Channel.Name + "_messageIds.bin",
                        (name) => new PersistentDictionary<ushort, ulong>(name, manager.GlobalHeap, true));
-            _messageIds.Compact();
 
             _segmentIds = manager
                    .GetOrCreate<IPersistentDictionary<ushort, ulong>>(
                        Channel.Name + "_segmentIds.bin",
                        (name) => new PersistentDictionary<ushort, ulong>(name, manager.GlobalHeap, true));
-            _segmentIds.Compact();
 
             _syncLock = _messageIds.SyncLock;
            
@@ -127,7 +123,7 @@ namespace Altus.Suffūz.Protocols.Udp
                         var task = _scheduler.Schedule(timeout,
                             (messageId) => { RemoveInboundMessage(messageId); },
                             () => seg.Key);
-                        Tasks.Add(new ExpirationTask(seg.Key, task));
+                        Tasks.Add(task.Id, new ExpirationTask(seg.Key, task));
                         continue;
                     }
                 }
@@ -149,9 +145,6 @@ namespace Altus.Suffūz.Protocols.Udp
                 _segmentIds[0] = segmentId;
             }
 
-            // keep the buffers compacted
-            _scheduler.Schedule(BUFFER_COMPACT_INTERVAL, () => Compact());
-
             IsInitialized = true;
         }
 
@@ -159,18 +152,6 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void OnTaskExpired(object sender, TaskExpiredEventArgs e)
         {
-        }
-
-        protected virtual void Compact()
-        {
-            return;
-            SyncLock.Lock(() =>
-            {
-                _messageIds.Compact();
-                _segmentIds.Compact();
-                //_segmentNumbers.Compact();
-                //_segments.Compact();
-            });
         }
 
         public virtual void AddInboundSegment(MessageSegment segment)
@@ -183,8 +164,6 @@ namespace Altus.Suffūz.Protocols.Udp
                     var segments = AddMessageSegment(segment);
                     UpdateMessageSegments(segment.MessageId, segments);
                     UpdateSegmentNumber(segment.MessageId, segment.SegmentNumber);
-                    UpdateSegmentId(segment);
-
 
                     if (segments.Segments.Count == segment.SegmentCount)
                     {
@@ -196,18 +175,6 @@ namespace Altus.Suffūz.Protocols.Udp
                             AfterMessageReceived(udpMessage.MessageId);
                         }
                     }
-                }
-            });
-        }
-
-        protected virtual void UpdateSegmentId(MessageSegment segment)
-        {
-            SyncLock.Lock(() =>
-            {
-                if (!_segmentIds.ContainsKey(segment.Sender) || segment.SegmentId > _segmentIds[segment.Sender])
-                {
-                    // only update the segment if it's greater than our greatest segment id for this sender
-                    _segmentIds[segment.Sender] = segment.SegmentId;
                 }
             });
         }
@@ -229,7 +196,7 @@ namespace Altus.Suffūz.Protocols.Udp
                         var task = _scheduler.Schedule(segments.Created.Add(segment.TimeToLive),
                             (messageId) => { RemoveInboundMessage(messageId); },
                             () => segment.MessageId);
-                        Tasks.Add(new ExpirationTask(segment.MessageId, task));
+                        Tasks.Add(task.Id, new ExpirationTask(segment.MessageId, task));
                     }
                 }
             });
@@ -252,6 +219,8 @@ namespace Altus.Suffūz.Protocols.Udp
 
         protected virtual void UpdateMessageId(ushort instanceId, ulong messageId)
         {
+            if (instanceId != 0) return; // we only store our own messageId
+
             SyncLock.Lock(() =>
             {
                 _messageIds[instanceId] = messageId;
@@ -278,12 +247,7 @@ namespace Altus.Suffūz.Protocols.Udp
                 _segments.Remove(messageId);
                 _segmentNumbers.Remove(messageId);
 
-                var task = Tasks.SingleOrDefault(t => t.Task == Scheduler.CurrentTask);
-                if (task != null)
-                {
-                    task.Task.Cancel();
-                    Tasks.Remove(task);
-                }
+                Tasks.Remove(Scheduler.CurrentTask?.Id ?? Guid.Empty);
             });
         }
 
@@ -304,11 +268,6 @@ namespace Altus.Suffūz.Protocols.Udp
             return message.IsComplete;
         }
 
-        public virtual ulong RemoteMessageId(ushort instanceId)
-        {
-            return SyncLock.Lock(() => _messageIds[instanceId]);
-        }
-
         public virtual void Reset()
         {
             SyncLock.Lock(() =>
@@ -317,7 +276,7 @@ namespace Altus.Suffūz.Protocols.Udp
                     throw new InvalidOperationException("The channel buffer has not been initialized");
                 _scheduler.TaskExpired -= OnTaskExpired;
 
-                foreach (var item in Tasks)
+                foreach (var item in Tasks.Values)
                 {
                     item.Task.Cancel();
                 }

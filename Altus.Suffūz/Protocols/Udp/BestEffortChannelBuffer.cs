@@ -43,7 +43,7 @@ namespace Altus.Suffūz.Protocols.Udp
                         var task = this.Scheduler.Schedule(timeout,
                             (segmentId) => { RemoveRetrySegment(segmentId);  },
                             () => nak.Key);
-                        this.Tasks.Add(new ExpirationTask(nak.Key, task));
+                        this.Tasks.Add(task.Id, new ExpirationTask(nak.Key, task));
                         continue;
                     }
                     _nakBuffer.Remove(nak.Key);
@@ -53,13 +53,11 @@ namespace Altus.Suffūz.Protocols.Udp
             }
         }
 
-        protected override void Compact()
+        protected virtual void Compact()
         {
-            return;
             SyncLock.Lock(() =>
             {
                 _nakBuffer.Compact();
-                base.Compact();
             });
         }
 
@@ -93,7 +91,7 @@ namespace Altus.Suffūz.Protocols.Udp
                     var task = this.Scheduler.Schedule(now.Add(segment.TimeToLive),
                            (segmentId) => RemoveRetrySegment(segmentId),
                            () => segment.SegmentId);
-                    this.Tasks.Add(new ExpirationTask(segment.SegmentId, task));
+                    this.Tasks.Add(task.Id, new ExpirationTask(segment.SegmentId, task));
                 }
             });
         }
@@ -108,12 +106,7 @@ namespace Altus.Suffūz.Protocols.Udp
             SyncLock.Lock(() =>
             {
                 _nakBuffer.Remove(segmentId);
-                var task = Tasks.SingleOrDefault(t => t.Task == Scheduler.CurrentTask);
-                if (task != null)
-                {
-                    task.Task.Cancel();
-                    Tasks.Remove(task);
-                }
+                Tasks.Remove(Scheduler.CurrentTask?.Id ?? Guid.Empty);
             });
         }
 

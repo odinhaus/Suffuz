@@ -287,7 +287,7 @@ namespace Altus.Suffūz.Collections
         {
             SyncLock.Lock(() =>
             {
-                if (_values != null)
+                if (_values != null && OwnsHeap)
                 {
                     _values.Compact();
                 }

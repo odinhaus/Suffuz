@@ -30,7 +30,7 @@ namespace Altus.Suffūz.Protocols
             this.Id = Guid.NewGuid().ToString();
             this.MessageType = OnGetMessageType();
             this.Timestamp = CurrentTime.Now;
-            this.TTL = TimeSpan.FromSeconds(90);
+            this.TTL = TimeSpan.FromSeconds(5);
             this.PayloadFormat = payloadFormat;
             this.CorrelationId = string.Empty;
         }
@@ -41,7 +41,7 @@ namespace Altus.Suffūz.Protocols
             this.CorrelationId = "";
             this.MessageType = OnGetMessageType();
             this.Timestamp = CurrentTime.Now;
-            this.TTL = TimeSpan.FromSeconds(90);
+            this.TTL = TimeSpan.FromSeconds(5);
             this.PayloadFormat = payloadFormat;
             this.CorrelationId = string.Empty;
         }

@@ -82,7 +82,6 @@ namespace Altus.Suffūz.Protocols
                     fixed (byte* Pointer = Data)
                     {
                         _id = *(((ulong*)(Pointer + 1)));
-                        _id = (_id << 16) >> 16; // trim off the sender id
                     }
                 }
                 return _id;

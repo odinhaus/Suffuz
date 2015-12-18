@@ -83,7 +83,7 @@ namespace Altus.Suffūz.Collections
                 {
                     _scopes.Pop();
 
-                    if (_scopes.Count == 0)
+                    if (_scopes.Count == 0 && _flushables != null)
                     {
                         foreach(var flushable in _flushables)
                         {

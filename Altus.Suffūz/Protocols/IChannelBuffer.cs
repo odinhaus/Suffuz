@@ -57,12 +57,6 @@ namespace Altus.Suffūz.Protocols
         /// <returns></returns>
         ulong IncrementLocalMessageId();
         /// <summary>
-        /// Gets latest inbound message id from remote senders
-        /// </summary>
-        /// <param name="instanceId"></param>
-        /// <returns></returns>
-        ulong RemoteMessageId(ushort instanceId);
-        /// <summary>
         /// Exclusive locking mechanism for the channel buffer
         /// </summary>
         ExclusiveLock SyncLock { get; }

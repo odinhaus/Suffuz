@@ -19,6 +19,7 @@ using System.Linq;
 using System.Security.AccessControl;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Transactions;
 
@@ -369,7 +370,7 @@ namespace Altus.Suffūz
                 for (int i = 0; i < count / 10; i++)
                 {
 
-                    var r = Get<TestResponse>.From(Channels.BESTEFFORT_CHANNEL, new TestRequest()).Execute(100000);
+                    var r = Get<TestResponse>.From(Channels.BESTEFFORT_CHANNEL, new TestRequest()).Execute();
 
                     //Debug.Assert(r.Size > 0);
                     //Get.From(Channels.CHANNEL, new CommandRequest()).Execute();
@@ -378,7 +379,6 @@ namespace Altus.Suffūz
             sw.Stop();
             Console.WriteLine("Mean Call Time: {0} ms", sw.ElapsedMilliseconds / (count/10f));
             sw.Reset();
-            Console.Read();
 
             //// executes the default call on the CHANNEL, with no arguments or response
             Get.From(Channels.CHANNEL).Execute();
@@ -485,10 +485,14 @@ namespace Altus.Suffūz
             System.Threading.Thread.Sleep(20);
 
             var scheduler = App.Resolve<IScheduler>();
-            Console.WriteLine("Scheduled Tasks: {0}", scheduler.Count());
+            do
+            {
+                Console.WriteLine("Scheduled Tasks: {0}", scheduler.Count());
+                Thread.Sleep(2000);
+            } while (scheduler.Count() > 10);
 
             Console.WriteLine("Tests Complete");
-            Console.Read();
+            Console.ReadLine();
         }
     }
 

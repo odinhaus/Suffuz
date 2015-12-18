@@ -61,7 +61,25 @@ namespace Altus.Suffūz.Scheduling
                     {
                         if (task.Schedule[now].IsScheduled(now.Ticks))
                         {
-                            _runners.Add(task, new TaskRunner(task));
+                            if (task.Schedule is FixedCalendricalSchedule && task.Schedule.Interval == 0)
+                            {
+                                // these are single-fire tasks, so just execute them
+                                ThreadPool.QueueUserWorkItem((state) =>
+                                {
+                                    var t = (IScheduledTask)state;
+                                    Scheduler._currentTask = t;
+                                    t.Execute(t.ExecuteArgs());
+                                    Scheduler._currentTask = null;
+                                }, task);
+                                lock (this)
+                                {
+                                    _tasks.Remove(task);
+                                }
+                            }
+                            else
+                            {
+                                _runners.Add(task, new TaskRunner(task));
+                            }
                         }
                         else if (task.Schedule.Interval < 0)
                         {
@@ -97,7 +115,7 @@ namespace Altus.Suffūz.Scheduling
         }
 
         [ThreadStatic]
-        IScheduledTask _currentTask = null;
+        static IScheduledTask _currentTask = null;
         public IScheduledTask CurrentTask { get { return _currentTask; } }
 
         private List<IScheduledTask> Tasks
@@ -127,7 +145,7 @@ namespace Altus.Suffūz.Scheduling
                 Stopwatch sw = new Stopwatch();
                 long elapsed = 0;
                 sw.Start();
-                Scheduler.Current._currentTask = Task;
+                Scheduler._currentTask = Task;
                 while (!IsExpired)
                 {
                     Task.Execute(Task.ExecuteArgs());
@@ -149,7 +167,11 @@ namespace Altus.Suffūz.Scheduling
 
         public IEnumerator<IScheduledTask> GetEnumerator()
         {
-            return Tasks.GetEnumerator();
+            lock(this)
+            {
+                foreach (var task in Tasks.ToArray())
+                    yield return task;
+            }
         }
 
         IEnumerator IEnumerable.GetEnumerator()

@@ -8,6 +8,7 @@ namespace Altus.Suffūz.Scheduling
 {
     public interface IScheduledTask
     {
+        Guid Id { get; }
         object Execute(object[] args);
         Schedule Schedule { get; }
         Func<object[]> ExecuteArgs { get; }
