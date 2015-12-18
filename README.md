@@ -460,15 +460,15 @@ PersistenHeaps support the following reading operations:
 #####Read()
 Read() returns the deserialized item at the specified key as Object, allowing you to persist mixed types in the non-generic form of PersistentHeap.
 
-#####Read<TValue>()
-Read<TValue>() returns the deserialized item at the specified key as TValue, assuming the cast operation is successful for non-generic PersistentHeaps.  For generic PersistentHeap<TValue>, there is no cast operation, as only TValue can be serialized into the heap, and the heap will only use the serializer that is associated with TValue.
+#####Read<<TValue>>()
+Read<<TValue>>() returns the deserialized item at the specified key as TValue, assuming the cast operation is successful for non-generic PersistentHeaps.  For generic PersistentHeap<TValue>, there is no cast operation, as only TValue can be serialized into the heap, and the heap will only use the serializer that is associated with TValue.
 
 #####GetEnumerable()
 GetEnumerable() essentially calls Read() for all items in the heap, and returns them as Object in their storage order on disk.
 
 
-#####GetEnumerable<TValue>()
-GetEnumerable<TValue>() essentially calls Read<TValue>() for all items in the heap, and returns them as TValue in their storage order on disk.  The collection supports all the Linq to Objects extensions provided for IEnumerable<TValue> types.
+#####GetEnumerable<<TValue>>()
+GetEnumerable<<TValue>>() essentially calls Read<TValue>() for all items in the heap, and returns them as TValue in their storage order on disk.  The collection supports all the Linq to Objects extensions provided for IEnumerable<TValue> types.
 
 ####Management
 Over time, for non-fixed sized instances, heap sizes will grow.  Calling Free() does not reclaim the memory used by the item, it simply marks it as no longer valid, and therefore available for collection.  Compacting the heap can be expensive, so it is therefore left up to the application to determine when the heap should be compacted (if ever).
