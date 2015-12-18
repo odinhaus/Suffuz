@@ -58,8 +58,8 @@ In the latter case, where the same work request is distributed across N concurre
 Any other simple distributed computing scenarios you might imagine, Suffūz can probably give you a good place to start.
 
 
-##Sample Usage
-####Remote Execution
+#Sample Usage
+###Remote Execution
 ```C#
 var testRequest = new TestRequest();
 var commandRequest = new CommandRequest();
@@ -317,6 +317,34 @@ public class Channels
     public static readonly TimeSpan BESTEFFORT_CHANNEL_TTL = TimeSpan.FromSeconds(30);
 }
 ```
+
+#Serialization
+To support the communications platform, Suffūz includes its own high-speed binary serialization system which can be used with or without the remote execution components.
+
+To serialize a type, you must first decorate the public Properties or Fields with an  Altus.Suffūz.Serialization.Binary.BinarySerializableAttribute (Property members must also have both public Get and Set accessors) and the type must have a public parameterless constructor.
+
+```C#
+public class CustomItem
+{
+    [BinarySerializable(0)]
+    public int A { get; set; }
+    [BinarySerializable(1)]
+    public string B { get; set; }
+}
+```
+
+The numeric values represent serialization sort order, which must be preserved when serializing over heterogenous type system environments.
+
+To access an instance capable of serializing your type, obtain a reference to Altus.Suffūz.Serialization.ISerializationContext from the DI system, from which you can obtain an ISerializer for your type, as follows:
+
+```C#
+var serializationContext = App.Resolve<ISerializationContext>();
+var serializer = serializationContext.GetSerializer<ComplexPOCO>(StandardFormats.BINARY);
+var bytes = serializer.Serialize(new ComplexPOCO());
+var poco = serializer.Deserialize(bytes);
+```
+
+
 ##Performance
 ####Serialization Benchmarks
 ######Suffūz Binary Protocol Serialization
