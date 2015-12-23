@@ -371,7 +371,7 @@ namespace Altus.Suffūz
                 for (int i = 0; i < count / 10; i++)
                 {
 
-                    var r = Post<TestResponse>.Via(Channels.BESTEFFORT_CHANNEL, new TestRequest()).Execute();
+                    var r = Post<TestRequest, TestResponse>.Via(Channels.BESTEFFORT_CHANNEL, new TestRequest()).Execute();
 
                     //Debug.Assert(r.Size > 0);
                     //Get.From(Channels.CHANNEL, new CommandRequest()).Execute();

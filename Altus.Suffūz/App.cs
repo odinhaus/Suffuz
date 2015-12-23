@@ -1,6 +1,7 @@
 ﻿
 using Altus.Suffūz.Collections;
 using Altus.Suffūz.DependencyInjection;
+using Altus.Suffūz.Observables;
 using Altus.Suffūz.Protocols;
 using Altus.Suffūz.Protocols.Udp;
 using Altus.Suffūz.Routing;
@@ -158,6 +159,14 @@ namespace Altus.Suffūz
             else if (type == typeof(IScheduler))
             {
                 resolvers = new List<Delegate> { new Func<IScheduler>(() => Scheduler.Current) };
+            }
+            else if (type == typeof(IPublisher))
+            {
+                resolvers = new List<Delegate> { new Func<IPublisher>(() => new Publisher()) };
+            }
+            else if (type == typeof(IObservableBuilder))
+            {
+                resolvers = new List<Delegate> { new Func<IObservableBuilder>(() => new ILObservableBuilder(App.Resolve<IPublisher>())) };
             }
             else
             {

@@ -1,48 +1,221 @@
 ﻿using System;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Altus.Suffūz.Observables.Tests.Observables;
+using Altus.Suffūz.Observables;
+using Altus.Suffūz.Protocols;
+using System.Collections.Generic;
+using System.Net;
+using Altus.Suffūz.Threading;
 
 namespace Altus.Suffūz.Objects.Tests
 {
     [TestClass]
-    public class MainTests : IObserver<Observing<StateClass>>
+    public class MainTests
     {
+        static IPEndPoint _nextEndPoint = new IPEndPoint(IPAddress.Parse("230.0.1.0"), 5000);
+        // simple construct for sharing and executing exclusive locks across type instances
+        static ExclusiveLock SyncLock = new ExclusiveLock("observableChannelLock");
+
         [TestMethod]
         public void CanGetObjectInstance()
         {
-            // create a new StateClass on mychannel using the provided ctor, and assign a system-generated unique key
-            var stateClass1 = Observe<StateClass>
-                                            .From("mychannel")
-                                            .As(() => new StateClass() { RgbColor = 1234, Size = 3 });
+            #region Infrastructure Setup
+            // setup the synchronization channel services
+            IObservableChannelProvider 
+                cp1 = new BestEffortObservableChannelProvider(
+                 (op) =>
+                 {
+                     // we lock this section to prevent simultaneous creation of new channels
+                     return SyncLock.Lock(() =>
+                     {
+                         // channel per type strategy - will create a separate channel for each state object type being synchronized
+                         // the default strategy puts all synchronization messages onto a single channel
+                         if (!BestEffortObservableChannelProvider.DefaultChannelService.CanCreate(op.InstanceType.FullName))
+                         {
+                             BestEffortObservableChannelProvider.DefaultChannelService
+                             .Register(op.InstanceType.FullName, _nextEndPoint.Increment(maxIP: "249.0.0.0"));
+                         }
+                         // return the channel enumeration (only one channel will be returned per type name)
+                         var channels = new List<IChannel>();
+                         channels.Add(BestEffortObservableChannelProvider.DefaultChannelService.Create(op.InstanceType.FullName));
+                         return channels;
+                     });
+                  }
+                ), 
+                cp2 = new SignalRObservableChannelProvider(),
+                cp3 = new iOSObservableChannelProvider();
 
-            // get an existing instance of StateClass from mychannel using the provided key
-            // if the instance does not currently exist, the Observed property value returned will be null until 
-            // a participant on mychannel creates an instance using the same key
-            // subscribe to updates on the instance
-            var stateClass2 = Observe<StateClass>
-                                            .From("mychannel")
-                                            .As(stateClass1.GlobalKey)
-                                            .Subscribe(this);
+            // setup the infrastructure to replicate event messages across your system
+            // this example would provide synchronization across windows servers over Multicast, javascript (and other) clients 
+            // over SignalR, and iOS devices using APNS
+            var registration1 = Observe.RegisterChannelProvider(cp1); // register for best-effort multicast event synchronization
+            var registration2 = Observe.RegisterChannelProvider(cp2); // register for SignalR javascript client notifications
+            var registration3 = Observe.RegisterChannelProvider(cp3); // register for iOS push notifications
+            #endregion
 
-            // create a new instance, or update an existing instance using the provided ctor, and supplied key
-            // subscribe to updates on the instance
-            var stateClass3 = (StateClass)Observe<StateClass>
-                                            .From("mychannel")
-                                            .As(() => new StateClass() { RgbColor = 1234, Size = 3 }, "globalkey")
-                                            .Subscribe(this);
-            stateClass3.Size = 3;
+            #region Global Subscription
+            // create event subscriptions using any of the three overloads for assigning to events for all instances of a type,
+            // a specific instance as identified by its global key, or by providing a selection predicate to determine which 
+            // instances to receive events for
+            var subscription1 = Observe<StateClass> .BeforeCreated((e) => this.BeforeCreated(e))
+                                                    .BeforeCreated((e) => this.BeforeCreated(e), "some key")
+                                                    .BeforeCreated((e) => this.BeforeCreated(e), (e) => e.GlobalKey == "some key")
+
+                                                    .AfterCreated((e) => this.AfterCreated(e))
+                                                    .AfterCreated((e) => this.AfterCreated(e), "some key")
+                                                    .AfterCreated((e) => this.AfterCreated(e), (e) => e.GlobalKey == "some key")
+
+                                                    .BeforeDisposed((e) => this.BeforeDisposed(e))
+                                                    .BeforeDisposed((e) => this.BeforeDisposed(e), "some key")
+                                                    .BeforeDisposed((e) => this.BeforeDisposed(e), (e) => e.GlobalKey == "some key")
+
+                                                    .AfterDisposed((e) => this.AfterDisposed(e))
+                                                    .AfterDisposed((e) => this.AfterDisposed(e), "some key")
+                                                    .AfterDisposed((e) => this.AfterDisposed(e), (e) => e.GlobalKey == "some key")
+
+                                                    .BeforeAny((e) => this.BeforeAny(e))
+                                                    .BeforeAny((e) => this.BeforeAny(e), "some key")
+                                                    .BeforeAny((e) => this.BeforeAny(e), (e) => e.GlobalKey == "some key")
+
+                                                    .AfterAny((e) => this.AfterAny(e))
+                                                    .AfterAny((e) => this.AfterAny(e), "some key")
+                                                    .AfterAny((e) => this.AfterAny(e), (e) => e.GlobalKey == "some key")
+
+                                                    .BeforeCalled<int, string>((s) => s.Hello, (e) => this.BeforeHello(e))
+                                                    .BeforeCalled<int, string>((s) => s.Hello, (e) => this.BeforeHello(e), "some key")
+                                                    .BeforeCalled<int, string>((s) => s.Hello, (e) => this.BeforeHello(e), (e) => e.GlobalKey == "some key")
+
+                                                    .AfterCalled<int, string>((s) => s.Hello, (e) => this.AfterHello(e))
+                                                    .AfterCalled<int, string>((s) => s.Hello, (e) => this.AfterHello(e), "some key")
+                                                    .AfterCalled<int, string>((s) => s.Hello, (e) => this.AfterHello(e), (e) => e.GlobalKey == "some key")
+
+                                                    .BeforeChanged((s) => s.Size, (e) => this.BeforeSizeChanged(e))
+                                                    .BeforeChanged((s) => s.Size, (e) => this.BeforeSizeChanged(e), "some key")
+                                                    .BeforeChanged((s) => s.Size, (e) => this.BeforeSizeChanged(e), (e) => e.GlobalKey == "some key")
+
+                                                    .AfterChanged((s) => s.Size, (e) => this.AfterSizeChanged(e))
+                                                    .AfterChanged((s) => s.Size, (e) => this.AfterSizeChanged(e), "some key")
+                                                    .AfterChanged((s) => s.Size, (e) => this.AfterSizeChanged(e), (e) => e.GlobalKey == "some key")
+
+                                                    .Subscribe();
+            #endregion
+
+            
+
+            #region Instance Usage and Subscription
+            // get (or create) an observable instance of type StateClass with a global key of "some key"
+            var observable = Observe.Get(() => new StateClass { Size = 2, Score = 3 }, "some key");
+            // subscribe to this instance
+            var subscription2 = Observe.BeforeAny((e) => this.BeforeAny(e), observable);
+            // update a value, triggering a change event to be replicated across the distribution channels configured previously
+            // calling all subscribers on each channel for this shared instance
+            observable.Size = 4;
+            #endregion
         }
 
-        public void OnCompleted()
+        [TestMethod]
+        public void CanCreateNewKeys()
+        {
+            var key = Observe.NewKey();
+            Assert.IsTrue(key.Length == 22);
+        }
+
+        [TestMethod]
+        public void CanCreateObservableProxy()
+        {
+            var builder = new ILObservableTypeBuilder();
+            var proxyType = builder.Build(typeof(StateClass));
+
+            Assert.IsTrue(proxyType.BaseType == typeof(StateClass));
+            Assert.IsTrue(proxyType.Implements<Observables.IObservable<StateClass>>());
+            Assert.IsTrue(proxyType.GetConstructor(new Type[] { typeof(IPublisher), typeof(StateClass), typeof(string) }) != null);
+
+            var baseInstance = new StateClass();
+            var publisher = new FakePublisher();
+            var key = "a key";
+            var instance = Activator.CreateInstance(proxyType, new object[] { publisher, baseInstance, key}) as StateClass;
+
+            Assert.IsTrue(((Observables.IObservable<StateClass>)instance).GlobalKey == key);
+            Assert.IsTrue(((Observables.IObservable<StateClass>)instance).Instance == baseInstance);
+            Assert.IsTrue(((Observables.IObservable<StateClass>)instance).SyncLock != null);
+
+            instance.Size = 5;
+            instance.Age = 10;
+            instance.Score = 12;
+            
+            Assert.IsTrue(instance.Size == 5);
+            Assert.IsTrue(instance.Age == 10);
+            Assert.IsTrue(instance.Score == 12);
+        }
+
+        private void GlobalAfterDisposed(Disposed<StateClass> e)
+        {
+           
+        }
+
+        private void GlobalBeforeCreated(Created<StateClass> e)
+        {
+            if (e.GlobalKey == "foo")
+            {
+
+            }
+        }
+
+        private void AfterDisposed(Disposed<StateClass> e)
+        {
+            
+        }
+
+        private void BeforeDisposed(Disposed<StateClass> e)
+        {
+            
+        }
+
+        private void AfterCreated(Created<StateClass> e)
+        {
+            
+        }
+
+        private void BeforeCreated(Created<StateClass> e)
+        {
+
+        }
+
+        private void BeforeAny(AnyOperation<StateClass> e)
+        {
+
+        }
+
+        private void AfterAny(AnyOperation<StateClass> e)
+        {
+
+        }
+
+        private void AfterHello(MethodCall<StateClass, int> e)
+        {
+            
+        }
+
+        private void BeforeHello(MethodCall<StateClass, int> e)
         {
         }
 
-        public void OnError(Exception error)
+        public void BeforeHello()
         {
         }
 
-        public void OnNext(Observing<StateClass> value)
+        public void AfterHello()
         {
+        }
+
+        public void BeforeSizeChanged(PropertyUpdate<StateClass, int> change)
+        {
+
+        }
+
+        public void AfterSizeChanged(PropertyUpdate<StateClass, int> change)
+        {
+
         }
     }
 }

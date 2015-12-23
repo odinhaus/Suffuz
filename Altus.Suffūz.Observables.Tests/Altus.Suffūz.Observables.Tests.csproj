@@ -35,10 +35,6 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="Altus.Suffūz, Version=0.1.2.1, Culture=neutral, processorArchitecture=MSIL">
-      <HintPath>..\packages\Altus.Suffuz.0.1.8\lib\Altus.Suffūz.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
     <Reference Include="System" />
   </ItemGroup>
   <Choose>
@@ -54,17 +50,24 @@
     </Otherwise>
   </Choose>
   <ItemGroup>
+    <Compile Include="FakePublisher.cs" />
     <Compile Include="MainTests.cs" />
+    <Compile Include="Observables\Observable_StateClass.cs" />
     <Compile Include="Observables\StateClass.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="packages.config" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Altus.Suffūz.Observables\Altus.Suffūz.Observables.csproj">
-      <Project>{2a2ea786-34d0-4003-8785-c0539be03ec8}</Project>
-      <Name>Altus.Suffūz.Observables</Name>
+    <ProjectReference Include="..\Altus.Suffūz.Observables.iOS\Altus.Suffūz.Observables.iOS.csproj">
+      <Project>{1fc1571e-dc01-4090-a7fa-98e315aaffa5}</Project>
+      <Name>Altus.Suffūz.Observables.iOS</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Altus.Suffūz.Observables.SignalR\Altus.Suffūz.Observables.SignalR.csproj">
+      <Project>{c8aeae25-dab9-414e-8120-021176da793e}</Project>
+      <Name>Altus.Suffūz.Observables.SignalR</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\Altus.Suffūz\Altus.Suffūz.csproj">
+      <Project>{155e27ad-91ee-4d31-bf4b-4a215324fbb2}</Project>
+      <Name>Altus.Suffūz</Name>
     </ProjectReference>
   </ItemGroup>
   <Choose>
