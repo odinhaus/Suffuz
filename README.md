@@ -63,6 +63,121 @@ In the latter case, where the same work request is distributed across N concurre
 ###Whatever Else You Can Dream Up....
 Any other simple distributed computing scenarios you might imagine, Suffūz can probably give you a good place to start.
 
+#Synchronized Observable State Instances
+The main idea here is to be able to create globally identified instances of simple types that define properties and methods that describe some sharable state of a system.  Examples might include an Inbox state, pinned to a specific user of group of users, having a MessageCount property, and MessageArrived() and MessageRead() and MessageDeleted() methods.
+
+Participants would instantiate a local instance of the Inbox object, and potentially subscribe to changes to the MessageCount property, or subscribe to notifications when the various methods are called, such that it can take action to update a user interface, make a service call or update local database, etc.
+
+As changes occur on local nodes, they are collected and distributed over the peer group of current subscribes, where the changes are reconcilled and local subscribers are notified if the state has changed. 
+
+###Sample Code
+```C#
+// simple demonstration of "normal" consumer code, where you get/create an instance of a shared state
+// apply any change or method call subscriptions that are relevant, and then just start using the instance
+// as normal to apply your local updates.
+
+
+// get (or create) an observable instance of type StateClass with a global key of "some key"
+var observable = Observe.Get(() => new StateClass { Size = 2, Score = 3 }, "some key");
+
+
+// subscribe to this instance, receiving notifications when anything changes on the instance
+// the handler will examine the notification properties to determine the significance/relevance of the change
+var subscription2 = Observe.BeforeAny((e) => this.BeforeAny(e), observable);
+
+
+// update a value, triggering a change event to be replicated across the distribution channels configured previously
+// calling all subscribers on each channel for this shared instance
+observable.Size = 4;
+```
+
+Subscriptions can also be defined more globally, rather than on a specific shared instance, as follows.
+
+```C#
+// here we demonstrate all the possible global subscription overloads
+var subscription1 = Observe<StateClass> 
+        .BeforeCreated((e) => this.BeforeCreated(e))
+        .BeforeCreated((e) => this.BeforeCreated(e), "some key")
+        .BeforeCreated((e) => this.BeforeCreated(e), (e) => e.GlobalKey == "some key")
+  
+        .AfterCreated((e) => this.AfterCreated(e))
+        .AfterCreated((e) => this.AfterCreated(e), "some key")
+        .AfterCreated((e) => this.AfterCreated(e), (e) => e.GlobalKey == "some key")
+  
+        .BeforeDisposed((e) => this.BeforeDisposed(e))
+        .BeforeDisposed((e) => this.BeforeDisposed(e), "some key")
+        .BeforeDisposed((e) => this.BeforeDisposed(e), (e) => e.GlobalKey == "some key")
+  
+        .AfterDisposed((e) => this.AfterDisposed(e))
+        .AfterDisposed((e) => this.AfterDisposed(e), "some key")
+        .AfterDisposed((e) => this.AfterDisposed(e), (e) => e.GlobalKey == "some key")
+  
+        .BeforeAny((e) => this.BeforeAny(e))
+        .BeforeAny((e) => this.BeforeAny(e), "some key")
+        .BeforeAny((e) => this.BeforeAny(e), (e) => e.GlobalKey == "some key")
+  
+        .AfterAny((e) => this.AfterAny(e))
+        .AfterAny((e) => this.AfterAny(e), "some key")
+        .AfterAny((e) => this.AfterAny(e), (e) => e.GlobalKey == "some key")
+  
+        .BeforeCalled<int, string>((s) => s.Hello, (e) => this.BeforeHello(e))
+        .BeforeCalled<int, string>((s) => s.Hello, (e) => this.BeforeHello(e), "some key")
+        .BeforeCalled<int, string>((s) => s.Hello, (e) => this.BeforeHello(e), (e) => e.GlobalKey == "some key")
+  
+        .AfterCalled<int, string>((s) => s.Hello, (e) => this.AfterHello(e))
+        .AfterCalled<int, string>((s) => s.Hello, (e) => this.AfterHello(e), "some key")
+        .AfterCalled<int, string>((s) => s.Hello, (e) => this.AfterHello(e), (e) => e.GlobalKey == "some key")
+  
+        .BeforeChanged((s) => s.Size, (e) => this.BeforeSizeChanged(e))
+        .BeforeChanged((s) => s.Size, (e) => this.BeforeSizeChanged(e), "some key")
+        .BeforeChanged((s) => s.Size, (e) => this.BeforeSizeChanged(e), (e) => e.GlobalKey == "some key")
+  
+        .AfterChanged((s) => s.Size, (e) => this.AfterSizeChanged(e))
+        .AfterChanged((s) => s.Size, (e) => this.AfterSizeChanged(e), "some key")
+        .AfterChanged((s) => s.Size, (e) => this.AfterSizeChanged(e), (e) => e.GlobalKey == "some key")
+  
+        .Subscribe();
+```
+
+Out of the box, the base Suffūz library only supports distribution over Multicast networks, but by adding various channel providers that participate in the message exchange, the supported networking environment can be augmented as needed to incorporate more diverse environments.  Additional assemblies have already been developed for adding SignalR and iOS push-enabled devices.  The configuration to include additional providers is trivial.
+
+```C#
+IObservableChannelProvider 
+      cp1 = new BestEffortObservableChannelProvider(), 
+      cp2 = new SignalRObservableChannelProvider(),
+      cp3 = new iOSObservableChannelProvider();
+
+// setup the infrastructure to replicate event messages across your system
+// this example would provide synchronization across windows servers over Multicast, javascript (and other) clients 
+// over SignalR, and iOS devices using APNS
+var registration1 = Observe.RegisterChannelProvider(cp1); // register for best-effort multicast event synchronization
+var registration2 = Observe.RegisterChannelProvider(cp2); // register for SignalR javascript client notifications
+var registration3 = Observe.RegisterChannelProvider(cp3); // register for iOS push notifications
+```
+
+Channel providers have their own implementations and configuration requirements, but one of the main jobs is to determine how to route specific messages onto relevant channels to dispatch the message.  In some cases, all messages might be exchanged over a single physical channel, or they may be split up into a channel per shared object, or any combination in between.  Consult the configuration of the specific channel provider for options.
+
+When change messages arrive, local and remote changes need to be reconciled in order to synchronize state across devices.  In order to facilitate automated merging, state object definitions are attributed to define how conflicting changes should be addressed.
+
+The two main types of properties are Commutative properties and Explicit properties.
+
+Commutative properties are numeric properties whose values can be updated by either by a series of additions or multiplications to the current value.  In this sense, the order in which the updates are applied is irrelevant, as both addition and multiplication are commutative operations.  In the event of conflict during an update merge, the two parties merging simply apply all local and remote updates to their own local value, to achieve the same result.  Obviously, explicit values are not applied to the properties, but rather the mathmatical delta between current state and changed state is tracked and applied.  For example, if the current value is 6, and the new value is 10, and the property is attributed as Additive, then a delta of 4 is recorded, and would be exchanged with other parties in the synchronization framework.  Likewise for Multiplication, a value of 10/6 would be recorded for the delta.
+
+Explicit properties represent values that cannot be updated through mathmatical deltas, and instead, they are applied either by a logical or temporal clock timestamp.  Temporal clocks can be subject to error when clocks are not synchronized, so the choice to use use literal timestamps depends on your environment, and the consequences that synchronized timing errors can bring to your system.  An alternative to literal clocks is a logical clock implementation, whereby local state values are mapped to update epochs whenever a remote synchronization takes place. Participants determine the logical age of an update by how many merge updates it has already been subjected to.  If their change's epoch is less than the epoch of the merge target, their local change is ignored, and remote (older) change is taken.  The idea here is, systems that are offline, or slow to respond to changes are viewed as "behind" the rest of the system, so their updates are not applied to explicit values until the catch up and exceed the greates epoch.  In the event that two targets have the same epoch, a true conflict occurs, at which point some policy is determined to break the tie.  
+
+Generally, it's best to avoid explicit properties where multiple writers will be updating the same property on the same shared state if you want to avoid unreconcilable conflicts.
+
+```C#
+// a simple observable base class with a single Commutative property
+public abstract class BaseState
+{
+    [CommutativeEvent(CommutativeEventType.Additive)]
+    public virtual int Age { get; set; }
+}
+```
+
+
+
 
 #Remote Execution
 ###Sample Code
