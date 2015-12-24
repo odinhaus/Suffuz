@@ -9,15 +9,19 @@
 [Altus.Suffuz on NuGet.org](https://www.nuget.org/packages/Altus.Suffuz/)
 
 ##Description
-Suffūz is an API allowing .Net applications to easily request services from and distribute units of work to a group of disparate processes or machines.
+Suffūz is an API allowing .Net applications to easily request services from and distribute units of work or share synchronized state  with a group of disparate processes over any IP network.
 
-Out of the box, it utilizes Multicast UDP messaging groups, allowing clients to establish arbitrary "channels" for communication endpoints, over which POCO .Net types can be exchanged.
+Out of the box, it utilizes Multicast UDP messaging groups, allowing clients to establish arbitrary "channels" for communication endpoints, over which POCO .Net types can be updated, synchronized and exchanged.  By incorporating optional channel providers for SignalR and mobile push services, then web and mobile clients can also participate in the distributed computing system.
 
 In addition to the basic request/response scenarios supported, the system also allows for general broadcast messaging and direct messaging as well as load distribution through the application of arbitrary cost functions and availability delays that can be configured on a route-specific basis, allowing worker agents with more capacity to handle units of work to respond more quickly to requests for service, and then be allocated the work requested.  
 
 The API uses simple fluent-styled syntax to create both calling and routing patterns, and it is built to easily adapt to your choice of Dependency Injection platform, supporting rich extensibility and testability.
 
-
+The platform provides several independently useful core services, which are described in some detail following:
+###Synchronized Observable State Objects
+###Remote Unit of Work Execution
+###Persistable Transactional Collections
+###High Performance Serialization
 
 
 ##Sample Use Cases
