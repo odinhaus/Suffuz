@@ -62,14 +62,17 @@ namespace Altus.Suffūz.Observables
 
             */
 
+            var syncLockProp = ImplementProperty<ExclusiveLock>(typeBuilder, "SyncLock");
+            var globalKeyProp = ImplementProperty<string>(typeBuilder, "GlobalKey");
+            var publisherProp = ImplementProperty<IPublisher>(typeBuilder, "Publisher");
 
             ImplementCtor(typeBuilder, 
-                ImplementProperty<ExclusiveLock>(typeBuilder, "SyncLock"), 
+                syncLockProp, 
                 ImplementProperty(typeBuilder, "Instance", type), 
-                ImplementProperty<string>(typeBuilder, "GlobalKey"),
-                ImplementProperty<IPublisher>(typeBuilder, "Publisher"));
+                globalKeyProp,
+                publisherProp);
 
-            ImplementPropertyProxies(typeBuilder);
+            ImplementPropertyProxies(typeBuilder, syncLockProp, globalKeyProp, publisherProp);
             ImplementMethodProxies(typeBuilder);
 
             return typeBuilder.CreateType();
@@ -80,18 +83,35 @@ namespace Altus.Suffūz.Observables
             
         }
 
-        private void ImplementPropertyProxies(TypeBuilder typeBuilder)
+        private void ImplementPropertyProxies(TypeBuilder typeBuilder, PropertyInfo syncLock, PropertyInfo globalKey, PropertyInfo publisher)
         {
             var commutativeProperties = GetVirtualProperties<CommutativeEventAttribute>(typeBuilder.BaseType);
             foreach(var property in commutativeProperties)
             {
-                ImplementCommutativeProperty(typeBuilder, property);
+                ImplementCommutativeProperty(typeBuilder, property, syncLock, globalKey, publisher);
+            }
+
+            var explicitProperties = GetVirtualProperties<ExplicitEventAttribute>(typeBuilder.BaseType);
+            foreach (var property in explicitProperties)
+            {
+                ImplementExplicitProperty(typeBuilder, property, syncLock, globalKey, publisher);
+            }
+
+            var sequentialProperties = GetVirtualProperties<SequentialEventAttribute>(typeBuilder.BaseType);
+            foreach (var property in sequentialProperties)
+            {
+                throw new NotSupportedException("Sequential Properties are not supported in this version");
             }
         }
 
-        private void ImplementCommutativeProperty(TypeBuilder typeBuilder, PropertyInfo property)
+        private void ImplementCommutativeProperty(TypeBuilder typeBuilder, PropertyInfo property, 
+            PropertyInfo syncLock,
+            PropertyInfo globalKey, 
+            PropertyInfo publisher)
         {
+            #region Getter Sample 
             /*
+            IL
             .property instance int32 Size()
             {
               .get instance int32 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_Size()
@@ -113,6 +133,14 @@ namespace Altus.Suffūz.Observables
               IL_000b:  ret
             } // end of method Observable_StateClass::get_Size
 
+            C#
+            return base.Score;
+            */
+            #endregion
+
+            #region IL Setter Sample
+            /*
+            IL
             .method public hidebysig specialname virtual 
             instance void  set_Size(int32 'value') cil managed
             {
@@ -202,7 +230,48 @@ namespace Altus.Suffūz.Observables
               IL_008e:  ret
             } // end of method Observable_StateClass::set_Size
             */
+            #endregion
 
+            #region C# Setter Sample
+            /*
+            C#
+            try
+            {
+                SyncLock.Enter();
+
+                var beforeChange = new PropertyUpdate<StateClass, double>(this.GlobalKey,
+                    OperationState.Before,
+                    "Score",
+                    typeof(StateClass),
+                    this,
+                    EventClass.Commutative,
+                    EventOrder.Multiplicative,
+                    base.Size,
+                    value);
+                Publisher.Publish(beforeChange);
+
+                base.Score = value;
+
+                var afterChange = new PropertyUpdate<StateClass, double>(this.GlobalKey,
+                    OperationState.After,
+                    "Score",
+                    typeof(StateClass),
+                    this,
+                    EventClass.Commutative,
+                    EventOrder.Multiplicative,
+                    base.Size,
+                    value);
+                Publisher.Publish(afterChange);
+            }
+            finally
+            {
+                SyncLock.Exit();
+            }
+                
+            */
+            #endregion
+
+            #region Simple Getter
             var overridenProperty = typeBuilder.DefineProperty(property.Name,
                 PropertyAttributes.HasDefault,
                 property.PropertyType,
@@ -219,20 +288,395 @@ namespace Altus.Suffūz.Observables
             getterCode.Emit(OpCodes.Ret);
             overridenProperty.SetGetMethod(getter);
             typeBuilder.DefineMethodOverride(getter, property.GetMethod);
+            #endregion
 
+            #region Setter with publications
             var setter = typeBuilder.DefineMethod(property.SetMethod.Name,
                 property.SetMethod.Attributes,
                 null,
                 new[] { property.PropertyType });
 
             var setterCode = setter.GetILGenerator();
+            var updateType = typeof(PropertyUpdate<,>).MakeGenericType(typeBuilder.BaseType, property.PropertyType);
+            var beforeChanged = setterCode.DeclareLocal(updateType); // before changed
+            var afterChanged = setterCode.DeclareLocal(updateType); // after changed
+            var baseValue = setterCode.DeclareLocal(property.PropertyType); // current value
+            var exitLabel = setterCode.DefineLabel();
+            var attrib = property.GetCustomAttribute<CommutativeEventAttribute>();
+            var publish = publisher.PropertyType.GetMethods().Single(mi => mi.GetParameters()[0].ParameterType.GetGenericTypeDefinition().Equals(typeof(PropertyUpdate<,>)))
+                .MakeGenericMethod(typeBuilder.BaseType, property.PropertyType);
+            var updateTypeCtor = updateType.GetConstructors().Single(c => c.GetParameters().Length > 0);
+
+            setterCode.BeginExceptionBlock(); // create try
+
+            // enter lock
+            setterCode.Emit(OpCodes.Ldarg_0); // this
+            setterCode.Emit(OpCodes.Call, syncLock.GetMethod);
+            setterCode.Emit(OpCodes.Callvirt, typeof(ExclusiveLock).GetMethod("Enter"));
+            // enter lock complete
+
+            // get current value
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, property.GetMethod);
+            setterCode.Emit(OpCodes.Stloc_2);
+            // get current value complete
+
+
+            // publish Before Changed
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, globalKey.GetMethod);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)OperationState.Before); // before changed 
+            setterCode.Emit(OpCodes.Ldstr, property.Name);
+            setterCode.Emit(OpCodes.Ldtoken, typeBuilder.BaseType);
+            setterCode.Emit(OpCodes.Call, typeof(Type).GetMethod("GetTypeFromHandle", BindingFlags.Public | BindingFlags.Static));
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)EventClass.Commutative);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)attrib.CommutativeEventType);
+            setterCode.Emit(OpCodes.Ldloc_2);
+            setterCode.Emit(OpCodes.Ldarg_1);
+            setterCode.Emit(OpCodes.Newobj, updateTypeCtor);
+            setterCode.Emit(OpCodes.Stloc_0);
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, publisher.GetMethod);
+            setterCode.Emit(OpCodes.Ldloc_0);
+            setterCode.Emit(OpCodes.Callvirt, publish);
+            // publish complete
+
+
+
+            // pass thru to base class to set value
             setterCode.Emit(OpCodes.Ldarg_0);
             setterCode.Emit(OpCodes.Ldarg_1);
             setterCode.Emit(OpCodes.Call, property.SetMethod);
+
+            // pass thru complete
+
+
+            // publish After Changed
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, globalKey.GetMethod);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)OperationState.After); // before changed 
+            setterCode.Emit(OpCodes.Ldstr, property.Name);
+            setterCode.Emit(OpCodes.Ldtoken, typeBuilder.BaseType);
+            setterCode.Emit(OpCodes.Call, typeof(Type).GetMethod("GetTypeFromHandle", BindingFlags.Public | BindingFlags.Static));
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)EventClass.Commutative);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)attrib.CommutativeEventType);
+            setterCode.Emit(OpCodes.Ldloc_2);
+            setterCode.Emit(OpCodes.Ldarg_1);
+            setterCode.Emit(OpCodes.Newobj, updateTypeCtor);
+            setterCode.Emit(OpCodes.Stloc_1);
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, publisher.GetMethod);
+            setterCode.Emit(OpCodes.Ldloc_1);
+            setterCode.Emit(OpCodes.Callvirt, publish);
+            // publish complete
+
+
+            //setterCode.Emit(OpCodes.Leave_S, exitLabel);
+
+            setterCode.BeginFinallyBlock();
+            // exit lock
+            setterCode.Emit(OpCodes.Ldarg_0); // this
+            setterCode.Emit(OpCodes.Call, syncLock.GetMethod);
+            setterCode.Emit(OpCodes.Callvirt, typeof(ExclusiveLock).GetMethod("Exit"));
+            // exit complete
+            setterCode.EndExceptionBlock();
+            //setterCode.Emit(OpCodes.Endfinally);
+            setterCode.MarkLabel(exitLabel);
             setterCode.Emit(OpCodes.Ret);
+
             overridenProperty.SetSetMethod(setter);
             typeBuilder.DefineMethodOverride(setter, property.SetMethod);
+            #endregion
         }
+
+        private void ImplementExplicitProperty(TypeBuilder typeBuilder, PropertyInfo property,
+           PropertyInfo syncLock,
+           PropertyInfo globalKey,
+           PropertyInfo publisher)
+        {
+            #region Getter Sample 
+            /*
+            IL
+            .property instance int32 Size()
+            {
+              .get instance int32 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_Size()
+              .set instance void 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::set_Size(int32)
+            } // end of property Observable_StateClass::Size
+
+            .method public hidebysig specialname virtual 
+            instance int32  get_Size() cil managed
+            {
+              // Code size       12 (0xc)
+              .maxstack  1
+              .locals init ([0] int32 V_0)
+              IL_0000:  nop
+              IL_0001:  ldarg.0
+              IL_0002:  call       instance int32 'Altus.Suffūz.Observables.Tests.Observables'.StateClass::get_Size()
+              IL_0007:  stloc.0
+              IL_0008:  br.s       IL_000a
+              IL_000a:  ldloc.0
+              IL_000b:  ret
+            } // end of method Observable_StateClass::get_Size
+
+            C#
+            return base.Score;
+            */
+            #endregion
+
+            #region IL Setter Sample
+            /*
+            IL
+            .method public hidebysig specialname virtual 
+            instance void  set_Size(int32 'value') cil managed
+            {
+              // Code size       143 (0x8f)
+              .maxstack  9
+              .locals init ([0] class ['Altus.Suffūz']'Altus.Suffūz.Observables'.PropertyUpdate`2<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32> beforeChange,
+                       [1] class ['Altus.Suffūz']'Altus.Suffūz.Observables'.PropertyUpdate`2<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32> afterChange)
+              IL_0000:  nop
+              .try
+              {
+                IL_0001:  nop
+                IL_0002:  ldarg.0
+                IL_0003:  call       instance class ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_SyncLock()
+                IL_0008:  callvirt   instance void ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock::Enter()
+                IL_000d:  nop
+                IL_000e:  ldarg.0
+                IL_000f:  call       instance string 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_GlobalKey()
+                IL_0014:  ldc.i4.0
+                IL_0015:  ldstr      "Size"
+                IL_001a:  ldtoken    'Altus.Suffūz.Observables.Tests.Observables'.StateClass
+                IL_001f:  call       class [mscorlib]System.Type [mscorlib]System.Type::GetTypeFromHandle(valuetype [mscorlib]System.RuntimeTypeHandle)
+                IL_0024:  ldarg.0
+                IL_0025:  ldc.i4.1   // Commutative
+                IL_0026:  ldc.i4.2   // Additive
+                IL_0027:  ldarg.0
+                IL_0028:  call       instance int32 'Altus.Suffūz.Observables.Tests.Observables'.StateClass::get_Size()
+                IL_002d:  ldarg.1
+                IL_002e:  newobj     instance void class ['Altus.Suffūz']'Altus.Suffūz.Observables'.PropertyUpdate`2<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32>::.ctor(string,
+                                                                                                                                                                                                    valuetype ['Altus.Suffūz']'Altus.Suffūz.Observables'.OperationState,
+                                                                                                                                                                                                    string,
+                                                                                                                                                                                                    class [mscorlib]System.Type,
+                                                                                                                                                                                                    !0,
+                                                                                                                                                                                                    valuetype ['Altus.Suffūz']'Altus.Suffūz.Observables'.EventClass,
+                                                                                                                                                                                                    valuetype ['Altus.Suffūz']'Altus.Suffūz.Observables'.EventOrder,
+                                                                                                                                                                                                    !1,
+                                                                                                                                                                                                    !1)
+                IL_0033:  stloc.0
+                IL_0034:  ldarg.0
+                IL_0035:  call       instance class ['Altus.Suffūz']'Altus.Suffūz.Observables'.IPublisher 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_Publisher()
+                IL_003a:  ldloc.0
+                IL_003b:  callvirt   instance void ['Altus.Suffūz']'Altus.Suffūz.Observables'.IPublisher::Publish<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32>(class ['Altus.Suffūz']'Altus.Suffūz.Observables'.PropertyUpdate`2<!!0,!!1>)
+                IL_0040:  nop
+                IL_0041:  ldarg.0
+                IL_0042:  ldarg.1
+                IL_0043:  call       instance void 'Altus.Suffūz.Observables.Tests.Observables'.StateClass::set_Size(int32)
+                IL_0048:  nop
+                IL_0049:  ldarg.0
+                IL_004a:  call       instance string 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_GlobalKey()
+                IL_004f:  ldc.i4.1
+                IL_0050:  ldstr      "Size"
+                IL_0055:  ldtoken    'Altus.Suffūz.Observables.Tests.Observables'.StateClass
+                IL_005a:  call       class [mscorlib]System.Type [mscorlib]System.Type::GetTypeFromHandle(valuetype [mscorlib]System.RuntimeTypeHandle)
+                IL_005f:  ldarg.0
+                IL_0060:  ldc.i4.1
+                IL_0061:  ldc.i4.2
+                IL_0062:  ldarg.0
+                IL_0063:  call       instance int32 'Altus.Suffūz.Observables.Tests.Observables'.StateClass::get_Size()
+                IL_0068:  ldarg.1
+                IL_0069:  newobj     instance void class ['Altus.Suffūz']'Altus.Suffūz.Observables'.PropertyUpdate`2<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32>::.ctor(string,
+                                                                                                                                                                                                    valuetype ['Altus.Suffūz']'Altus.Suffūz.Observables'.OperationState,
+                                                                                                                                                                                                    string,
+                                                                                                                                                                                                    class [mscorlib]System.Type,
+                                                                                                                                                                                                    !0,
+                                                                                                                                                                                                    valuetype ['Altus.Suffūz']'Altus.Suffūz.Observables'.EventClass,
+                                                                                                                                                                                                    valuetype ['Altus.Suffūz']'Altus.Suffūz.Observables'.EventOrder,
+                                                                                                                                                                                                    !1,
+                                                                                                                                                                                                    !1)
+                IL_006e:  stloc.1
+                IL_006f:  ldarg.0
+                IL_0070:  call       instance class ['Altus.Suffūz']'Altus.Suffūz.Observables'.IPublisher 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_Publisher()
+                IL_0075:  ldloc.1
+                IL_0076:  callvirt   instance void ['Altus.Suffūz']'Altus.Suffūz.Observables'.IPublisher::Publish<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32>(class ['Altus.Suffūz']'Altus.Suffūz.Observables'.PropertyUpdate`2<!!0,!!1>)
+                IL_007b:  nop
+                IL_007c:  nop
+                IL_007d:  leave.s    IL_008e
+              }  // end .try
+              finally
+              {
+                IL_007f:  nop
+                IL_0080:  ldarg.0
+                IL_0081:  call       instance class ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_SyncLock()
+                IL_0086:  callvirt   instance void ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock::Exit()
+                IL_008b:  nop
+                IL_008c:  nop
+                IL_008d:  endfinally
+              }  // end handler
+              IL_008e:  ret
+            } // end of method Observable_StateClass::set_Size
+            */
+            #endregion
+
+            #region C# Setter Sample
+            /*
+            C#
+            try
+            {
+                SyncLock.Enter();
+
+                var beforeChange = new PropertyUpdate<StateClass, double>(this.GlobalKey,
+                    OperationState.Before,
+                    "Score",
+                    typeof(StateClass),
+                    this,
+                    EventClass.Commutative,
+                    EventOrder.Multiplicative,
+                    base.Size,
+                    value);
+                Publisher.Publish(beforeChange);
+
+                base.Score = value;
+
+                var afterChange = new PropertyUpdate<StateClass, double>(this.GlobalKey,
+                    OperationState.After,
+                    "Score",
+                    typeof(StateClass),
+                    this,
+                    EventClass.Commutative,
+                    EventOrder.Multiplicative,
+                    base.Size,
+                    value);
+                Publisher.Publish(afterChange);
+            }
+            finally
+            {
+                SyncLock.Exit();
+            }
+                
+            */
+            #endregion
+
+            #region Simple Getter
+            var overridenProperty = typeBuilder.DefineProperty(property.Name,
+                PropertyAttributes.HasDefault,
+                property.PropertyType,
+                null);
+
+            var getter = typeBuilder.DefineMethod(property.GetMethod.Name,
+                property.GetMethod.Attributes,
+                property.PropertyType,
+                Type.EmptyTypes);
+
+            var getterCode = getter.GetILGenerator();
+            getterCode.Emit(OpCodes.Ldarg_0);
+            getterCode.Emit(OpCodes.Call, property.GetMethod);
+            getterCode.Emit(OpCodes.Ret);
+            overridenProperty.SetGetMethod(getter);
+            typeBuilder.DefineMethodOverride(getter, property.GetMethod);
+            #endregion
+
+            #region Setter with publications
+            var setter = typeBuilder.DefineMethod(property.SetMethod.Name,
+                property.SetMethod.Attributes,
+                null,
+                new[] { property.PropertyType });
+
+            var setterCode = setter.GetILGenerator();
+            var updateType = typeof(PropertyUpdate<,>).MakeGenericType(typeBuilder.BaseType, property.PropertyType);
+            var beforeChanged = setterCode.DeclareLocal(updateType); // before changed
+            var afterChanged = setterCode.DeclareLocal(updateType); // after changed
+            var baseValue = setterCode.DeclareLocal(property.PropertyType); // current value
+            var exitLabel = setterCode.DefineLabel();
+            var attrib = property.GetCustomAttribute<ExplicitEventAttribute>();
+            var publish = publisher.PropertyType.GetMethods().Single(mi => mi.GetParameters()[0].ParameterType.GetGenericTypeDefinition().Equals(typeof(PropertyUpdate<,>)))
+                .MakeGenericMethod(typeBuilder.BaseType, property.PropertyType);
+            var updateTypeCtor = updateType.GetConstructors().Single(c => c.GetParameters().Length > 0);
+
+            setterCode.BeginExceptionBlock(); // create try
+
+            // enter lock
+            setterCode.Emit(OpCodes.Ldarg_0); // this
+            setterCode.Emit(OpCodes.Call, syncLock.GetMethod);
+            setterCode.Emit(OpCodes.Callvirt, typeof(ExclusiveLock).GetMethod("Enter"));
+            // enter lock complete
+
+            // get current value
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, property.GetMethod);
+            setterCode.Emit(OpCodes.Stloc_2);
+            // get current value complete
+
+            // publish Before Changed
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, globalKey.GetMethod);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)OperationState.Before); // before changed 
+            setterCode.Emit(OpCodes.Ldstr, property.Name);
+            setterCode.Emit(OpCodes.Ldtoken, typeBuilder.BaseType);
+            setterCode.Emit(OpCodes.Call, typeof(Type).GetMethod("GetTypeFromHandle", BindingFlags.Public | BindingFlags.Static));
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)EventClass.Explicit);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)attrib.OrderedEventType);
+            setterCode.Emit(OpCodes.Ldloc_2);
+            setterCode.Emit(OpCodes.Ldarg_1);
+            setterCode.Emit(OpCodes.Newobj, updateTypeCtor);
+            setterCode.Emit(OpCodes.Stloc_0);
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, publisher.GetMethod);
+            setterCode.Emit(OpCodes.Ldloc_0);
+            setterCode.Emit(OpCodes.Callvirt, publish);
+            // publish complete
+
+
+
+            // pass thru to base class to set value
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Ldarg_1);
+            setterCode.Emit(OpCodes.Call, property.SetMethod);
+
+            // pass thru complete
+
+
+            // publish After Changed
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, globalKey.GetMethod);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)OperationState.After); // before changed 
+            setterCode.Emit(OpCodes.Ldstr, property.Name);
+            setterCode.Emit(OpCodes.Ldtoken, typeBuilder.BaseType);
+            setterCode.Emit(OpCodes.Call, typeof(Type).GetMethod("GetTypeFromHandle", BindingFlags.Public | BindingFlags.Static));
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)EventClass.Explicit);
+            setterCode.Emit(OpCodes.Ldc_I4, (int)attrib.OrderedEventType);
+            setterCode.Emit(OpCodes.Ldloc_2);
+            setterCode.Emit(OpCodes.Ldarg_1);
+            setterCode.Emit(OpCodes.Newobj, updateTypeCtor);
+            setterCode.Emit(OpCodes.Stloc_1);
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Call, publisher.GetMethod);
+            setterCode.Emit(OpCodes.Ldloc_1);
+            setterCode.Emit(OpCodes.Callvirt, publish);
+            // publish complete
+
+
+            //setterCode.Emit(OpCodes.Leave_S, exitLabel);
+
+            setterCode.BeginFinallyBlock();
+            // exit lock
+            setterCode.Emit(OpCodes.Ldarg_0); // this
+            setterCode.Emit(OpCodes.Call, syncLock.GetMethod);
+            setterCode.Emit(OpCodes.Callvirt, typeof(ExclusiveLock).GetMethod("Exit"));
+            // exit complete
+            setterCode.EndExceptionBlock();
+            //setterCode.Emit(OpCodes.Endfinally);
+            setterCode.MarkLabel(exitLabel);
+            setterCode.Emit(OpCodes.Ret);
+
+            overridenProperty.SetSetMethod(setter);
+            typeBuilder.DefineMethodOverride(setter, property.SetMethod);
+            #endregion
+        }
+
 
         private IEnumerable<MethodInfo> GetVirtualMethods<T>(Type type) where T : Attribute
         {

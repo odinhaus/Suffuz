@@ -20,10 +20,10 @@ namespace Altus.Suffūz.Observables.Tests.Observables
         [ExplicitEvent(OrderedEventType.Temporal)]
         public virtual DateTime LastUpdated { get; set; }
 
-        [SequentialEvent(OrderedEventType.Logical)]
+        //[SequentialEvent(OrderedEventType.Logical)]
         public virtual List<string> Names { get; set; }
 
-        [SequentialEvent(OrderedEventType.Temporal)]
+        //[SequentialEvent(OrderedEventType.Temporal)]
         public virtual List<DateTime> Updates { get; set; }
 
 

@@ -140,9 +140,27 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(((Observables.IObservable<StateClass>)instance).SyncLock != null);
 
             instance.Size = 5;
+
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Commutative);
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Additive);
+            Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Size");
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).BaseValue == 0);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).NewValue == 5);
+
             instance.Age = 10;
             instance.Score = 12;
-            
+
+            instance.Name = "Foo";
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Explicit);
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Logical);
+            Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Name");
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
+            Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).BaseValue == null);
+            Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).NewValue == "Foo");
+
             Assert.IsTrue(instance.Size == 5);
             Assert.IsTrue(instance.Age == 10);
             Assert.IsTrue(instance.Score == 12);
