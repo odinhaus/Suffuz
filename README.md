@@ -18,10 +18,10 @@ In addition to the basic request/response scenarios supported, the system also a
 The API uses simple fluent-styled syntax to create both calling and routing patterns, and it is built to easily adapt to your choice of Dependency Injection platform, supporting rich extensibility and testability.
 
 The platform provides several independently useful core services, which are described in some detail following:
-####Synchronized Observable State Objects
-####Remote Unit of Work Execution
-####Persistable Transactional Collections
-####High Performance Serialization
+####1. Synchronized Observable State Objects
+####2. Remote Unit of Work Execution
+####3. Persistable Transactional Collections
+####4. High Performance Serialization
 
 
 ##Sample Use Cases
@@ -39,6 +39,8 @@ Suffūz is a great fit for these types of processes by leveraging fast, compiled
 Often times when scaling web applications across multiple web and service nodes, there is a need for relatively fast access to shared state across those devices.  Suffūz would provide the correct pieces for those situations as well, where a common stateful node would maintain a dictionary of shared items in memory, which could be accessed and updated by N dependant nodes, that might come and go randomly over the lifecycle of the shared state.
 
 In these scenarios, fast access, and zero-touch group membership are of the utmost importance.  Suffūz provides the platform to make this simple.
+
+Extending this model to include remote clients, a system can define object instances with globally unique keys, and strongly typed structure to provide a framework for shared state sessions spanning all tiers of a heterogenous computing environment.  Participants in a shared state instantiate a local copy, and subscribe to changes which are distributed and synchronized across all peers sharing the instance.  By modeling state objects in shapes that make sense to the consumer, and abstracting away the details of messaging systems, channels, and synchronization, developers can easily develop distributed event-based solutions in a wide variety of forms.
 
 
 ###Worker Pool (With or Without Nomination Constraints)
