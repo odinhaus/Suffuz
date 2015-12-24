@@ -18,10 +18,10 @@ In addition to the basic request/response scenarios supported, the system also a
 The API uses simple fluent-styled syntax to create both calling and routing patterns, and it is built to easily adapt to your choice of Dependency Injection platform, supporting rich extensibility and testability.
 
 The platform provides several independently useful core services, which are described in some detail following:
--####Synchronized Observable State Objects
--####Remote Unit of Work Execution
--####Persistable Transactional Collections
--####High Performance Serialization
+####Synchronized Observable State Objects
+####Remote Unit of Work Execution
+####Persistable Transactional Collections
+####High Performance Serialization
 
 
 ##Sample Use Cases
