@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffūz.Observables.S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffūz.Observables.iOS", "Altus.Suffūz.Observables.iOS\Altus.Suffūz.Observables.iOS.csproj", "{1FC1571E-DC01-4090-A7FA-98E315AAFFA5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Altus.Suffūz.Observables.JS", "Altus.Suffūz.Observables.JS\Altus.Suffūz.Observables.JS.csproj", "{5E23C14C-5B1D-4C2D-A661-CC99405CEC81}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -53,6 +55,10 @@ Global
 		{1FC1571E-DC01-4090-A7FA-98E315AAFFA5}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{1FC1571E-DC01-4090-A7FA-98E315AAFFA5}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{1FC1571E-DC01-4090-A7FA-98E315AAFFA5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E23C14C-5B1D-4C2D-A661-CC99405CEC81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E23C14C-5B1D-4C2D-A661-CC99405CEC81}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E23C14C-5B1D-4C2D-A661-CC99405CEC81}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E23C14C-5B1D-4C2D-A661-CC99405CEC81}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

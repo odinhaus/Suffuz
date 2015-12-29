@@ -61,6 +61,10 @@
       <Project>{1fc1571e-dc01-4090-a7fa-98e315aaffa5}</Project>
       <Name>Altus.Suffūz.Observables.iOS</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Altus.Suffūz.Observables.JS\Altus.Suffūz.Observables.JS.csproj">
+      <Project>{5e23c14c-5b1d-4c2d-a661-cc99405cec81}</Project>
+      <Name>Altus.Suffūz.Observables.JS</Name>
+    </ProjectReference>
     <ProjectReference Include="..\Altus.Suffūz.Observables.SignalR\Altus.Suffūz.Observables.SignalR.csproj">
       <Project>{c8aeae25-dab9-414e-8120-021176da793e}</Project>
       <Name>Altus.Suffūz.Observables.SignalR</Name>

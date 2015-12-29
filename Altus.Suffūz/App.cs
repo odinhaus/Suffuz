@@ -1,7 +1,7 @@
-﻿
-using Altus.Suffūz.Collections;
+﻿using Altus.Suffūz.Collections;
 using Altus.Suffūz.DependencyInjection;
 using Altus.Suffūz.Observables;
+using Altus.Suffūz.Observables.Serialization.Binary;
 using Altus.Suffūz.Protocols;
 using Altus.Suffūz.Protocols.Udp;
 using Altus.Suffūz.Routing;
@@ -149,7 +149,8 @@ namespace Altus.Suffūz
                             {
                                 new Func<ISerializer>(() => new ComplexSerializer(App.Resolve<IBinarySerializerBuilder>())),
                                 new Func<ISerializer>(() => new MessageSegmentSerializer()),
-                                new Func<ISerializer>(() => new UdpMessageSerializer())
+                                new Func<ISerializer>(() => new UdpMessageSerializer()),
+                                new Func<ISerializer>(() => new ChangeStateSerializer())
                             };
             }
             else if (type == typeof(IManagePersistentCollections))

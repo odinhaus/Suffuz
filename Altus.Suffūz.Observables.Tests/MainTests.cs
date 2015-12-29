@@ -6,6 +6,7 @@ using Altus.Suffūz.Protocols;
 using System.Collections.Generic;
 using System.Net;
 using Altus.Suffūz.Threading;
+using Altus.Suffūz.Serialization;
 
 namespace Altus.Suffūz.Objects.Tests
 {
@@ -164,6 +165,49 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(instance.Size == 5);
             Assert.IsTrue(instance.Age == 10);
             Assert.IsTrue(instance.Score == 12);
+        }
+
+        [TestMethod]
+        public void CanBinarySerializeChangeState()
+        {
+            var changeState = new ChangeState<int>()
+            {
+                Epoch = 1,
+                PropertyName = "Foo",
+                ObservableId = "Fum"
+            };
+
+            changeState.Add(new Change<int>() { BaseValue = 3, NewValue = 5, Timestamp = CurrentTime.Now });
+
+            var serializer = App.Resolve<ISerializationContext>().GetSerializer<ChangeState>(StandardFormats.BINARY);
+            var bytes = serializer.Serialize(changeState);
+            var d = serializer.Deserialize(bytes);
+
+            Assert.IsTrue(d.Epoch == changeState.Epoch);
+            Assert.IsTrue(d.PropertyName == changeState.PropertyName);
+            Assert.IsTrue(d.ObservableId == changeState.ObservableId);
+            Assert.IsTrue(d.Count == changeState.Count);
+            Assert.IsTrue(d[0].Equals(changeState[0]));
+        }
+
+        [TestMethod]
+        public void CanJSONSerializeChangeState()
+        {
+            var changeState = new ChangeState<int>()
+            {
+                Epoch = 1,
+                PropertyName = "Foo",
+                ObservableId = "Fum"
+            };
+
+            changeState.Add(new Change<int>() { BaseValue = 3, NewValue = 5, Timestamp = CurrentTime.Now });
+
+            var serializationContext = App.Resolve<ISerializationContext>();
+            serializationContext.SetSerializer(typeof(ChangeState), typeof(Altus.Suffūz.Observables.Serialization.JS.ChangeStateSerializer), StandardFormats.JSON);
+
+            var serializer = serializationContext.GetSerializer<ChangeState>(StandardFormats.JSON);
+            var bytes = serializer.Serialize(changeState);
+            var d = serializer.Deserialize(bytes, changeState.GetType());
         }
 
         private void GlobalAfterDisposed(Disposed<StateClass> e)

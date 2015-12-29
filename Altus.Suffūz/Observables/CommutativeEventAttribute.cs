@@ -23,8 +23,7 @@ namespace Altus.Suffūz.Observables
     /// I.e. by either either adding a series of changes together to the current value to produce a new value, or multiplying 
     /// the current value by a sequence of factors to determine a new value.
     /// </summary>
-    [AttributeUsage(AttributeTargets.Property, AllowMultiple = false, Inherited = true)]
-    public class CommutativeEventAttribute : Attribute
+    public class CommutativeEventAttribute : ConflictingEventAttribute
     {
         public CommutativeEventAttribute(CommutativeEventType type)
         {
