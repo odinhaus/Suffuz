@@ -129,6 +129,14 @@ namespace Altus.Suffūz.Observables.Tests.Observables
             }
         }
 
+        object IObservable.Instance
+        {
+            get
+            {
+                return Instance;
+            }
+        }
+
         public override int Hello(string message)
         {
             try

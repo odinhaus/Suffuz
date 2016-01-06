@@ -91,6 +91,8 @@
     <Compile Include="Observables\LogicalConflictResolver.cs" />
     <Compile Include="Observables\MethodCall.cs" />
     <Compile Include="Observables\MultiplicativeConflictResolver.cs" />
+    <Compile Include="Observables\ObservableRequest.cs" />
+    <Compile Include="Observables\ObservableResponse.cs" />
     <Compile Include="Observables\Observe.cs" />
     <Compile Include="Observables\Operation.cs" />
     <Compile Include="Observables\PropertyUpdate.cs" />
@@ -101,6 +103,9 @@
     <Compile Include="Observables\Subscription.cs" />
     <Compile Include="Observables\SubscriptionConfig.cs" />
     <Compile Include="Observables\TemporalConflictResolver.cs" />
+    <Compile Include="Observables\VersionVector.cs" />
+    <Compile Include="Observables\VersionVectorEntry.cs" />
+    <Compile Include="Observables\VersionVectorInstance.cs" />
     <Compile Include="Protocols\IChannelBuffer.cs" />
     <Compile Include="Protocols\Udp\BestEffortChannelBuffer.cs" />
     <Compile Include="Protocols\IBestEffortChannelBuffer.cs" />

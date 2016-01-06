@@ -6,6 +6,8 @@ using System.Linq.Expressions;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Tasks;
+using Altus.Suffūz.Collections.Linq;
+using Altus.Suffūz.Routing;
 
 namespace Altus.Suffūz.Observables
 {
@@ -17,9 +19,11 @@ namespace Altus.Suffūz.Observables
         {
             Observables = new Dictionary<string, object>();
             Providers = new List<ChannelProviderRegistration>();
+            Vectors = new Dictionary<string, VersionVectorInstance>();
             Hasher = MD5.Create();
         }
 
+        protected static IDictionary<string, VersionVectorInstance> Vectors { get; private set; }
         protected static IDictionary<string, object> Observables { get; private set; }
         protected static IList<ChannelProviderRegistration> Providers { get; private set; }
 
@@ -76,28 +80,64 @@ namespace Altus.Suffūz.Observables
         public static T Get<T>(Func<T> creator, string globalKey) where T : class, new()
         {
             object instance;
-            lock(Observables)
+            _syncRoot.Enter();
+            try
             {
                 if (!Observables.TryGetValue(globalKey, out instance))
                 {
-                    instance = CreateObservable<T>(creator(), globalKey);
-                    var beforeCreated = new Created<T>(globalKey, OperationState.Before, (T)instance);
+                    var beforeCreated = new Created<T>(globalKey, OperationState.Before, null);
+                    ObservableResponse defaultResponse = new ObservableResponse()
+                    {
+                        GlobalKey = globalKey,
+                        Vector = new VersionVectorInstance<T>()
+                        {
+                            IdentityId = App.InstanceId,
+                            Key = "Instance",
+                            Value = (T)instance,
+                            Version = 0
+                        }
+                    };
+
+                    // because we've never seen this before, we're going to need to register routes to 
+                    // handle status class and state change messages for this instance
+                    var router = App.Resolve<IServiceRouter>();
+
                     // get the instance from the network, if it exists, otherwise, build a new one
                     foreach (var provider in Providers)
                     {
-                        foreach(var channel in provider.Provider.GetChannels(beforeCreated))
+                        foreach (var channel in provider.Provider.GetChannels(beforeCreated))
                         {
+                            // register the local route handler so we can answer calls requesting our latest version
+                            router.Route<ObserveHandler, ObservableRequest>(channel.Name, (handler, request) => handler.GetCurrent(request));
 
+                            var vector = Post<ObservableRequest, ObservableResponse>
+                                            .Via(channel.Name, new ObservableRequest() { GlobalKey = globalKey })
+                                            .Nominate(nr => nr.Score > 0)
+                                            .All()
+                                            .Execute(500)
+                                            .DefaultIfEmpty()
+                                            .MaxBy(or => or.Vector.Version);
+
+                            if (vector != null && vector.Vector.Version > defaultResponse.Vector.Version)
+                            {
+                                defaultResponse = vector;
+                            }
                         }
                     }
-                    
+
                     Observables.Add(globalKey, instance);
+                    Vectors.Add(globalKey, defaultResponse.Vector);
+                    instance = defaultResponse.Vector.Value; // get the lastest instance
+                    instance = CreateObservable<T>((T)instance ?? creator(), globalKey); // wrap it in a local observable
                 }
+            
+                return (T)instance;
             }
-            return (T)instance;
+            finally
+            {
+                _syncRoot.Exit();
+            }
         }
-
-
 
         /// <summary>
         /// Subscribes to instance disposal event, before the instance is disposed for the provided instance
@@ -207,6 +247,34 @@ namespace Altus.Suffūz.Observables
                 Providers.Add(provider);
                 return provider;
             });
+        }
+
+        public class ObserveHandler
+        {
+            public ObserveHandler() { }
+
+            internal ObservableResponse GetCurrent(ObservableRequest request)
+            {
+                VersionVectorInstance entry;
+                ObservableResponse response = new ObservableResponse()
+                {
+                    GlobalKey = request.GlobalKey,
+                    Vector = new VersionVectorInstance()
+                    {
+                        IdentityId = App.InstanceId,
+                        Key = "Instance",
+                        Value = null,
+                        Version = 0
+                    }
+                };
+
+                if (Observe.Vectors.TryGetValue(request.GlobalKey, out entry))
+                {
+                    response.Vector.Value = ((IObservable)entry.Value).Instance;
+                    response.Vector.Version = entry.Version;
+                }
+                return response;
+            }
         }
     }
 
@@ -657,6 +725,5 @@ namespace Altus.Suffūz.Observables
             throw new NotImplementedException();
         }
     }
-
     
 }

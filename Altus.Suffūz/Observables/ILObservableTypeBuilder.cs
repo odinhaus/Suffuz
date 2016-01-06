@@ -65,10 +65,12 @@ namespace Altus.Suffūz.Observables
             var syncLockProp = ImplementProperty<ExclusiveLock>(typeBuilder, "SyncLock");
             var globalKeyProp = ImplementProperty<string>(typeBuilder, "GlobalKey");
             var publisherProp = ImplementProperty<IPublisher>(typeBuilder, "Publisher");
+            var instanceProp = ImplementProperty(typeBuilder, "Instance", type);
+            var explicitInstanceProp = ImplementInstanceProperty(typeBuilder, instanceProp);
 
             ImplementCtor(typeBuilder, 
                 syncLockProp, 
-                ImplementProperty(typeBuilder, "Instance", type), 
+                instanceProp, 
                 globalKeyProp,
                 publisherProp);
 
@@ -808,6 +810,40 @@ namespace Altus.Suffūz.Observables
             property.SetSetMethod(setter);
 
             return property;
+        }
+
+        private MethodInfo ImplementInstanceProperty(TypeBuilder typeBuilder, PropertyInfo instanceProp)
+        {
+            /*
+            .method private hidebysig newslot specialname virtual final 
+                    instance object  'Altus.Suffūz.Observables.IObservable.get_Instance'() cil managed
+            {
+              .override ['Altus.Suffūz']'Altus.Suffūz.Observables'.IObservable::get_Instance
+              // Code size       12 (0xc)
+              .maxstack  1
+              .locals init ([0] object V_0)
+              IL_0000:  nop
+              IL_0001:  ldarg.0
+              IL_0002:  call       instance class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_Instance()
+              IL_0007:  stloc.0
+              IL_0008:  br.s       IL_000a
+              IL_000a:  ldloc.0
+              IL_000b:  ret
+            } // end of method Observable_StateClass::'Altus.Suffūz.Observables.IObservable.get_Instance'
+            */
+
+            var getter = typeBuilder.DefineMethod("IObservable.get_Instance",
+                MethodAttributes.Private | MethodAttributes.HideBySig | MethodAttributes.NewSlot | MethodAttributes.Virtual | MethodAttributes.Final,
+                typeof(object),
+                Type.EmptyTypes);
+            var getterCode = getter.GetILGenerator();
+            getterCode.Emit(OpCodes.Ldarg_0);
+            getterCode.Emit(OpCodes.Call, instanceProp.GetGetMethod());
+            getterCode.Emit(OpCodes.Ret);
+
+            typeBuilder.DefineMethodOverride(getter, typeof(IObservable).GetProperty("Instance").GetGetMethod());
+
+            return getter;
         }
 
 
