@@ -134,11 +134,6 @@ namespace Altus.Suffūz.Collections
 
     public unsafe class PersistentHeap : PersistentCollection, IPersistentHeap
     {
-        //protected const int SHARED_HEADER_LENGTH = 1024 * 64;
-        //protected const int SHARED_HEADER_INDEX_LENGTH = 16;
-        //protected const int SHARED_HEADER_NEXT = 0;
-        //protected const int SHARED_HEADER_NEXT_LENGTH = 2;
-
         protected int HEAP_HEAD_ROOM;
         protected const int HEAP_HEADER_LENGTH = 4 + 4 + 4 + 8;
         protected const int HEAP_NEXT = 8;
@@ -230,30 +225,6 @@ namespace Altus.Suffūz.Collections
         protected Dictionary<ulong, int> Addresses { get { return _addresses; } }
 
         public ulong HeapSequenceNumber { get; private set; }
-
-        //public virtual ushort AddShare(string resourceName)
-        //{
-        //    if ((NextShare - SHARED_HEADER_NEXT_LENGTH) < 1024 * 63)
-        //    {
-        //        var hashed = MD5.Create().ComputeHash(UTF8Encoding.UTF8.GetBytes(resourceName));
-        //        using (var ptr = CreatePointerAdapter())
-        //        {
-        //            ptr.Write(NextShare, hashed);
-        //            NextShare += 16;
-        //            ptr.Write(0, NextShare);
-        //        }
-        //        return NextShare;
-        //    }
-        //    else
-        //    {
-        //        throw new InvalidOperationException("A single heap may only be shared 4096 resources, or less");
-        //    }
-        //}
-
-        //public virtual bool RemoveShare(string resourceName)
-        //{
-        //    return false;
-        //}
 
         protected virtual BytePointerAdapter CreatePointerAdapter(bool isWriting)
         {
@@ -797,7 +768,7 @@ namespace Altus.Suffūz.Collections
                 {
                     if (TypesFile == null)
                     {
-                        TypesFile = new FileStream("Type_List.bin", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
+                        TypesFile = new FileStream(FilePath("Type_List.bin"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read);
                         LoadTypes();
                     }
                 }

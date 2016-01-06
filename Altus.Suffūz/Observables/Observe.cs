@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Altus.Suffūz.Threading;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Linq.Expressions;
@@ -10,13 +11,18 @@ namespace Altus.Suffūz.Observables
 {
     public class Observe
     {
+        static ExclusiveLock _syncRoot = new ExclusiveLock("Observe");
+
         static Observe()
         {
             Observables = new Dictionary<string, object>();
+            Providers = new List<ChannelProviderRegistration>();
             Hasher = MD5.Create();
         }
 
-        public static IDictionary<string, object> Observables { get; protected set; }
+        protected static IDictionary<string, object> Observables { get; private set; }
+        protected static IList<ChannelProviderRegistration> Providers { get; private set; }
+
         protected static MD5 Hasher { get; private set; }
 
         public static string NewKey()
@@ -37,7 +43,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static T Get<T>(string globalObjectKey) where T : class, new()
         {
-            return Get(() => default(T), globalObjectKey);
+            return Get(() => new T(), globalObjectKey);
         }
 
         /// <summary>
@@ -75,6 +81,16 @@ namespace Altus.Suffūz.Observables
                 if (!Observables.TryGetValue(globalKey, out instance))
                 {
                     instance = CreateObservable<T>(creator(), globalKey);
+                    var beforeCreated = new Created<T>(globalKey, OperationState.Before, (T)instance);
+                    // get the instance from the network, if it exists, otherwise, build a new one
+                    foreach (var provider in Providers)
+                    {
+                        foreach(var channel in provider.Provider.GetChannels(beforeCreated))
+                        {
+
+                        }
+                    }
+                    
                     Observables.Add(globalKey, instance);
                 }
             }
@@ -185,7 +201,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static ChannelProviderRegistration RegisterChannelProvider(IObservableChannelProvider cp)
         {
-            throw new NotImplementedException();
+            return _syncRoot.Lock(() =>
+            {
+                var provider = new ChannelProviderRegistration(cp);
+                Providers.Add(provider);
+                return provider;
+            });
         }
     }
 

@@ -12,5 +12,6 @@ namespace Altus.Suffūz.Observables
         string GlobalKey { get; }
         T Instance { get; }
         ExclusiveLock SyncLock { get; }
+        IPublisher Publisher { get; }
     }
 }

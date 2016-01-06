@@ -68,16 +68,18 @@ namespace Altus.Suffūz.Observables
             this.Instance = instance;
             this.EventClass = @class;
             this.EventOrder = order;
+            this.LocalTimestamp = CurrentTime.Now;
         }
 
-        public string GlobalKey { get; private set; }
-        public OperationState OperationState { get; private set; }
-        public OperationMode OperationMode { get; private set; }
-        public string MemberName { get; private set; }
-        public Type InstanceType { get; private set; }
-        public object Instance { get; private set; }
-        public EventClass EventClass { get; private set; }
-        public EventOrder EventOrder { get; private set; }
+        public string GlobalKey { get; protected set; }
+        public OperationState OperationState { get; protected set; }
+        public OperationMode OperationMode { get; protected set; }
+        public string MemberName { get; protected set; }
+        public Type InstanceType { get; protected set; }
+        public object Instance { get; protected set; }
+        public EventClass EventClass { get; protected set; }
+        public EventOrder EventOrder { get; protected set; }
+        public DateTime LocalTimestamp { get; private set; }
     }
 
     public abstract class Operation<T> : Operation where T : class, new()
@@ -92,7 +94,11 @@ namespace Altus.Suffūz.Observables
             :base(globalKey, state, mode, memberName, typeof(T), instance, @class, order)
         {
         }
-        public new T Instance { get; internal set; }
+        public new T Instance
+        {
+            get { return (T)base.Instance; }
+            internal set { base.Instance = value; }
+        }
         public Subscription<T> Subscription { get; internal set; }
     }
 

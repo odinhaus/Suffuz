@@ -5,6 +5,7 @@ using Altus.Suffūz.Threading;
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Configuration;
 using System.IO;
 using System.IO.MemoryMappedFiles;
 using System.Linq;
@@ -18,10 +19,29 @@ namespace Altus.Suffūz.Collections
     {
         static System.Collections.Generic.Dictionary<Type, ISerializer> _serializers = new System.Collections.Generic.Dictionary<Type, ISerializer>();
         static Dictionary<string, PersistentCollection> _shares = new Dictionary<string, PersistentCollection>();
+        static readonly string DEFAULT_DATA_ROOT = "";
         /// <summary>
         /// Default heap size in bytes (10 Mb)
         /// </summary>
         public const int DEFAULT_HEAP_SIZE = 1024 * 1024 * 10;
+
+        static PersistentCollection()
+        {
+            try
+            {
+                DEFAULT_DATA_ROOT = ConfigurationManager.AppSettings["collectionsDataPath"];
+            }
+            catch { }
+
+            if (!string.IsNullOrEmpty(DEFAULT_DATA_ROOT))
+            {
+                var di = Directory.CreateDirectory(DEFAULT_DATA_ROOT);
+                if (!Path.IsPathRooted(DEFAULT_DATA_ROOT))
+                {
+                    DEFAULT_DATA_ROOT = di.FullName;
+                }
+            }
+        }
 
         protected PersistentCollection() : this(Path.GetTempFileName())
         {
@@ -56,6 +76,8 @@ namespace Altus.Suffūz.Collections
 
         protected void Initialize(string filePath, int maxSize)
         {
+            filePath = FilePath(filePath);
+
             SyncLock.Lock(() =>
             {
                 MaximumSize = maxSize;
@@ -77,7 +99,7 @@ namespace Altus.Suffūz.Collections
 
                 BaseMMF = MemoryMappedFile.CreateFromFile(
                        BaseFile,
-                       Path.GetFileNameWithoutExtension(BaseFile.Name) + "_MMF",
+                       MappedName(),
                        maxSize,
                        MemoryMappedFileAccess.ReadWrite,
                        null,
@@ -86,6 +108,23 @@ namespace Altus.Suffūz.Collections
 
                 Initialize(isNew, filePath, maxSize);
             });
+        }
+
+        protected string FilePath(string path)
+        {
+            if (!Path.IsPathRooted(path))
+            {
+                return Path.Combine(DEFAULT_DATA_ROOT, path);
+            }
+            else
+            {
+                return path;
+            }
+        }
+
+        protected string MappedName()
+        {
+            return string.Format("{0}:{1}_MMF", App.InstanceName, Path.GetFileNameWithoutExtension(BaseFile.Name));
         }
 
         protected abstract void Initialize(bool isNewFile, string filePath, int maxSize);

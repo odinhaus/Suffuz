@@ -19,7 +19,9 @@ namespace Altus.Suffūz.Tests
         [BinarySerializable(2, SerializationType = typeof(SimplePOCO[]))]
         public IEnumerable<SimplePOCO> IEnumerableOfSimplePOCO { get; set; }
 
-        [BinarySerializable(1)]
+        [BinarySerializable(3)]
         public ObservableCollection<SimplePOCO> CollectionOfSimplePOCO { get; set; }
+        [BinarySerializable(4)]
+        public Dictionary<int, SimplePOCO> DictionaryOfSimplePOCO { get; set; }
     }
 }

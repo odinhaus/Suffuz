@@ -5,10 +5,11 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Altus.Suffūz.Collections.Linq;
 
 namespace Altus.Suffūz.Serialization.Binary
 {
-    public class IListSerializer : ISerializer
+    public class IDictionarySerializer : ISerializer
     {
         public int Priority { get; private set; }
         public bool IsScalar { get { return false; } }
@@ -25,33 +26,17 @@ namespace Altus.Suffūz.Serialization.Binary
                         var listTypeName = br.ReadString();
                         var listType = TypeHelper.GetType(listTypeName);
                         var count = br.ReadInt32();
+                        var keyType = GetKeyType(listType);
                         var elemType = GetElementType(listType);
-                        if (listType == typeof(IEnumerable)
-                            || (listType.IsGenericType && listType.GetGenericTypeDefinition() == typeof(IEnumerable<>)))
+                        
+                        var list = (IDictionary)Activator.CreateInstance(listType);
+
+                        for (int i = 0; i < count; i++)
                         {
-                            listType = typeof(List<>).MakeGenericType(elemType);
+                            list.Add(_BinarySerializer.Deserialize(keyType, br), _BinarySerializer.Deserialize(elemType, br));
                         }
 
-                        if (listType.IsArray)
-                        {
-                            var list = (Array)Activator.CreateInstance(listType, count);
-
-                            for (int i = 0; i < count; i++)
-                            {
-                                list.SetValue(_BinarySerializer.Deserialize(elemType, br), i);
-                            }
-                            return list;
-                        }
-                        else
-                        {
-                            var list = (IList)Activator.CreateInstance(listType);
-
-                            for (int i = 0; i < count; i++)
-                            {
-                                list.Add(_BinarySerializer.Deserialize(elemType, br));
-                            }
-                            return list;
-                        }
+                        return list;
                     }
                     else
                     {
@@ -63,7 +48,7 @@ namespace Altus.Suffūz.Serialization.Binary
 
         public byte[] Serialize(object source)
         {
-            var list = source as IList;
+            var list = source as IDictionary;
             using (var ms = new MemoryStream())
             {
                 using (var bw = new BinaryWriter(ms))
@@ -71,14 +56,15 @@ namespace Altus.Suffūz.Serialization.Binary
                     bw.Write(source != null);
                     if (source != null)
                     {
-                        Type elemType = GetElementType(list);
+                        Type elemType, keyType;
+                        GetDictionaryTypes(list, out keyType, out elemType);
                         bw.Write(source.GetType().AssemblyQualifiedName);
                         bw.Write(list.Count);
-                        for (int i = 0; i < list.Count; i++)
+                        var en = list.GetEnumerator();
+                        while(en.MoveNext())
                         {
-                            // unfortunately, lists can have mixed types
-                            var item = list[i];
-                            _BinarySerializer.Serialize(elemType, item, bw);
+                            _BinarySerializer.Serialize(keyType, en.Key, bw);
+                            _BinarySerializer.Serialize(elemType, en.Value, bw);
                         }
                     }
                 }
@@ -87,26 +73,37 @@ namespace Altus.Suffūz.Serialization.Binary
             }
         }
 
-        private Type GetElementType(IList list)
+        private void GetDictionaryTypes(IDictionary list, out Type keyType, out Type elemType)
         {
             var listType = list.GetType();
-            var type = GetElementType(listType);
-            if (type == typeof(object) && list.Count > 0)
+            keyType = GetKeyType(listType);
+            if (keyType == typeof(object) && list.Count > 0)
             {
-                type = list[0].GetType();
+                keyType = list.Keys.First().GetType();
             }
-            return type;
+            elemType = GetElementType(listType);
+            if (elemType == typeof(object) && list.Count > 0)
+            {
+                elemType = list.Values.First()?.GetType() ?? typeof(object);
+            }
+        }
+
+
+
+        private Type GetKeyType(Type listType)
+        {
+            if(listType.Implements(typeof(IDictionary<,>)))
+            {
+                return listType.GetGenericArguments()[0];
+            }
+            else return typeof(object);
         }
 
         private Type GetElementType(Type listType)
         {
-            if (listType.IsArray)
+            if (listType.Implements(typeof(IDictionary<,>)))
             {
-                return listType.GetElementType();
-            }
-            else if(listType.Implements(typeof(IEnumerable<>)))
-            {
-                return listType.GetGenericArguments()[0];
+                return listType.GetGenericArguments()[1];
             }
             else return typeof(object);
         }
@@ -118,12 +115,12 @@ namespace Altus.Suffūz.Serialization.Binary
 
         public bool SupportsType(Type type)
         {
-            return IsListType(type);
+            return IsDictionaryType(type);
         }
 
-        public static bool IsListType(Type type)
+        public static bool IsDictionaryType(Type type)
         {
-            return type.Implements(typeof(IList));
+            return type.Implements(typeof(IDictionary));
         }
     }
 }

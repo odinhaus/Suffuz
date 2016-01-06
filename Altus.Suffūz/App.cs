@@ -11,6 +11,7 @@ using Altus.Suffūz.Serialization.Binary;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -171,7 +172,22 @@ namespace Altus.Suffūz
             }
             else
             {
-                resolvers = new List<Delegate> { new Func<X>(() => default(X)) };
+                var ctor = typeof(X).GetConstructor(new Type[0]);
+                Func<X> ctorFunc;
+
+                if (ctor == null)
+                {
+                    ctorFunc = new Func<X>(() => default(X));
+                }
+                else
+                {
+                    ctorFunc = Expression.Lambda<Func<X>>(Expression.New(ctor)).Compile();
+                }
+
+                resolvers = new List<Delegate>
+                {
+                    new Func<X>(() => default(X))
+                };
             }
             return resolvers;
         }

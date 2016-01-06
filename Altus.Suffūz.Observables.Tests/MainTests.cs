@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Altus.Suffūz.Observables.Tests.Observables;
 using Altus.Suffūz.Observables;
@@ -7,15 +8,35 @@ using System.Collections.Generic;
 using System.Net;
 using Altus.Suffūz.Threading;
 using Altus.Suffūz.Serialization;
+using Altus.Suffūz.DependencyInjection;
+using Altus.Suffūz.Collections;
+using Altus.Suffūz.Serialization.Binary;
+using Altus.Suffūz.Protocols.Udp;
+using Altus.Suffūz.Scheduling;
 
 namespace Altus.Suffūz.Objects.Tests
 {
     [TestClass]
-    public class MainTests
+    public class MainTests : IBootstrapper
     {
         static IPEndPoint _nextEndPoint = new IPEndPoint(IPAddress.Parse("230.0.1.0"), 5000);
         // simple construct for sharing and executing exclusive locks across type instances
         static ExclusiveLock SyncLock = new ExclusiveLock("observableChannelLock");
+
+        public string InstanceName
+        {
+            get { return "Server1"; }
+        }
+
+        public ushort InstanceId
+        {
+            get { return 1; }
+        }
+
+        public byte[] InstanceCryptoKey
+        {
+            get { return new byte[16]; }
+        }
 
         [TestMethod]
         public void CanGetObjectInstance()
@@ -168,6 +189,41 @@ namespace Altus.Suffūz.Objects.Tests
         }
 
         [TestMethod]
+        public void CanGetObservableInstance()
+        {
+            var instance = Observe.Get<StateClass>("some key");
+            Assert.IsTrue(instance.GetType().BaseType == typeof(StateClass));
+            Assert.IsTrue(instance.GetType().Implements<Observables.IObservable<StateClass>>());
+            Assert.IsTrue(instance.GetType().GetConstructor(new Type[] { typeof(IPublisher), typeof(StateClass), typeof(string) }) != null);
+            Assert.IsTrue(((Observables.IObservable<StateClass>)instance).GlobalKey == "some key");
+            Assert.IsTrue(((Observables.IObservable<StateClass>)instance).Instance is StateClass);
+            Assert.IsTrue(((Observables.IObservable<StateClass>)instance).SyncLock != null);
+            var publisher = ((Observables.IObservable<StateClass>)instance).Publisher as FakePublisher;
+            instance.Age = 5;
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Commutative);
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Additive);
+            Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Age");
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).BaseValue == 0);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).NewValue == 5);
+            var timestamp = ((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).LocalTimestamp;
+            instance.Age = 5; // should NOT trigger a new publication!
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).BaseValue == 0);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).NewValue == 5);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).LocalTimestamp == timestamp); // no change in timestamp
+            instance.Name = "Foo";
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Explicit);
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Logical);
+            Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Name");
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
+            Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).BaseValue == null);
+            Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).NewValue == "Foo");
+
+        }
+
+        [TestMethod]
         public void CanBinarySerializeChangeState()
         {
             var changeState = new ChangeState<int>()
@@ -278,6 +334,72 @@ namespace Altus.Suffūz.Objects.Tests
         public void AfterSizeChanged(PropertyUpdate<StateClass, int> change)
         {
 
+        }
+
+        static bool _init;
+        [TestInitialize]
+        public void Init()
+        {
+            if (!_init)
+            {
+                _init = true;
+                App<MainTests>.Initialize();
+            }
+        }
+
+        public IResolveTypes Initialize()
+        {
+            return new Resolver();
+        }
+
+        public class Resolver : IResolveTypes
+        {
+            List<KeyValuePair<Type, Tuple<Type, object>>> _types = new List<KeyValuePair<Type, Tuple<Type, object>>>();
+
+            public Resolver()
+            {
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(ISerializationContext),
+                    new Tuple<Type, object>(typeof(ISerializationContext), new SerializationContext())));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(IManagePersistentCollections),
+                    new Tuple<Type, object>(typeof(IManagePersistentCollections), new PersistentCollectionManager())));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(IBinarySerializerBuilder),
+                    new Tuple<Type, object>(typeof(IBinarySerializerBuilder), new ILSerializerBuilder())));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(ISerializer),
+                    new Tuple<Type, object>(typeof(ISerializer), new ComplexSerializer(new ILSerializerBuilder()))));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(ISerializer),
+                    new Tuple<Type, object>(typeof(ISerializer), new MessageSegmentSerializer())));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(IBestEffortChannelBuffer<UdpMessage>),
+                    new Tuple<Type, object>(typeof(IBestEffortChannelBuffer<UdpMessage>), new BestEffortChannelBuffer())));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(IChannelBuffer<UdpMessage>),
+                    new Tuple<Type, object>(typeof(IChannelBuffer<UdpMessage>), new ChannelBuffer())));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                    typeof(IScheduler),
+                    new Tuple<Type, object>(typeof(IScheduler), Scheduler.Current)));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                   typeof(IPublisher),
+                   new Tuple<Type, object>(typeof(IPublisher), new FakePublisher())));
+            }
+
+            public T Resolve<T>()
+            {
+                Tuple<Type, object> tuple = _types.Single(kvp => kvp.Key == typeof(T)).Value;
+                return (T)tuple.Item2;
+            }
+
+            public IEnumerable<T> ResolveAll<T>()
+            {
+                foreach (var v in _types.Where(kvp => kvp.Key == typeof(T)))
+                {
+                    yield return (T)v.Value.Item2;
+                }
+            }
         }
     }
 }

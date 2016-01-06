@@ -35,6 +35,10 @@ namespace Altus.Suffūz.Serialization.Binary
             {
                 return new PrimitiveSerializer();
             }
+            else if (IDictionarySerializer.IsDictionaryType(type))
+            {
+                return new IDictionarySerializer();
+            }
             else if (IListSerializer.IsListType(type))
             {
                 return new IListSerializer();

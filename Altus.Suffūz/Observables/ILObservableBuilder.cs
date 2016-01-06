@@ -62,9 +62,9 @@ namespace Altus.Suffūz.Observables
             var globalKeyParam = Expression.Parameter(typeof(string));
             var publisherParam = Expression.Parameter(typeof(IPublisher));
             var ctor = Expression.New(ilType.GetConstructors().Single(c => c.GetParameters().Length > 0),
+                publisherParam,
                 Expression.Convert(instanceParam, ilType.BaseType),
-                globalKeyParam,
-                publisherParam);
+                globalKeyParam);
             var lambda = Expression.Lambda<Func<object, string, IPublisher, object>>(ctor, instanceParam, globalKeyParam, publisherParam);
             return lambda.Compile();
         }

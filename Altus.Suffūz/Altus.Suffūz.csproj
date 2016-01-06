@@ -47,6 +47,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App.cs" />
+    <Compile Include="Collections\CollectionsEx.cs" />
     <Compile Include="Collections\FlushScope.cs" />
     <Compile Include="Collections\IFlush.cs" />
     <Compile Include="Collections\IManagePersistentCollections.cs" />
@@ -75,30 +76,30 @@
     <Compile Include="Observables\Change.cs" />
     <Compile Include="Observables\ChangeState.cs" />
     <Compile Include="Observables\ChannelProviderRegistration.cs" />
+    <Compile Include="Observables\CommutativeEventAttribute.cs" />
     <Compile Include="Observables\ConflictingEventAttribute.cs" />
+    <Compile Include="Observables\Created.cs" />
+    <Compile Include="Observables\Disposed.cs" />
+    <Compile Include="Observables\ExplicitEventAttribute.cs" />
+    <Compile Include="Observables\ILObservableBuilder.cs" />
     <Compile Include="Observables\ILObservableTypeBuilder.cs" />
     <Compile Include="Observables\IObservable.cs" />
     <Compile Include="Observables\IObservableBuilder.cs" />
     <Compile Include="Observables\IObservableChannelProvider.cs" />
     <Compile Include="Observables\IPublisher.cs" />
-    <Compile Include="Observables\ILObservableBuilder.cs" />
     <Compile Include="Observables\IResolveConflicts.cs" />
     <Compile Include="Observables\LogicalConflictResolver.cs" />
-    <Compile Include="Observables\MultiplicativeConflictResolver.cs" />
-    <Compile Include="Observables\Publisher.cs" />
-    <Compile Include="Observables\Serialization\Binary\ChangeStateSerializer.cs" />
-    <Compile Include="Observables\SubscriptionConfig.cs" />
-    <Compile Include="Observables\SequentialEventAttribute.cs" />
-    <Compile Include="Observables\ExplicitEventAttribute.cs" />
-    <Compile Include="Observables\CommutativeEventAttribute.cs" />
-    <Compile Include="Observables\Disposed.cs" />
-    <Compile Include="Observables\Created.cs" />
     <Compile Include="Observables\MethodCall.cs" />
+    <Compile Include="Observables\MultiplicativeConflictResolver.cs" />
     <Compile Include="Observables\Observe.cs" />
     <Compile Include="Observables\Operation.cs" />
     <Compile Include="Observables\PropertyUpdate.cs" />
+    <Compile Include="Observables\Publisher.cs" />
     <Compile Include="Observables\RuntimeArgument.cs" />
+    <Compile Include="Observables\SequentialEventAttribute.cs" />
+    <Compile Include="Observables\Serialization\Binary\ChangeStateSerializer.cs" />
     <Compile Include="Observables\Subscription.cs" />
+    <Compile Include="Observables\SubscriptionConfig.cs" />
     <Compile Include="Observables\TemporalConflictResolver.cs" />
     <Compile Include="Protocols\IChannelBuffer.cs" />
     <Compile Include="Protocols\Udp\BestEffortChannelBuffer.cs" />
@@ -177,6 +178,7 @@
     <Compile Include="Serialization\Binary\ComplexSerializer.cs" />
     <Compile Include="Serialization\Binary\IBinarySerializerBuilder.cs" />
     <Compile Include="Serialization\Binary\IEnumerableSerializer.cs" />
+    <Compile Include="Serialization\Binary\IDictionarySerializer.cs" />
     <Compile Include="Serialization\Binary\IListSerializer.cs" />
     <Compile Include="Serialization\Binary\ILSerializerBuilder.cs" />
     <Compile Include="Serialization\Binary\ObjectSerializer.cs" />

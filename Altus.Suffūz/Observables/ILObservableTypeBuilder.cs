@@ -272,13 +272,8 @@ namespace Altus.Suffūz.Observables
             #endregion
 
             #region Simple Getter
-            var overridenProperty = typeBuilder.DefineProperty(property.Name,
-                PropertyAttributes.HasDefault,
-                property.PropertyType,
-                null);
-
             var getter = typeBuilder.DefineMethod(property.GetMethod.Name,
-                property.GetMethod.Attributes,
+                property.GetMethod.Attributes | MethodAttributes.Final,
                 property.PropertyType,
                 Type.EmptyTypes);
 
@@ -286,13 +281,12 @@ namespace Altus.Suffūz.Observables
             getterCode.Emit(OpCodes.Ldarg_0);
             getterCode.Emit(OpCodes.Call, property.GetMethod);
             getterCode.Emit(OpCodes.Ret);
-            overridenProperty.SetGetMethod(getter);
             typeBuilder.DefineMethodOverride(getter, property.GetMethod);
             #endregion
 
             #region Setter with publications
             var setter = typeBuilder.DefineMethod(property.SetMethod.Name,
-                property.SetMethod.Attributes,
+                property.SetMethod.Attributes | MethodAttributes.Final,
                 null,
                 new[] { property.PropertyType });
 
@@ -315,11 +309,16 @@ namespace Altus.Suffūz.Observables
             setterCode.Emit(OpCodes.Callvirt, typeof(ExclusiveLock).GetMethod("Enter"));
             // enter lock complete
 
-            // get current value
-            setterCode.Emit(OpCodes.Ldarg_0);
-            setterCode.Emit(OpCodes.Call, property.GetMethod);
-            setterCode.Emit(OpCodes.Stloc_2);
-            // get current value complete
+
+            // check equality
+            setterCode.Emit(OpCodes.Ldarg_1); // value
+            setterCode.Emit(OpCodes.Ldarg_0); // this
+            setterCode.Emit(OpCodes.Call, property.GetGetMethod());
+            setterCode.Emit(OpCodes.Stloc_2); // store it for later
+            setterCode.Emit(OpCodes.Ldloc_2); // load it for equality check
+            setterCode.Emit(OpCodes.Ceq);
+            setterCode.Emit(OpCodes.Brtrue, exitLabel); // no change, so bail
+            // check equality complete
 
 
             // publish Before Changed
@@ -348,7 +347,6 @@ namespace Altus.Suffūz.Observables
             setterCode.Emit(OpCodes.Ldarg_0);
             setterCode.Emit(OpCodes.Ldarg_1);
             setterCode.Emit(OpCodes.Call, property.SetMethod);
-
             // pass thru complete
 
 
@@ -372,9 +370,6 @@ namespace Altus.Suffūz.Observables
             setterCode.Emit(OpCodes.Callvirt, publish);
             // publish complete
 
-
-            //setterCode.Emit(OpCodes.Leave_S, exitLabel);
-
             setterCode.BeginFinallyBlock();
             // exit lock
             setterCode.Emit(OpCodes.Ldarg_0); // this
@@ -382,11 +377,9 @@ namespace Altus.Suffūz.Observables
             setterCode.Emit(OpCodes.Callvirt, typeof(ExclusiveLock).GetMethod("Exit"));
             // exit complete
             setterCode.EndExceptionBlock();
-            //setterCode.Emit(OpCodes.Endfinally);
             setterCode.MarkLabel(exitLabel);
             setterCode.Emit(OpCodes.Ret);
 
-            overridenProperty.SetSetMethod(setter);
             typeBuilder.DefineMethodOverride(setter, property.SetMethod);
             #endregion
         }
@@ -443,6 +436,14 @@ namespace Altus.Suffūz.Observables
                 IL_0003:  call       instance class ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_SyncLock()
                 IL_0008:  callvirt   instance void ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock::Enter()
                 IL_000d:  nop
+                IL_0002:  ldarg.1
+                IL_0003:  ldarg.0
+                IL_0004:  call       instance int32 'Altus.Suffūz.Observables.Tests.Observables'.StateClass::get_Size()
+                IL_0009:  ceq
+                IL_000b:  stloc.2
+                IL_000c:  ldloc.2
+                IL_000d:  brfalse.s  IL_0014
+                IL_000f:  leave      IL_00a0
                 IL_000e:  ldarg.0
                 IL_000f:  call       instance string 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_GlobalKey()
                 IL_0014:  ldc.i4.0
@@ -524,6 +525,8 @@ namespace Altus.Suffūz.Observables
             C#
             try
             {
+                if (base.Score == value) return;
+
                 SyncLock.Enter();
 
                 var beforeChange = new PropertyUpdate<StateClass, double>(this.GlobalKey,
@@ -559,11 +562,6 @@ namespace Altus.Suffūz.Observables
             #endregion
 
             #region Simple Getter
-            var overridenProperty = typeBuilder.DefineProperty(property.Name,
-                PropertyAttributes.HasDefault,
-                property.PropertyType,
-                null);
-
             var getter = typeBuilder.DefineMethod(property.GetMethod.Name,
                 property.GetMethod.Attributes,
                 property.PropertyType,
@@ -573,7 +571,6 @@ namespace Altus.Suffūz.Observables
             getterCode.Emit(OpCodes.Ldarg_0);
             getterCode.Emit(OpCodes.Call, property.GetMethod);
             getterCode.Emit(OpCodes.Ret);
-            overridenProperty.SetGetMethod(getter);
             typeBuilder.DefineMethodOverride(getter, property.GetMethod);
             #endregion
 
@@ -602,11 +599,15 @@ namespace Altus.Suffūz.Observables
             setterCode.Emit(OpCodes.Callvirt, typeof(ExclusiveLock).GetMethod("Enter"));
             // enter lock complete
 
-            // get current value
-            setterCode.Emit(OpCodes.Ldarg_0);
-            setterCode.Emit(OpCodes.Call, property.GetMethod);
-            setterCode.Emit(OpCodes.Stloc_2);
-            // get current value complete
+            // check equality
+            setterCode.Emit(OpCodes.Ldarg_1); // value
+            setterCode.Emit(OpCodes.Ldarg_0); // this
+            setterCode.Emit(OpCodes.Call, property.GetGetMethod());
+            setterCode.Emit(OpCodes.Stloc_2); // store it for later
+            setterCode.Emit(OpCodes.Ldloc_2); // load it for equality check
+            setterCode.Emit(OpCodes.Ceq);
+            setterCode.Emit(OpCodes.Brtrue, exitLabel); // no change, so bail
+            // check equality complete
 
             // publish Before Changed
             setterCode.Emit(OpCodes.Ldarg_0);
@@ -672,7 +673,6 @@ namespace Altus.Suffūz.Observables
             setterCode.MarkLabel(exitLabel);
             setterCode.Emit(OpCodes.Ret);
 
-            overridenProperty.SetSetMethod(setter);
             typeBuilder.DefineMethodOverride(setter, property.SetMethod);
             #endregion
         }

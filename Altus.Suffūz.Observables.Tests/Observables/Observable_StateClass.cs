@@ -50,6 +50,8 @@ namespace Altus.Suffūz.Observables.Tests.Observables
                 {
                     SyncLock.Enter();
 
+                    if (value == base.Size) return;
+
                     var beforeChange = new PropertyUpdate<StateClass, int>(this.GlobalKey,
                     OperationState.Before,
                     "Size",
@@ -91,7 +93,10 @@ namespace Altus.Suffūz.Observables.Tests.Observables
             {
                 try
                 {
+                    
                     SyncLock.Enter();
+
+                    if (value == base.Size) return;
 
                     var beforeChange = new PropertyUpdate<StateClass, double>(this.GlobalKey,
                         OperationState.Before,

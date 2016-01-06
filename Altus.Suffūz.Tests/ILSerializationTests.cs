@@ -274,10 +274,15 @@ namespace Altus.Suffūz.Tests
                 ListOfInt = new List<int>() { 1, 3, 2 },
                 IEnumerableOfSimplePOCO = (new SimplePOCO[] { new SimplePOCO() { B = 5 } }).AsEnumerable(),
                 CollectionOfSimplePOCO = new ObservableCollection<SimplePOCO>() { new SimplePOCO() { L = 3.2d } },
+                DictionaryOfSimplePOCO = new Dictionary<int, SimplePOCO>() { { 1, new SimplePOCO() { L = 5.4d} } },
             };
             var serialized = instance.Serialize(testPoco);
             var poco = instance.Deserialize(serialized);
             Assert.IsTrue(testPoco.SimplePOCO.A.Equals(poco.SimplePOCO.A));
+            Assert.IsTrue(testPoco.ListOfInt[1].Equals(poco.ListOfInt[1]));
+            Assert.IsTrue(testPoco.IEnumerableOfSimplePOCO.First().B.Equals(poco.IEnumerableOfSimplePOCO.First().B));
+            Assert.IsTrue(testPoco.CollectionOfSimplePOCO[0].L.Equals(poco.CollectionOfSimplePOCO[0].L));
+            Assert.IsTrue(testPoco.DictionaryOfSimplePOCO[1].L.Equals(poco.DictionaryOfSimplePOCO[1].L));
         }
 
         [TestMethod]
