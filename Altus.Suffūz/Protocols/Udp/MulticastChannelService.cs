@@ -13,7 +13,7 @@ namespace Altus.Suffūz.Protocols.Udp
 {
     public class MulticastChannelService : IPChannelService
     {
-        protected bool _loopback = false;
+        protected bool _loopback = true;
         protected int _ttl = 2;
         public MulticastChannelService()
         {

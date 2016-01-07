@@ -168,7 +168,7 @@ namespace Altus.Suffūz
             }
             else if (type == typeof(IObservableBuilder))
             {
-                resolvers = new List<Delegate> { new Func<IObservableBuilder>(() => new ILObservableBuilder(App.Resolve<IPublisher>())) };
+                resolvers = new List<Delegate> { new Func<IObservableBuilder>(() => new ILObservableBuilder()) };
             }
             else
             {
@@ -186,7 +186,7 @@ namespace Altus.Suffūz
 
                 resolvers = new List<Delegate>
                 {
-                    new Func<X>(() => default(X))
+                    ctorFunc
                 };
             }
             return resolvers;

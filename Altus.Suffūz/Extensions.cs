@@ -326,7 +326,7 @@ namespace Altus.Suffūz
                     Recipients = new string[] { "*" };
                 }
 
-                if (_executor.Nominator == null)
+                if (_executor.Nominator != null)
                 {
                     ExecuteNominated(channel);
                 }
@@ -336,7 +336,7 @@ namespace Altus.Suffūz
                 }
             }
 
-            private void ExecuteNominated(IChannel channel)
+            private void ExecuteCollective(IChannel channel)
             {
                 var request = new ChannelRequest<TRequest, TResponse>(_executor.Get.ChannelName)
                 {
@@ -355,7 +355,7 @@ namespace Altus.Suffūz
                 }); // we don't want to block here
             }
 
-            private void ExecuteCollective(IChannel channel)
+            private void ExecuteNominated(IChannel channel)
             {
                 var request = new ChannelRequest<NominateExecutionRequest, TResponse>(_executor.Get.ChannelName)
                 {

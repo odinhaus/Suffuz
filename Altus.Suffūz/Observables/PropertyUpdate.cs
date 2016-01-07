@@ -24,5 +24,12 @@ namespace Altus.Suffūz.Observables
         }
         public U BaseValue { get; set; }
         public U NewValue { get; set; }
+        public override object Value
+        {
+            get
+            {
+                return NewValue;
+            }
+        }
     }
 }

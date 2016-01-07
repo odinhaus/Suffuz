@@ -33,7 +33,14 @@ namespace Altus.Suffūz.Serialization
             }
             catch
             {
-                return _section.ContentTypes["*"].ContentType;
+                try
+                {
+                    return _section.ContentTypes["*"].ContentType;
+                }
+                catch
+                {
+                    return "application/octet-stream";
+                }
             }
         }
     }

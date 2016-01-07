@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Altus.Suffūz.Collections.Linq;
 using Altus.Suffūz.Routing;
+using Altus.Suffūz.Collections;
 
 namespace Altus.Suffūz.Observables
 {
@@ -19,13 +20,15 @@ namespace Altus.Suffūz.Observables
         {
             Observables = new Dictionary<string, object>();
             Providers = new List<ChannelProviderRegistration>();
-            Vectors = new Dictionary<string, VersionVectorInstance>();
+            Vectors = new Dictionary<string, IDictionary<ushort, VersionVectorInstance>>();
+            Subscriptions = new Dictionary<string, Subscription>();
             Hasher = MD5.Create();
         }
 
-        protected static IDictionary<string, VersionVectorInstance> Vectors { get; private set; }
+        protected static IDictionary<string, IDictionary<ushort, VersionVectorInstance>> Vectors { get; private set; }
         protected static IDictionary<string, object> Observables { get; private set; }
         protected static IList<ChannelProviderRegistration> Providers { get; private set; }
+        protected static IDictionary<string, Subscription> Subscriptions { get; private set; }
 
         protected static MD5 Hasher { get; private set; }
 
@@ -37,7 +40,64 @@ namespace Altus.Suffūz.Observables
         protected static T CreateObservable<T>(T instance, string globalKey) where T : class, new()
         {
             var builder = App.Resolve<IObservableBuilder>();
-            return builder.Create<T>(instance, globalKey);
+            var wrappedInstance = builder.Create<T>(instance, globalKey, App.Resolve<IPublisher>());
+
+            // subscribe to changes, so we can increment our local version numbers
+            Subscriptions[globalKey] = Observe<T>.AfterAny((e) => AfterAny(e)).Subscribe();
+
+            return wrappedInstance;
+        }
+
+        private static void AfterAny<T>(AnyOperation<T> e) where T : class, new()
+        {
+            _syncRoot.Lock(() =>
+            {
+                var vector = Vectors[e.GlobalKey][App.InstanceId];
+                switch(e.OperationMode)
+                {
+                    case OperationMode.Created:
+                        {
+                            // nothing to do
+                            break;
+                        }
+                    case OperationMode.Disposed:
+                        {
+                            // nothing to do
+                            break;
+                        }
+                    case OperationMode.PropertyCall:
+                        {
+                            // update property vector and instance vector
+                            vector.Version++;
+                            var memberVector = vector.MemberVectors.SingleOrDefault(vve => vve.Key == e.MemberName);
+                            if (memberVector == null)
+                            {
+                                memberVector = new VersionVectorEntry<object>()
+                                {
+                                    IdentityId = App.InstanceId,
+                                    Key = e.MemberName,
+                                    Value = e.Value,
+                                    Version = 1
+                                };
+                                vector.MemberVectors.Add(memberVector);
+                            }
+                            else
+                            {
+                                memberVector.Value = e.Value;
+                                memberVector.Version++;
+                            }
+
+                            // save it
+                            Vectors[e.GlobalKey][App.InstanceId] = vector;
+                            break;
+                        }
+                    case OperationMode.MethodCall:
+                        {
+                            // nothing to do
+                            break;
+                        }
+                }
+            });
         }
 
         /// <summary>
@@ -93,8 +153,8 @@ namespace Altus.Suffūz.Observables
                         {
                             IdentityId = App.InstanceId,
                             Key = "Instance",
-                            Value = (T)instance,
-                            Version = 0
+                            Value = creator(),
+                            Version = 0,
                         }
                     };
 
@@ -108,27 +168,33 @@ namespace Altus.Suffūz.Observables
                         foreach (var channel in provider.Provider.GetChannels(beforeCreated))
                         {
                             // register the local route handler so we can answer calls requesting our latest version
-                            router.Route<ObserveHandler, ObservableRequest>(channel.Name, (handler, request) => handler.GetCurrent(request));
+                            router.Route<ObserveHandler, ObservableRequest, ObservableResponse>(channel.Name, (handler, request) => handler.GetCurrent(request));
 
                             var vector = Post<ObservableRequest, ObservableResponse>
                                             .Via(channel.Name, new ObservableRequest() { GlobalKey = globalKey })
-                                            .Nominate(nr => nr.Score > 0)
-                                            .All()
-                                            .Execute(500)
-                                            .DefaultIfEmpty()
-                                            .MaxBy(or => or.Vector.Version);
+                                            .Execute();
 
                             if (vector != null && vector.Vector.Version > defaultResponse.Vector.Version)
                             {
-                                defaultResponse = vector;
+                                defaultResponse.Vector.Value = vector.Vector.Value;
+                                defaultResponse.Vector.Version = vector.Vector.Version;
+                                defaultResponse.Vector.MemberVectors = vector.Vector.MemberVectors;
                             }
                         }
                     }
 
                     Observables.Add(globalKey, instance);
-                    Vectors.Add(globalKey, defaultResponse.Vector);
-                    instance = defaultResponse.Vector.Value; // get the lastest instance
-                    instance = CreateObservable<T>((T)instance ?? creator(), globalKey); // wrap it in a local observable
+                    IDictionary<ushort, VersionVectorInstance> vectors;
+                    if (!Vectors.TryGetValue(globalKey, out vectors))
+                    {
+                        vectors = CreateVectorDictionary();
+                        Vectors.Add(globalKey, vectors);
+                    }
+
+
+                    // capture my version vector for this key
+                    vectors[App.InstanceId] = defaultResponse.Vector;
+                    instance = CreateObservable<T>((T)defaultResponse.Vector.Value, globalKey); // wrap it in a local observable
                 }
             
                 return (T)instance;
@@ -137,6 +203,14 @@ namespace Altus.Suffūz.Observables
             {
                 _syncRoot.Exit();
             }
+        }
+
+        private static IDictionary<ushort, VersionVectorInstance> CreateVectorDictionary()
+        {
+            var manager = App.Resolve<IManagePersistentCollections>();
+            return manager.GetOrCreate<IPersistentDictionary<ushort, VersionVectorInstance>>(
+                "observable_vectors.bin", 
+                (file) => new PersistentDictionary<ushort, VersionVectorInstance>(file, manager.GlobalHeap, false));
         }
 
         /// <summary>
@@ -268,10 +342,14 @@ namespace Altus.Suffūz.Observables
                     }
                 };
 
-                if (Observe.Vectors.TryGetValue(request.GlobalKey, out entry))
+                IDictionary<ushort, VersionVectorInstance> vectors;
+                if (Observe.Vectors.TryGetValue(request.GlobalKey, out vectors)
+                    && vectors.TryGetValue(App.InstanceId, out entry))
                 {
+                    // strip out the observable wrapping from the instance before sending it
                     response.Vector.Value = ((IObservable)entry.Value).Instance;
                     response.Vector.Version = entry.Version;
+                    response.Vector.MemberVectors = entry.MemberVectors;
                 }
                 return response;
             }

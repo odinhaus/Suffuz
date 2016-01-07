@@ -22,5 +22,13 @@ namespace Altus.Suffūz.Observables
         }
 
         public Operation<T> DiscreteOperation { get; private set; }
+
+        public override object Value
+        {
+            get
+            {
+                return DiscreteOperation.Value;
+            }
+        }
     }
 }

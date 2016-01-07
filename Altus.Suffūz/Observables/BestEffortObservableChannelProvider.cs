@@ -11,18 +11,18 @@ namespace Altus.Suffūz.Observables
 {
     public class BestEffortObservableChannelProvider : IObservableChannelProvider
     {
-        static readonly string _defaultChannelName = "_observableDefault";
+        static readonly string _defaultChannelName = "observable_default";
 
         static BestEffortObservableChannelProvider()
         {
-            IPEndPoint defaultEndPoint;
+            IPEndPoint defaultEndPoint, configuredEndPoint = null;
             IPEndPointEx.TryParseEndPoint("230.0.0.1:5000", out defaultEndPoint);
             try
             {
-                IPEndPointEx.TryParseEndPoint(ConfigurationManager.AppSettings["defaultObservableEndPoint"], out defaultEndPoint);
+                IPEndPointEx.TryParseEndPoint(ConfigurationManager.AppSettings["defaultObservableEndPoint"], out configuredEndPoint);
             }
             catch { }
-            DefaultEndPoint = defaultEndPoint;
+            DefaultEndPoint = configuredEndPoint ?? defaultEndPoint;
             DefaultChannelService = App.ResolveAll<IChannelService>()
                 .FirstOrDefault(cs => cs.AvailableServiceLevels == ServiceLevels.BestEffort);
             if (!DefaultChannelService.CanCreate(_defaultChannelName))

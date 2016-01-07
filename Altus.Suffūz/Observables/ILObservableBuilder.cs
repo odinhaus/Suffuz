@@ -11,9 +11,8 @@ namespace Altus.Suffūz.Observables
     {
         static Dictionary<Type, Func<object, string, IPublisher, object>> _ilTypeBuilders = new Dictionary<Type, Func<object, string, IPublisher, object>>();
 
-        public ILObservableBuilder(IPublisher publisher)
+        public ILObservableBuilder()
         {
-            Publisher = publisher;
         }
 
         /// <summary>
@@ -24,7 +23,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="instance"></param>
         /// <param name="globalKey"></param>
         /// <returns></returns>
-        public T Create<T>(T instance, string globalKey) where T : class, new()
+        public T Create<T>(T instance, string globalKey, IPublisher publisher) where T : class, new()
         {
             Func<object, string, IPublisher, object> ilTypeBuilder;
             lock(_ilTypeBuilders)
@@ -36,7 +35,7 @@ namespace Altus.Suffūz.Observables
                     _ilTypeBuilders.Add(typeof(T), ilTypeBuilder);
                 }
             }
-            return (T)ilTypeBuilder(instance, globalKey, Publisher);
+            return (T)ilTypeBuilder(instance, globalKey, publisher);
         }
 
         /// <summary>
@@ -68,7 +67,5 @@ namespace Altus.Suffūz.Observables
             var lambda = Expression.Lambda<Func<object, string, IPublisher, object>>(ctor, instanceParam, globalKeyParam, publisherParam);
             return lambda.Compile();
         }
-
-        public IPublisher Publisher { get; private set; }
     }
 }

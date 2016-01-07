@@ -80,6 +80,7 @@ namespace Altus.Suffūz.Observables
         public EventClass EventClass { get; protected set; }
         public EventOrder EventOrder { get; protected set; }
         public DateTime LocalTimestamp { get; private set; }
+        public abstract object Value { get; }
     }
 
     public abstract class Operation<T> : Operation where T : class, new()

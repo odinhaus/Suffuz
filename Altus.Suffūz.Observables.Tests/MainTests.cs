@@ -189,8 +189,52 @@ namespace Altus.Suffūz.Objects.Tests
         }
 
         [TestMethod]
-        public void CanGetObservableInstance()
+        public void CanGetLocalObservableInstance()
         {
+            // because we didn't register any observable channel providers, this will just create a local copy
+            var instance = Observe.Get<StateClass>("some key");
+            Assert.IsTrue(instance.GetType().BaseType == typeof(StateClass));
+            Assert.IsTrue(instance.GetType().Implements<Observables.IObservable<StateClass>>());
+            Assert.IsTrue(instance.GetType().GetConstructor(new Type[] { typeof(IPublisher), typeof(StateClass), typeof(string) }) != null);
+            Assert.IsTrue(((Observables.IObservable<StateClass>)instance).GlobalKey == "some key");
+            Assert.IsTrue(((Observables.IObservable<StateClass>)instance).Instance is StateClass);
+            Assert.IsTrue(((Observables.IObservable<StateClass>)instance).SyncLock != null);
+            var publisher = ((Observables.IObservable<StateClass>)instance).Publisher as FakePublisher;
+            instance.Age = 5;
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Commutative);
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Additive);
+            Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Age");
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).BaseValue == 0);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).NewValue == 5);
+            var timestamp = ((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).LocalTimestamp;
+            instance.Age = 5; // should NOT trigger a new publication!
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).BaseValue == 0);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).NewValue == 5);
+            Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).LocalTimestamp == timestamp); // no change in timestamp
+            instance.Name = "Foo";
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Explicit);
+            Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Logical);
+            Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Name");
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
+            Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).BaseValue == null);
+            Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).NewValue == "Foo");
+        }
+
+        [TestMethod]
+        public void CanGetSuffuzObjectInstance()
+        {
+            // setup the infrastructure to replicate event messages across your system
+            // this example would provide synchronization across windows servers over Multicast, javascript (and other) clients 
+            // over SignalR, and iOS devices using APNS
+            foreach (var provider in App.ResolveAll<IObservableChannelProvider>())
+            {
+                Observe.RegisterChannelProvider(provider); // register provider
+            }
+
+            // this will attempt to locate the latest instance from all participants on the registered channels
             var instance = Observe.Get<StateClass>("some key");
             Assert.IsTrue(instance.GetType().BaseType == typeof(StateClass));
             Assert.IsTrue(instance.GetType().Implements<Observables.IObservable<StateClass>>());
@@ -221,6 +265,8 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).BaseValue == null);
             Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).NewValue == "Foo");
 
+            var anotherInstance = Observe.Get<StateClass>("some key");
+            Assert.IsTrue(anotherInstance.Name == instance.Name);
         }
 
         [TestMethod]
@@ -385,6 +431,9 @@ namespace Altus.Suffūz.Objects.Tests
                 _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
                    typeof(IPublisher),
                    new Tuple<Type, object>(typeof(IPublisher), new FakePublisher())));
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(
+                   typeof(IObservableChannelProvider),
+                   new Tuple<Type, object>(typeof(IObservableChannelProvider), new BestEffortObservableChannelProvider())));
             }
 
             public T Resolve<T>()

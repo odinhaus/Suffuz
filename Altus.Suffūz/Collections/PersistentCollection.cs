@@ -33,6 +33,11 @@ namespace Altus.Suffūz.Collections
             }
             catch { }
 
+            if (DEFAULT_DATA_ROOT == null)
+            {
+                DEFAULT_DATA_ROOT = "";
+            }
+
             if (!string.IsNullOrEmpty(DEFAULT_DATA_ROOT))
             {
                 var di = Directory.CreateDirectory(DEFAULT_DATA_ROOT);

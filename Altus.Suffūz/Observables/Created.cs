@@ -13,5 +13,13 @@ namespace Altus.Suffūz.Observables
             T instance)
             : base(globalKey, state, OperationMode.Created, "ctor", instance, EventClass.Ephemeral, EventOrder.NotApplicable)
         { }
+
+        public override object Value
+        {
+            get
+            {
+                return base.Instance;
+            }
+        }
     }
 }

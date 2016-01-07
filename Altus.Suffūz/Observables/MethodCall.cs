@@ -33,5 +33,13 @@ namespace Altus.Suffūz.Observables
         }
         public RuntimeArgument[] Arguments { get; private set; }
         public U ReturnValue { get; private set; }
+
+        public override object Value
+        {
+            get
+            {
+                return ReturnValue;
+            }
+        }
     }
 }
