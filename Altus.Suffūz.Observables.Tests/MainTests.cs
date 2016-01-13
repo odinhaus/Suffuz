@@ -44,7 +44,7 @@ namespace Altus.Suffūz.Objects.Tests
         {
             #region Infrastructure Setup
             // setup the synchronization channel services
-            IObservableChannelProvider 
+            IObservableChannelProvider
                 cp1 = new BestEffortObservableChannelProvider(
                  (op) =>
                  {
@@ -63,17 +63,18 @@ namespace Altus.Suffūz.Objects.Tests
                          channels.Add(BestEffortObservableChannelProvider.DefaultChannelService.Create(op.InstanceType.FullName));
                          return channels;
                      });
-                  }
-                ), 
-                cp2 = new SignalRObservableChannelProvider(),
-                cp3 = new iOSObservableChannelProvider();
+                 }
+                )
+                //,cp2 = new SignalRObservableChannelProvider()
+                //,cp3 = new iOSObservableChannelProvider()
+                ;
 
             // setup the infrastructure to replicate event messages across your system
             // this example would provide synchronization across windows servers over Multicast, javascript (and other) clients 
             // over SignalR, and iOS devices using APNS
             var registration1 = Observe.RegisterChannelProvider(cp1); // register for best-effort multicast event synchronization
-            var registration2 = Observe.RegisterChannelProvider(cp2); // register for SignalR javascript client notifications
-            var registration3 = Observe.RegisterChannelProvider(cp3); // register for iOS push notifications
+            //var registration2 = Observe.RegisterChannelProvider(cp2); // register for SignalR javascript client notifications
+            //var registration3 = Observe.RegisterChannelProvider(cp3); // register for iOS push notifications
             #endregion
 
             #region Global Subscription
