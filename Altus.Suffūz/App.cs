@@ -162,9 +162,13 @@ namespace Altus.Suffūz
             {
                 resolvers = new List<Delegate> { new Func<IScheduler>(() => Scheduler.Current) };
             }
+            else if (type == typeof(IManageSubscriptions))
+            {
+                resolvers = new List<Delegate> { new Func<IManageSubscriptions>(() => new SubscriptionManager()) };
+            }
             else if (type == typeof(IPublisher))
             {
-                resolvers = new List<Delegate> { new Func<IPublisher>(() => new Publisher()) };
+                resolvers = new List<Delegate> { new Func<IPublisher>(() => new Publisher(App.Resolve<IManageSubscriptions>())) };
             }
             else if (type == typeof(IObservableBuilder))
             {

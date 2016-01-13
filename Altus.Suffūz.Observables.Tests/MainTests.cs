@@ -13,6 +13,7 @@ using Altus.Suffūz.Collections;
 using Altus.Suffūz.Serialization.Binary;
 using Altus.Suffūz.Protocols.Udp;
 using Altus.Suffūz.Scheduling;
+using System.Diagnostics;
 
 namespace Altus.Suffūz.Objects.Tests
 {
@@ -166,7 +167,7 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Commutative);
             Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Additive);
             Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Size");
-            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyChanged);
             Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
             Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).BaseValue == 0);
             Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).NewValue == 5);
@@ -178,7 +179,7 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Explicit);
             Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Logical);
             Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Name");
-            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyChanged);
             Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
             Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).BaseValue == null);
             Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).NewValue == "Foo");
@@ -204,7 +205,7 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Commutative);
             Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Additive);
             Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Age");
-            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyChanged);
             Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
             Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).BaseValue == 0);
             Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).NewValue == 5);
@@ -217,7 +218,7 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Explicit);
             Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Logical);
             Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Name");
-            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyChanged);
             Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
             Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).BaseValue == null);
             Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).NewValue == "Foo");
@@ -247,7 +248,7 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Commutative);
             Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Additive);
             Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Age");
-            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyChanged);
             Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
             Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).BaseValue == 0);
             Assert.IsTrue(((PropertyUpdate<StateClass, int>)publisher.LastPropertyUpdate).NewValue == 5);
@@ -260,13 +261,92 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(publisher.LastPropertyUpdate.EventClass == EventClass.Explicit);
             Assert.IsTrue(publisher.LastPropertyUpdate.EventOrder == EventOrder.Logical);
             Assert.IsTrue(publisher.LastPropertyUpdate.MemberName == "Name");
-            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyCall);
+            Assert.IsTrue(publisher.LastPropertyUpdate.OperationMode == OperationMode.PropertyChanged);
             Assert.IsTrue(publisher.LastPropertyUpdate.OperationState == OperationState.After);
             Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).BaseValue == null);
             Assert.IsTrue(((PropertyUpdate<StateClass, string>)publisher.LastPropertyUpdate).NewValue == "Foo");
 
             var anotherInstance = Observe.Get<StateClass>("some key");
             Assert.IsTrue(anotherInstance.Name == instance.Name);
+        }
+
+        [TestMethod]
+        public void CanConfigureSubscriptionTypes()
+        {
+            Resolver.Use<IPublisher, Publisher>(() => new Publisher(App.Resolve<IManageSubscriptions>()));
+
+            var key1 = "some key";
+            var instance1 = Observe.Get<StateClass>(key1);
+            var config = new SubscriptionConfig<StateClass>();
+
+            int[] callCounts = new int[5];
+            System.Action l0 = () => { callCounts[0]++; };
+            System.Action l1 = () => { callCounts[1]++; };
+            System.Action l2 = () => { callCounts[2]++; };
+            System.Action l3 = () => { callCounts[3]++; };
+            System.Action l4 = () => { callCounts[4]++; };
+
+            config = config.AfterAny((any) => l0());
+            config = config.AfterAny((any) => l1(), instance1);
+            config = config.AfterAny((any) => l2(), key1);
+            config = config.AfterAny((any) => l3(), (any) => true);
+            var subscription1 = config.Subscribe();
+
+            var subscription2 = Observe<StateClass>
+                                    .AfterAny((any) => l0())
+                                    .AfterAny((any) => l1(), instance1)
+                                    .AfterAny((any) => l2(), key1)
+                                    .AfterAny((any) => l3(), (any) => true)
+                                    .Subscribe();
+
+            instance1.Age = 5;
+            // both subscriptions should be called, incrementing call counts twice
+            Assert.IsTrue(callCounts[0] == 2);
+            Assert.IsTrue(callCounts[1] == 2);
+            Assert.IsTrue(callCounts[2] == 2);
+            Assert.IsTrue(callCounts[3] == 2);
+
+            // drop first subscription
+            subscription1.Dispose();
+
+            instance1.Age = 3;
+
+            // only one subscription should be called, incrementing call counts once
+            Assert.IsTrue(callCounts[0] == 3);
+            Assert.IsTrue(callCounts[1] == 3);
+            Assert.IsTrue(callCounts[2] == 3);
+            Assert.IsTrue(callCounts[3] == 3);
+
+            var key2 = "another key";
+            var instance2 = Observe.Get<StateClass>(key2);
+
+            instance2.Age = 7;
+
+            // only subscription filters 0 and 3 match all instance of the type, so only they should increment
+            Assert.IsTrue(callCounts[0] == 4);
+            Assert.IsTrue(callCounts[1] == 3);
+            Assert.IsTrue(callCounts[2] == 3);
+            Assert.IsTrue(callCounts[3] == 4);
+
+            var subscription3 = Observe<StateClass>
+                                        .AfterChanged((instance) => instance.Age, (update) => l0())
+                                        .AfterChanged((instance) => instance.Age, (update) => l1(), instance1)
+                                        .AfterChanged((instance) => instance.Age, (update) => l2(), key1)
+                                        .AfterChanged((instance) => instance.Age, (update) => l3(), (i) => true)
+                                        .Subscribe();
+
+            instance1.Age = 9; // +1 across the board from subscription2, +1 across the board from subscription3
+            instance1.Name = "foo";  // +1 across the board from subscription2, 
+            instance2.Age = 9; // +1 for l0 and l3 from subscription2, +1 for l0 and l3 from subscription3
+            
+
+            // subscription2 matches all changes for instance 1, and 
+            // subscription3 matches all changes for Age property for instance 1
+            Assert.IsTrue(callCounts[0] == 9);
+            Assert.IsTrue(callCounts[1] == 6);
+            Assert.IsTrue(callCounts[2] == 6);
+            Assert.IsTrue(callCounts[3] == 9);
+
         }
 
         [TestMethod]
@@ -400,7 +480,7 @@ namespace Altus.Suffūz.Objects.Tests
 
         public class Resolver : IResolveTypes
         {
-            List<KeyValuePair<Type, Tuple<Type, object>>> _types = new List<KeyValuePair<Type, Tuple<Type, object>>>();
+            static List<KeyValuePair<Type, Tuple<Type, object>>> _types = new List<KeyValuePair<Type, Tuple<Type, object>>>();
 
             public Resolver()
             {
@@ -438,7 +518,7 @@ namespace Altus.Suffūz.Objects.Tests
 
             public T Resolve<T>()
             {
-                Tuple<Type, object> tuple = _types.Single(kvp => kvp.Key == typeof(T)).Value;
+                Tuple<Type, object> tuple = _types.Last(kvp => kvp.Key == typeof(T)).Value;
                 return (T)tuple.Item2;
             }
 
@@ -448,6 +528,11 @@ namespace Altus.Suffūz.Objects.Tests
                 {
                     yield return (T)v.Value.Item2;
                 }
+            }
+
+            public static void Use<T, U>(Func<U> creator)
+            {
+                _types.Add(new KeyValuePair<Type, Tuple<Type, object>>(typeof(T), new Tuple<Type, object>(typeof(T), creator())));
             }
         }
     }

@@ -44,7 +44,7 @@ namespace Altus.Suffūz.Observables
     public enum OperationMode
     {
         MethodCall,
-        PropertyCall,
+        PropertyChanged,
         Created,
         Disposed
     }
@@ -100,7 +100,7 @@ namespace Altus.Suffūz.Observables
             get { return (T)base.Instance; }
             internal set { base.Instance = value; }
         }
-        public Subscription<T> Subscription { get; internal set; }
+        public new Subscription<T> Subscription { get; internal set; }
     }
 
 }

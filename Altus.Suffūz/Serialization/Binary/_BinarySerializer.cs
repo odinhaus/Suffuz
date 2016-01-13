@@ -24,7 +24,7 @@ namespace Altus.Suffūz.Serialization.Binary
                 }
 
                 string tname = source.GetType().AssemblyQualifiedName;
-                if (typeof(ISerializer).IsAssignableFrom(targetType))
+                if (typeof(ISerializer).IsAssignableFrom(targetType) || typeof(ISerializer).IsAssignableFrom(type))
                 {
                     Type baseType = type.BaseType;
                     Type serializerGen = typeof(ISerializer<>);

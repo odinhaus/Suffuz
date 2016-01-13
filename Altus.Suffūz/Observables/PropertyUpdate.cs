@@ -17,7 +17,7 @@ namespace Altus.Suffūz.Observables
             EventOrder order,
             U baseValue,
             U newValue)
-            :base(globalKey, state, OperationMode.PropertyCall, memberName, instance, @class, order)
+            :base(globalKey, state, OperationMode.PropertyChanged, memberName, instance, @class, order)
         {
             this.BaseValue = baseValue;
             this.NewValue = newValue;

@@ -63,17 +63,15 @@ namespace Altus.Suffūz
         /// <returns>the configured type if it can be found/created, otherwise returns null</returns>
         public static Type GetType(string typeName)
         {
+            string[] parts = typeName.Split(',');
+            Type retType = null;
             try
             {
-                Type retType = null;
+
                 lock (_resolvedTypes)
                 {
                     if (_resolvedTypes.ContainsKey(typeName))
                         return _resolvedTypes[typeName];
-
-
-                    string[] parts = typeName.Split(',');
-
 
                     switch (parts.Length)
                     {
@@ -114,6 +112,16 @@ namespace Altus.Suffūz
             }
             catch
             {
+                if (parts.Length >= 2)
+                {
+                    var asm = AppDomain.CurrentDomain.GetAssemblies().SingleOrDefault(a => a.GetName().Name.Equals(parts[1].Trim(), StringComparison.CurrentCultureIgnoreCase));
+                    if (asm != null)
+                    {
+                        retType = asm.GetTypes().SingleOrDefault(t => t.FullName.Equals(parts[0].Trim()));
+                        _resolvedTypes.Add(typeName, retType);
+                        return retType;
+                    }
+                }
                 return null;
             }
         }

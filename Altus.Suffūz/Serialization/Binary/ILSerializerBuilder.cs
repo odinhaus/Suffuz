@@ -31,6 +31,12 @@ namespace Altus.Suffūz.Serialization.Binary
         {
             Func<ISerializer> activator = null;
 
+            var generatedSerializer = type.GetCustomAttribute(typeof(GeneratedSerializerAttribute));
+            if (generatedSerializer != null)
+            {
+                type = ((GeneratedSerializerAttribute)generatedSerializer).WrappedType;
+            }
+
             if (PrimitiveSerializer.IsPrimitive(type))
             {
                 return new PrimitiveSerializer();
@@ -80,6 +86,11 @@ namespace Altus.Suffūz.Serialization.Binary
                 type, // base type
                 new Type[] { interfaceType, protocolBuffer } // interfaces
                 );
+
+            // add custom attribute
+            var attribCtor = typeof(GeneratedSerializerAttribute).GetConstructors()[0]; // there's only one
+            var caBuilder = new CustomAttributeBuilder(attribCtor, new object[] { type });
+            typeBuilder.SetCustomAttribute(caBuilder);
             /*
 
             public interface ISerializer

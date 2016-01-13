@@ -83,6 +83,7 @@
     <Compile Include="Observables\ExplicitEventAttribute.cs" />
     <Compile Include="Observables\ILObservableBuilder.cs" />
     <Compile Include="Observables\ILObservableTypeBuilder.cs" />
+    <Compile Include="Observables\IManageSubscriptions.cs" />
     <Compile Include="Observables\IObservable.cs" />
     <Compile Include="Observables\IObservableBuilder.cs" />
     <Compile Include="Observables\IObservableChannelProvider.cs" />
@@ -102,6 +103,7 @@
     <Compile Include="Observables\Serialization\Binary\ChangeStateSerializer.cs" />
     <Compile Include="Observables\Subscription.cs" />
     <Compile Include="Observables\SubscriptionConfig.cs" />
+    <Compile Include="Observables\SubscriptionManager.cs" />
     <Compile Include="Observables\TemporalConflictResolver.cs" />
     <Compile Include="Observables\VersionVector.cs" />
     <Compile Include="Observables\VersionVectorEntry.cs" />
@@ -181,6 +183,7 @@
     <Compile Include="Serialization\BinarySerializableAttribute.cs" />
     <Compile Include="Serialization\Binary\BinarySerializerBuilder.cs" />
     <Compile Include="Serialization\Binary\ComplexSerializer.cs" />
+    <Compile Include="Serialization\Binary\GeneratedSerializerAttribute.cs" />
     <Compile Include="Serialization\Binary\IBinarySerializerBuilder.cs" />
     <Compile Include="Serialization\Binary\IEnumerableSerializer.cs" />
     <Compile Include="Serialization\Binary\IDictionarySerializer.cs" />

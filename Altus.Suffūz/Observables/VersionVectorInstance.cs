@@ -18,6 +18,10 @@ namespace Altus.Suffūz.Observables
 
     public class VersionVectorInstance : VersionVectorEntry
     {
+        public VersionVectorInstance()
+        {
+            MemberVectors = new VersionVector<object>();
+        }
         [BinarySerializable(4)]
         public VersionVector<object> MemberVectors { get; set; }
     }

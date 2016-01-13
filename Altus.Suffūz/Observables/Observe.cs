@@ -21,14 +21,14 @@ namespace Altus.Suffūz.Observables
             Observables = new Dictionary<string, object>();
             Providers = new List<ChannelProviderRegistration>();
             Vectors = new Dictionary<string, IDictionary<ushort, VersionVectorInstance>>();
-            Subscriptions = new Dictionary<string, Subscription>();
+            SubscriptionManager = App.Resolve<IManageSubscriptions>();
             Hasher = MD5.Create();
         }
 
         protected static IDictionary<string, IDictionary<ushort, VersionVectorInstance>> Vectors { get; private set; }
         protected static IDictionary<string, object> Observables { get; private set; }
         protected static IList<ChannelProviderRegistration> Providers { get; private set; }
-        protected static IDictionary<string, Subscription> Subscriptions { get; private set; }
+        protected static IManageSubscriptions SubscriptionManager { get; private set; }
 
         protected static MD5 Hasher { get; private set; }
 
@@ -43,61 +43,9 @@ namespace Altus.Suffūz.Observables
             var wrappedInstance = builder.Create<T>(instance, globalKey, App.Resolve<IPublisher>());
 
             // subscribe to changes, so we can increment our local version numbers
-            Subscriptions[globalKey] = Observe<T>.AfterAny((e) => AfterAny(e)).Subscribe();
+            SubscriptionManager.Add(AfterAny((e) => AfterAny(e), wrappedInstance));
 
             return wrappedInstance;
-        }
-
-        private static void AfterAny<T>(AnyOperation<T> e) where T : class, new()
-        {
-            _syncRoot.Lock(() =>
-            {
-                var vector = Vectors[e.GlobalKey][App.InstanceId];
-                switch(e.OperationMode)
-                {
-                    case OperationMode.Created:
-                        {
-                            // nothing to do
-                            break;
-                        }
-                    case OperationMode.Disposed:
-                        {
-                            // nothing to do
-                            break;
-                        }
-                    case OperationMode.PropertyCall:
-                        {
-                            // update property vector and instance vector
-                            vector.Version++;
-                            var memberVector = vector.MemberVectors.SingleOrDefault(vve => vve.Key == e.MemberName);
-                            if (memberVector == null)
-                            {
-                                memberVector = new VersionVectorEntry<object>()
-                                {
-                                    IdentityId = App.InstanceId,
-                                    Key = e.MemberName,
-                                    Value = e.Value,
-                                    Version = 1
-                                };
-                                vector.MemberVectors.Add(memberVector);
-                            }
-                            else
-                            {
-                                memberVector.Value = e.Value;
-                                memberVector.Version++;
-                            }
-
-                            // save it
-                            Vectors[e.GlobalKey][App.InstanceId] = vector;
-                            break;
-                        }
-                    case OperationMode.MethodCall:
-                        {
-                            // nothing to do
-                            break;
-                        }
-                }
-            });
         }
 
         /// <summary>
@@ -183,7 +131,7 @@ namespace Altus.Suffūz.Observables
                         }
                     }
 
-                    Observables.Add(globalKey, instance);
+                    
                     IDictionary<ushort, VersionVectorInstance> vectors;
                     if (!Vectors.TryGetValue(globalKey, out vectors))
                     {
@@ -195,6 +143,7 @@ namespace Altus.Suffūz.Observables
                     // capture my version vector for this key
                     vectors[App.InstanceId] = defaultResponse.Vector;
                     instance = CreateObservable<T>((T)defaultResponse.Vector.Value, globalKey); // wrap it in a local observable
+                    Observables.Add(globalKey, instance);
                 }
             
                 return (T)instance;
@@ -221,7 +170,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static Subscription<T> BeforeDisposed<T>(Expression<Action<Disposed<T>>> subscriber, T instance) where T : class, new()
         {
-            throw new NotImplementedException();
+            return Observe<T>.BeforeDisposed(subscriber, instance).Subscribe();
         }
 
         /// <summary>
@@ -232,7 +181,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static Subscription<T> AfterDisposed<T>(Expression<Action<Disposed<T>>> subscriber, T instance) where T : class, new()
         {
-            throw new NotImplementedException();
+            return Observe<T>.AfterDisposed(subscriber, instance).Subscribe();
         }
 
         /// <summary>
@@ -243,7 +192,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static Subscription<T> BeforeAny<T>(Expression<Action<AnyOperation<T>>> subscriber, T instance) where T : class, new()
         {
-            throw new NotImplementedException();
+            return Observe<T>.BeforeAny(subscriber, instance).Subscribe();
         }
 
         /// <summary>
@@ -254,7 +203,64 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static Subscription<T> AfterAny<T>(Expression<Action<AnyOperation<T>>> subscriber, T instance) where T : class, new()
         {
-            throw new NotImplementedException();
+            return Observe<T>.AfterAny(subscriber, instance).Subscribe();
+        }
+
+        /// <summary>
+        /// Single handler to update vector state whenever a change has been applied locally.  The publisher will take care to send out the new information, we just need to update here.
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="e"></param>
+        private static void AfterAny<T>(AnyOperation<T> e) where T : class, new()
+        {
+            _syncRoot.Lock(() =>
+            {
+                var vector = Vectors[e.GlobalKey][App.InstanceId];
+                switch (e.OperationMode)
+                {
+                    case OperationMode.Created:
+                        {
+                            // nothing to do
+                            break;
+                        }
+                    case OperationMode.Disposed:
+                        {
+                            // nothing to do
+                            break;
+                        }
+                    case OperationMode.PropertyChanged:
+                        {
+                            // update property vector and instance vector
+                            vector.Version++;
+                            var memberVector = vector.MemberVectors.SingleOrDefault(vve => vve.Key == e.MemberName);
+                            if (memberVector == null)
+                            {
+                                memberVector = new VersionVectorEntry<object>()
+                                {
+                                    IdentityId = App.InstanceId,
+                                    Key = e.MemberName,
+                                    Value = e.Value,
+                                    Version = 1
+                                };
+                                vector.MemberVectors.Add(memberVector);
+                            }
+                            else
+                            {
+                                memberVector.Value = e.Value;
+                                memberVector.Version++;
+                            }
+
+                            // save it
+                            Vectors[e.GlobalKey][App.InstanceId] = vector;
+                            break;
+                        }
+                    case OperationMode.MethodCall:
+                        {
+                            // nothing to do
+                            break;
+                        }
+                }
+            });
         }
 
         /// <summary>
@@ -264,9 +270,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> BeforeCalled<T, U>(Expression<Action<T>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> BeforeCalled<T, U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance) where T : class, new()
         {
-            throw new NotImplementedException();
+            return Observe<T>.BeforeCalled(methodCalled, subscriber, instance).Subscribe();
         }
 
         /// <summary>
@@ -276,9 +282,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> AfterCalled<T, U>(Expression<Action<T>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> AfterCalled<T, U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance) where T : class, new()
         {
-            throw new NotImplementedException();
+            return Observe<T>.AfterCalled(methodCalled, subscriber, instance).Subscribe();
         }
 
         /// <summary>
@@ -291,7 +297,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static Subscription<T> BeforeChanged<T, U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, T instance) where T : class, new()
         {
-            throw new NotImplementedException();
+            return Observe<T>.BeforeChanged<T, U>(propertyChanged, subscriber, instance);
         }
 
         /// <summary>
@@ -304,7 +310,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static Subscription<T> AfterChanged<T, U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, T instance) where T : class, new()
         {
-            throw new NotImplementedException();
+            return Observe<T>.AfterChanged<T, U>(propertyChanged, subscriber, instance);
         }
 
         /// <summary>
@@ -366,7 +372,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeCreated(Expression<Action<Created<T>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeCreated(subscriber);
         }
 
         /// <summary>
@@ -378,7 +384,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeCreated(Expression<Action<Created<T>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeCreated(subscriber, key);
         }
 
         /// <summary>
@@ -390,7 +396,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeCreated(Expression<Action<Created<T>>> subscriber, Func<Created<T>, bool> instanceSelector)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeCreated(subscriber, instanceSelector);
         }
 
         /// <summary>
@@ -400,7 +406,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterCreated(Expression<Action<Created<T>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterCreated(subscriber);
         }
 
         /// <summary>
@@ -412,7 +418,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterCreated(Expression<Action<Created<T>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterCreated(subscriber, key);
         }
 
         /// <summary>
@@ -424,7 +430,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterCreated(Expression<Action<Created<T>>> subscriber, Func<Created<T>, bool> instanceSelector)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterCreated(subscriber, instanceSelector);
         }
 
         /// <summary>
@@ -434,7 +440,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeDisposed(Expression<Action<Disposed<T>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeDisposed(subscriber);
         }
 
         /// <summary>
@@ -445,7 +451,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeDisposed(Expression<Action<Disposed<T>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeDisposed(subscriber, key);
         }
 
         /// <summary>
@@ -456,7 +462,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeDisposed(Expression<Action<Disposed<T>>> subscriber, Func<Disposed<T>, bool> instanceSelector)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeDisposed(subscriber, instanceSelector);
         }
 
         /// <summary>
@@ -467,7 +473,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeDisposed(Expression<Action<Disposed<T>>> subscriber, T instance)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeDisposed(subscriber, instance);
         }
 
         /// <summary>
@@ -477,7 +483,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterDisposed(Expression<Action<Disposed<T>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterDisposed(subscriber);
         }
 
         /// <summary>
@@ -488,7 +494,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterDisposed(Expression<Action<Disposed<T>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterDisposed(subscriber, key);
         }
 
         /// <summary>
@@ -499,7 +505,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterDisposed(Expression<Action<Disposed<T>>> subscriber, Func<Disposed<T>, bool> instanceSelector)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterDisposed(subscriber, instanceSelector);
         }
 
         /// <summary>
@@ -510,7 +516,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterDisposed(Expression<Action<Disposed<T>>> subscriber, T instance)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterDisposed(subscriber, instance);
         }
 
         /// <summary>
@@ -520,7 +526,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeAny(Expression<Action<AnyOperation<T>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeAny(subscriber);
         }
 
         /// <summary>
@@ -531,7 +537,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeAny(Expression<Action<AnyOperation<T>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeAny(subscriber, key);
         }
 
         /// <summary>
@@ -542,7 +548,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeAny(Expression<Action<AnyOperation<T>>> subscriber, Func<AnyOperation<T>, bool> instanceSelector)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeAny(subscriber, instanceSelector);
         }
 
         /// <summary>
@@ -553,7 +559,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeAny(Expression<Action<AnyOperation<T>>> subscriber, T instance)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeAny(subscriber, instance);
         }
 
         /// <summary>
@@ -563,7 +569,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterAny(Expression<Action<AnyOperation<T>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterAny(subscriber);
         }
 
         /// <summary>
@@ -574,7 +580,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterAny(Expression<Action<AnyOperation<T>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterAny(subscriber, key);
         }
 
         /// <summary>
@@ -585,7 +591,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterAny(Expression<Action<AnyOperation<T>>> subscriber, Func<AnyOperation<T>, bool> instanceSelector)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterAny(subscriber, instanceSelector);
         }
 
         /// <summary>
@@ -596,7 +602,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterAny(Expression<Action<AnyOperation<T>>> subscriber, T instance)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterAny(subscriber, instance);
         }
 
         /// <summary>
@@ -605,9 +611,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="methodCalled">the method to subscribe to</param>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCalled<U>(Expression<Action<T>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber)
+        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeCalled(methodCalled, subscriber);
         }
 
         /// <summary>
@@ -617,9 +623,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCalled<U>(Expression<Action<T>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, string key)
+        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeCalled(methodCalled, subscriber, key);
         }
 
         /// <summary>
@@ -629,9 +635,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instancePredicate"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCalled<U>(Expression<Action<T>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
+        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeCalled(methodCalled, subscriber, instancePredicate);
         }
 
         /// <summary>
@@ -641,9 +647,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCalled<U>(Expression<Action<T>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance)
+        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeCalled(methodCalled, subscriber, instance);
         }
 
         /// <summary>
@@ -652,9 +658,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="method">the method to subscribe to</param>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCalled<U>(Expression<Action<T>> method, Expression<Action<MethodCall<T, U>>> subscriber)
+        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterCalled(methodCalled, subscriber);
         }
         /// <summary>
         /// Subscribes to a specific method call after it is called for the instance specified by key
@@ -663,9 +669,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCalled<U>(Expression<Action<T>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, string key)
+        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterCalled(methodCalled, subscriber, key);
         }
 
         /// <summary>
@@ -675,9 +681,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instancePredicate"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCalled<U>(Expression<Action<T>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
+        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterCalled(methodCalled, subscriber, instancePredicate);
         }
 
         /// <summary>
@@ -687,9 +693,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCalled<U>(Expression<Action<T>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance)
+        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterCalled(methodCalled, subscriber, instance);
         }
 
         /// <summary>
@@ -701,7 +707,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeChanged(propertyChanged, subscriber);
         }
 
         /// <summary>
@@ -714,7 +720,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeChanged(propertyChanged, subscriber, key);
         }
 
         /// <summary>
@@ -727,7 +733,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, Func<PropertyUpdate<T, U>, bool> instancePredicate)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeChanged(propertyChanged, subscriber, instancePredicate);
         }
 
         /// <summary>
@@ -740,7 +746,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, T instance)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().BeforeChanged(propertyChanged, subscriber, instance);
         }
 
         /// <summary>
@@ -750,9 +756,9 @@ namespace Altus.Suffūz.Observables
         /// <param name="method">the property to subscribe to</param>
         /// <param name="subscriber">the handle to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> method, Expression<Action<PropertyUpdate<T, U>>> subscriber)
+        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterChanged(propertyChanged, subscriber);
         }
 
         /// <summary>
@@ -765,7 +771,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, string key)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterChanged(propertyChanged, subscriber, key);
         }
 
         /// <summary>
@@ -778,7 +784,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, Func<PropertyUpdate<T, U>, bool> instancePredicate)
         {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterChanged(propertyChanged, subscriber, instancePredicate);
         }
 
         /// <summary>
@@ -791,16 +797,7 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, T instance)
         {
-            throw new NotImplementedException();
-        }
-
-        /// <summary>
-        /// Creates the subscription and starts listening for operations.  Disposing of the returned Subscription instance releases the subscription.
-        /// </summary>
-        /// <returns></returns>
-        public static SubscriptionConfig<T> Subscribe()
-        {
-            throw new NotImplementedException();
+            return new SubscriptionConfig<T>().AfterChanged(propertyChanged, subscriber, instance);
         }
     }
     
