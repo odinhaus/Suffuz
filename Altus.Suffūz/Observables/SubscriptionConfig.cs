@@ -477,11 +477,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.Before
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name);
+                                                             && operation.MemberName.Equals(methodName);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
             AddSelector(selector);
@@ -499,11 +500,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, string key)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.Before
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name)
+                                                             && operation.MemberName.Equals(methodName)
                                                              && operation.GlobalKey.Equals(key);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
@@ -522,11 +524,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.Before
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name)
+                                                             && operation.MemberName.Equals(methodName)
                                                              && instancePredicate((MethodCall<T,U>)operation);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
@@ -544,11 +547,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> BeforeCalled<U, A, B>(Expression<Func<T, Func<A, B, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.Before
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name);
+                                                             && operation.MemberName.Equals(methodName);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
             AddSelector(selector);
@@ -564,11 +568,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.Before
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name)
+                                                             && operation.MemberName.Equals(methodName)
                                                              && operation.Instance == instance;
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
@@ -586,11 +591,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.After
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name);
+                                                             && operation.MemberName.Equals(methodName);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
             AddSelector(selector);
@@ -607,11 +613,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, string key)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.Before
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name)
+                                                             && operation.MemberName.Equals(methodName)
                                                              && operation.GlobalKey.Equals(key);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
@@ -630,11 +637,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.After
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name)
+                                                             && operation.MemberName.Equals(methodName)
                                                              && instancePredicate((MethodCall<T, U>)operation);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
@@ -652,11 +660,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> AfterCalled<U, A, B>(Expression<Func<T, Func<A, B, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.After
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name);
+                                                             && operation.MemberName.Equals(methodName);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
             AddSelector(selector);
@@ -673,11 +682,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> AfterCalled<U, A, B>(Expression<Func<T, Func<A, B, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, string key)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.After
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name)
+                                                             && operation.MemberName.Equals(methodName)
                                                              && operation.GlobalKey.Equals(key);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
@@ -696,11 +706,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> AfterCalled<U, A, B>(Expression<Func<T, Func<A, B, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.After
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name)
+                                                             && operation.MemberName.Equals(methodName)
                                                              && instancePredicate((MethodCall<T, U>)operation);
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);
@@ -717,11 +728,12 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         public SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance)
         {
+            var methodName = ((MethodInfo)((ConstantExpression)((MethodCallExpression)((UnaryExpression)((LambdaExpression)methodCalled).Body).Operand).Object).Value).Name;
             Func<Operation, bool> predicate = (operation) => operation is MethodCall<T, U>
                                                              && operation.OperationState == OperationState.After
                                                              && operation.OperationMode == OperationMode.MethodCall
                                                              && operation.InstanceType.Equals(typeof(T))
-                                                             && operation.MemberName.Equals(((MemberExpression)methodCalled.Body).Member.Name)
+                                                             && operation.MemberName.Equals(methodName)
                                                              && operation.Instance == instance;
             var action = subscriber.Compile();
             var selector = new SubscriptionSelector(predicate, action);

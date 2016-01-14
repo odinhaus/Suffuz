@@ -154,7 +154,7 @@ namespace Altus.Suffūz.Observables.Tests.Observables
                 Publisher.Publish(beforeCall);
 
                 var afterCall = new MethodCall<StateClass, int>(this.GlobalKey,
-                    OperationState.Before,
+                    OperationState.After,
                     "Hello",
                     typeof(StateClass),
                     this,

@@ -40,11 +40,16 @@ namespace Altus.Suffūz.Observables
         protected static T CreateObservable<T>(T instance, string globalKey) where T : class, new()
         {
             var builder = App.Resolve<IObservableBuilder>();
-            var wrappedInstance = builder.Create<T>(instance, globalKey, App.Resolve<IPublisher>());
+            var publisher = App.Resolve<IPublisher>();
+            // notify listeners
+            publisher.Publish<T>(new Created<T>(globalKey, OperationState.Before, null));
+            var wrappedInstance = builder.Create<T>(instance, globalKey, publisher);
 
             // subscribe to changes, so we can increment our local version numbers
             SubscriptionManager.Add(AfterAny((e) => AfterAny(e), wrappedInstance));
 
+            // notify listeners
+            publisher.Publish<T>(new Created<T>(globalKey, OperationState.After, wrappedInstance));
             return wrappedInstance;
         }
 

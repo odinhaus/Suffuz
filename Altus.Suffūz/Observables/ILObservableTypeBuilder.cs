@@ -75,14 +75,224 @@ namespace Altus.Suffūz.Observables
                 publisherProp);
 
             ImplementPropertyProxies(typeBuilder, syncLockProp, globalKeyProp, publisherProp);
-            ImplementMethodProxies(typeBuilder);
+            ImplementMethodProxies(typeBuilder, syncLockProp, globalKeyProp, publisherProp);
 
             return typeBuilder.CreateType();
         }
 
-        private void ImplementMethodProxies(TypeBuilder typeBuilder)
+        private void ImplementMethodProxies(TypeBuilder typeBuilder,
+            PropertyInfo syncLock,
+            PropertyInfo globalKey,
+            PropertyInfo publisher)
         {
-            
+            foreach(var method in typeBuilder.BaseType.GetMethods(BindingFlags.Public | BindingFlags.Instance))
+            {
+                if (method.IsVirtual && !method.IsSpecialName)
+                    ImplementMethodProxy(typeBuilder, method, syncLock, globalKey, publisher);
+            }
+        }
+
+        private MethodInfo ImplementMethodProxy(TypeBuilder typeBuilder, MethodInfo method,
+            PropertyInfo syncLock,
+            PropertyInfo globalKey,
+            PropertyInfo publisher)
+        {
+            /*
+            .method public hidebysig virtual instance int32 
+            Hello(string message) cil managed
+            {
+              // Code size       154 (0x9a)
+              .maxstack  8
+              .locals init ([0] class ['Altus.Suffūz']'Altus.Suffūz.Observables'.RuntimeArgument[] args,
+                       [1] class ['Altus.Suffūz']'Altus.Suffūz.Observables'.MethodCall`2<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32> beforeCall,
+                       [2] class ['Altus.Suffūz']'Altus.Suffūz.Observables'.MethodCall`2<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32> afterCall,
+                       [3] int32 V_3)
+              IL_0000:  nop
+              .try
+              {
+                IL_0001:  nop
+                IL_0002:  ldarg.0
+                IL_0003:  call       instance class ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_SyncLock()
+                IL_0008:  callvirt   instance void ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock::Enter()
+                IL_000d:  nop
+                IL_000e:  ldc.i4.1
+                IL_000f:  newarr     ['Altus.Suffūz']'Altus.Suffūz.Observables'.RuntimeArgument
+                IL_0014:  dup
+                IL_0015:  ldc.i4.0
+                IL_0016:  ldstr      "message"
+                IL_001b:  ldarg.1
+                IL_001c:  newobj     instance void ['Altus.Suffūz']'Altus.Suffūz.Observables'.RuntimeArgument::.ctor(string,
+                                                                                                                       object)
+                IL_0021:  stelem.ref
+                IL_0022:  stloc.0
+                IL_0023:  ldarg.0
+                IL_0024:  call       instance string 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_GlobalKey()
+                IL_0029:  ldc.i4.0
+                IL_002a:  ldstr      "Hello"
+                IL_002f:  ldtoken    'Altus.Suffūz.Observables.Tests.Observables'.StateClass
+                IL_0034:  call       class [mscorlib]System.Type [mscorlib]System.Type::GetTypeFromHandle(valuetype [mscorlib]System.RuntimeTypeHandle)
+                IL_0039:  ldarg.0
+                IL_003a:  ldloc.0
+                IL_003b:  newobj     instance void class ['Altus.Suffūz']'Altus.Suffūz.Observables'.MethodCall`2<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32>::.ctor(string,
+                                                                                                                                                                                                valuetype ['Altus.Suffūz']'Altus.Suffūz.Observables'.OperationState,
+                                                                                                                                                                                                string,
+                                                                                                                                                                                                class [mscorlib]System.Type,
+                                                                                                                                                                                                !0,
+                                                                                                                                                                                                class ['Altus.Suffūz']'Altus.Suffūz.Observables'.RuntimeArgument[])
+                IL_0040:  stloc.1
+                IL_0041:  ldarg.0
+                IL_0042:  call       instance class ['Altus.Suffūz']'Altus.Suffūz.Observables'.IPublisher 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_Publisher()
+                IL_0047:  ldloc.1
+                IL_0048:  callvirt   instance void ['Altus.Suffūz']'Altus.Suffūz.Observables'.IPublisher::Publish<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32>(class ['Altus.Suffūz']'Altus.Suffūz.Observables'.MethodCall`2<!!0,!!1>)
+                IL_004d:  nop
+                IL_004e:  ldarg.0
+                IL_004f:  call       instance string 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_GlobalKey()
+                IL_0054:  ldc.i4.0
+                IL_0055:  ldstr      "Hello"
+                IL_005a:  ldtoken    'Altus.Suffūz.Observables.Tests.Observables'.StateClass
+                IL_005f:  call       class [mscorlib]System.Type [mscorlib]System.Type::GetTypeFromHandle(valuetype [mscorlib]System.RuntimeTypeHandle)
+                IL_0064:  ldarg.0
+                IL_0065:  ldloc.0
+                IL_0066:  ldarg.0
+                IL_0067:  ldarg.1
+                IL_0068:  call       instance int32 'Altus.Suffūz.Observables.Tests.Observables'.StateClass::Hello(string)
+                IL_006d:  newobj     instance void class ['Altus.Suffūz']'Altus.Suffūz.Observables'.MethodCall`2<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32>::.ctor(string,
+                                                                                                                                                                                                valuetype ['Altus.Suffūz']'Altus.Suffūz.Observables'.OperationState,
+                                                                                                                                                                                                string,
+                                                                                                                                                                                                class [mscorlib]System.Type,
+                                                                                                                                                                                                !0,
+                                                                                                                                                                                                class ['Altus.Suffūz']'Altus.Suffūz.Observables'.RuntimeArgument[],
+                                                                                                                                                                                                !1)
+                IL_0072:  stloc.2
+                IL_0073:  ldarg.0
+                IL_0074:  call       instance class ['Altus.Suffūz']'Altus.Suffūz.Observables'.IPublisher 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_Publisher()
+                IL_0079:  ldloc.1
+                IL_007a:  callvirt   instance void ['Altus.Suffūz']'Altus.Suffūz.Observables'.IPublisher::Publish<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32>(class ['Altus.Suffūz']'Altus.Suffūz.Observables'.MethodCall`2<!!0,!!1>)
+                IL_007f:  nop
+                IL_0080:  ldloc.2
+                IL_0081:  callvirt   instance !1 class ['Altus.Suffūz']'Altus.Suffūz.Observables'.MethodCall`2<class 'Altus.Suffūz.Observables.Tests.Observables'.StateClass,int32>::get_ReturnValue()
+                IL_0086:  stloc.3
+                IL_0087:  leave.s    IL_0098
+              }  // end .try
+              finally
+              {
+                IL_0089:  nop
+                IL_008a:  ldarg.0
+                IL_008b:  call       instance class ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock 'Altus.Suffūz.Observables.Tests.Observables'.Observable_StateClass::get_SyncLock()
+                IL_0090:  callvirt   instance void ['Altus.Suffūz']'Altus.Suffūz.Threading'.ExclusiveLock::Exit()
+                IL_0095:  nop
+                IL_0096:  nop
+                IL_0097:  endfinally
+              }  // end handler
+              IL_0098:  ldloc.3
+              IL_0099:  ret
+            } // end of method Observable_StateClass::Hello
+
+            */
+
+            var methodBuilder = typeBuilder.DefineMethod(method.Name, method.Attributes | MethodAttributes.Final);
+            methodBuilder.SetSignature(method.ReturnType, null, null, method.GetParameters().Select(p => p.ParameterType).ToArray(), null, null);
+
+            var methodCode = methodBuilder.GetILGenerator();
+            var hasReturn = method.ReturnType != typeof(void);
+            var returnType = hasReturn ? method.ReturnType : typeof(object);
+            var messageType = typeof(MethodCall<,>).MakeGenericType(typeBuilder.BaseType, returnType);
+            var runtimeArgType = typeof(RuntimeArgument);
+            var runtimeArgCtor = typeof(RuntimeArgument).GetConstructor(BindingFlags.Public | BindingFlags.Instance, null, new Type[] { typeof(string), typeof(object) }, null);
+            var runtimeArgs = methodCode.DeclareLocal(typeof(RuntimeArgument[])); // loc 0 
+            var beforeCall = methodCode.DeclareLocal(messageType); // loc 1
+            var afterCall = methodCode.DeclareLocal(messageType); // loc 2
+            var exitLabel = methodCode.DefineLabel();
+            var messageTypeCtorBefore = messageType.GetConstructors().Single(c => c.GetParameters().Length == 6);
+            var messageTypeCtorAfter = messageType.GetConstructors().Single(c => c.GetParameters().Length == 7);
+            var publish = publisher.PropertyType.GetMethods().Single(mi => mi.GetParameters()[0].ParameterType.GetGenericTypeDefinition().Equals(typeof(MethodCall<,>)))
+                .MakeGenericMethod(typeBuilder.BaseType, returnType);
+            if (hasReturn)
+            {
+                methodCode.DeclareLocal(method.ReturnType); // loc 3
+            }
+
+            methodCode.BeginExceptionBlock();
+
+            // enter lock
+            methodCode.Emit(OpCodes.Ldarg_0); // this
+            methodCode.Emit(OpCodes.Call, syncLock.GetMethod);
+            methodCode.Emit(OpCodes.Callvirt, typeof(ExclusiveLock).GetMethod("Enter"));
+            // enter lock complete
+            var parameterCount = method.GetParameters().Length;
+            var parameters = method.GetParameters();
+            methodCode.Emit(OpCodes.Ldc_I4, parameterCount);
+            methodCode.Emit(OpCodes.Newarr, runtimeArgType);
+            for(int p = 0; p < parameterCount; p++)
+            {
+                methodCode.Emit(OpCodes.Dup);
+                methodCode.Emit(OpCodes.Ldc_I4, p);
+                methodCode.Emit(OpCodes.Ldstr, parameters[p].Name);
+                methodCode.Emit(OpCodes.Ldarg, p + 1);
+                methodCode.Emit(OpCodes.Newobj, runtimeArgCtor);
+                methodCode.Emit(OpCodes.Stelem_Ref);
+            }
+            methodCode.Emit(OpCodes.Stloc_0); // create RuntimeArgument array
+
+            methodCode.Emit(OpCodes.Ldarg_0);
+            methodCode.Emit(OpCodes.Call, globalKey.GetGetMethod());
+            methodCode.Emit(OpCodes.Ldc_I4, (int)OperationState.Before);
+            methodCode.Emit(OpCodes.Ldstr, method.Name);
+            methodCode.Emit(OpCodes.Ldtoken, typeBuilder.BaseType);
+            methodCode.Emit(OpCodes.Call, typeof(Type).GetMethod("GetTypeFromHandle", BindingFlags.Public | BindingFlags.Static));
+            methodCode.Emit(OpCodes.Ldarg_0);
+            methodCode.Emit(OpCodes.Ldloc_0);
+            methodCode.Emit(OpCodes.Newobj, messageTypeCtorBefore);
+            methodCode.Emit(OpCodes.Stloc_1);
+            methodCode.Emit(OpCodes.Ldarg_0);
+            methodCode.Emit(OpCodes.Call, publisher.GetGetMethod());
+            methodCode.Emit(OpCodes.Ldloc_1);
+            methodCode.Emit(OpCodes.Callvirt, publish); // publish Before MethodCall message
+
+            methodCode.Emit(OpCodes.Ldarg_0);
+            methodCode.Emit(OpCodes.Call, globalKey.GetGetMethod());
+            methodCode.Emit(OpCodes.Ldc_I4, (int)OperationState.After);
+            methodCode.Emit(OpCodes.Ldstr, method.Name);
+            methodCode.Emit(OpCodes.Ldtoken, typeBuilder.BaseType);
+            methodCode.Emit(OpCodes.Call, typeof(Type).GetMethod("GetTypeFromHandle", BindingFlags.Public | BindingFlags.Static));
+            methodCode.Emit(OpCodes.Ldarg_0);
+            methodCode.Emit(OpCodes.Ldloc_0);
+            methodCode.Emit(OpCodes.Ldarg_0);
+            methodCode.Emit(OpCodes.Ldarg_1);
+            methodCode.Emit(OpCodes.Call, method); // call base class method
+            methodCode.Emit(OpCodes.Newobj, messageTypeCtorAfter);
+            methodCode.Emit(OpCodes.Stloc_2);
+            methodCode.Emit(OpCodes.Ldarg_0);
+            methodCode.Emit(OpCodes.Call, publisher.GetGetMethod());
+            methodCode.Emit(OpCodes.Ldloc_2);
+            methodCode.Emit(OpCodes.Callvirt, publish); // publish After MethodCall message
+
+            if (hasReturn)
+            {
+                methodCode.Emit(OpCodes.Ldloc_2);
+                methodCode.Emit(OpCodes.Callvirt, messageType.GetProperty("ReturnValue", BindingFlags.Public | BindingFlags.Instance).GetGetMethod());
+                methodCode.Emit(OpCodes.Stloc_3);
+            }
+
+            methodCode.Emit(OpCodes.Leave, exitLabel);
+
+
+            methodCode.BeginFinallyBlock();
+            // exit lock
+            methodCode.Emit(OpCodes.Ldarg_0); // this
+            methodCode.Emit(OpCodes.Call, syncLock.GetMethod);
+            methodCode.Emit(OpCodes.Callvirt, typeof(ExclusiveLock).GetMethod("Exit"));
+
+            methodCode.EndExceptionBlock();
+            methodCode.MarkLabel(exitLabel);
+            if (hasReturn)
+            {
+                methodCode.Emit(OpCodes.Ldloc_3);
+            }
+            methodCode.Emit(OpCodes.Ret);
+
+            typeBuilder.DefineMethodOverride(methodBuilder, method);
+            return methodBuilder;
         }
 
         private void ImplementPropertyProxies(TypeBuilder typeBuilder, PropertyInfo syncLock, PropertyInfo globalKey, PropertyInfo publisher)

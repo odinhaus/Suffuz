@@ -323,11 +323,12 @@ namespace Altus.Suffūz.Objects.Tests
 
             instance2.Age = 7;
 
-            // only subscription filters 0 and 3 match all instance of the type, so only they should increment
-            Assert.IsTrue(callCounts[0] == 4);
+            // only subscription filters 0 and 3 match all instance of the type, so only they should increment, and they will include
+            // both Created and Updated messages, so +2
+            Assert.IsTrue(callCounts[0] == 5);
             Assert.IsTrue(callCounts[1] == 3);
             Assert.IsTrue(callCounts[2] == 3);
-            Assert.IsTrue(callCounts[3] == 4);
+            Assert.IsTrue(callCounts[3] == 5);
 
             var subscription3 = Observe<StateClass>
                                         .AfterChanged((instance) => instance.Age, (update) => l0())
@@ -343,11 +344,27 @@ namespace Altus.Suffūz.Objects.Tests
 
             // subscription2 matches all changes for instance 1, and 
             // subscription3 matches all changes for Age property for instance 1
-            Assert.IsTrue(callCounts[0] == 9);
+            Assert.IsTrue(callCounts[0] == 10);
             Assert.IsTrue(callCounts[1] == 6);
             Assert.IsTrue(callCounts[2] == 6);
-            Assert.IsTrue(callCounts[3] == 9);
+            Assert.IsTrue(callCounts[3] == 10);
 
+
+            string message0 = "";
+            System.Action<MethodCall<StateClass, int>> m0 = (methodCall) => { message0 = methodCall.Arguments[0].Value.ToString(); };
+
+            var subscription4 = Observe<StateClass>
+                                    .BeforeCalled<int, string>((instance) => instance1.Hello, (methodCall) => m0(methodCall), key2)
+                                    .Subscribe();
+
+            instance2.Hello("a message");
+            instance1.Hello("another message");
+
+            Assert.IsTrue(callCounts[0] == 12);
+            Assert.IsTrue(callCounts[1] == 7);
+            Assert.IsTrue(callCounts[2] == 7);
+            Assert.IsTrue(callCounts[3] == 12);
+            Assert.IsTrue(message0 == "a message");
         }
 
         [TestMethod]
