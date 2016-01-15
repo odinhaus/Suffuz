@@ -281,23 +281,18 @@ namespace Altus.Suffūz.Objects.Tests
             var config = new SubscriptionConfig<StateClass>();
 
             int[] callCounts = new int[5];
-            System.Action l0 = () => { callCounts[0]++; };
-            System.Action l1 = () => { callCounts[1]++; };
-            System.Action l2 = () => { callCounts[2]++; };
-            System.Action l3 = () => { callCounts[3]++; };
-            System.Action l4 = () => { callCounts[4]++; };
 
-            config = config.AfterAny((any) => l0());
-            config = config.AfterAny((any) => l1(), instance1);
-            config = config.AfterAny((any) => l2(), key1);
-            config = config.AfterAny((any) => l3(), (any) => true);
+            config = config.AfterAny((any) => callCounts[0]++);
+            config = config.AfterAny((any) => callCounts[1]++, instance1);
+            config = config.AfterAny((any) => callCounts[2]++, key1);
+            config = config.AfterAny((any) => callCounts[3]++, (any) => true);
             var subscription1 = config.Subscribe();
 
             var subscription2 = Observe<StateClass>
-                                    .AfterAny((any) => l0())
-                                    .AfterAny((any) => l1(), instance1)
-                                    .AfterAny((any) => l2(), key1)
-                                    .AfterAny((any) => l3(), (any) => true)
+                                    .AfterAny((any) => callCounts[0]++)
+                                    .AfterAny((any) => callCounts[1]++, instance1)
+                                    .AfterAny((any) => callCounts[2]++, key1)
+                                    .AfterAny((any) => callCounts[3]++, (any) => true)
                                     .Subscribe();
 
             instance1.Age = 5;
@@ -331,10 +326,10 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(callCounts[3] == 5);
 
             var subscription3 = Observe<StateClass>
-                                        .AfterChanged((instance) => instance.Age, (update) => l0())
-                                        .AfterChanged((instance) => instance.Age, (update) => l1(), instance1)
-                                        .AfterChanged((instance) => instance.Age, (update) => l2(), key1)
-                                        .AfterChanged((instance) => instance.Age, (update) => l3(), (i) => true)
+                                        .AfterChanged((instance) => instance.Age, (update) => callCounts[0]++)
+                                        .AfterChanged((instance) => instance.Age, (update) => callCounts[1]++, instance1)
+                                        .AfterChanged((instance) => instance.Age, (update) => callCounts[2]++, key1)
+                                        .AfterChanged((instance) => instance.Age, (update) => callCounts[3]++, (i) => true)
                                         .Subscribe();
 
             instance1.Age = 9; // +1 across the board from subscription2, +1 across the board from subscription3
@@ -351,10 +346,14 @@ namespace Altus.Suffūz.Objects.Tests
 
 
             string message0 = "";
-            System.Action<MethodCall<StateClass, int>> m0 = (methodCall) => { message0 = methodCall.Arguments[0].Value.ToString(); };
 
             var subscription4 = Observe<StateClass>
-                                    .BeforeCalled<int, string>((instance) => instance1.Hello, (methodCall) => m0(methodCall), key2)
+                                    .BeforeCalled<int, string>(
+                                    (instance) => instance1.Hello, 
+                                    (methodCall) => 
+                                    {
+                                        message0 = methodCall.Arguments[0].Value.ToString();
+                                    }, key2)
                                     .Subscribe();
 
             instance2.Hello("a message");
@@ -365,6 +364,40 @@ namespace Altus.Suffūz.Objects.Tests
             Assert.IsTrue(callCounts[2] == 7);
             Assert.IsTrue(callCounts[3] == 12);
             Assert.IsTrue(message0 == "a message");
+        }
+
+        [TestMethod]
+        public void SimpleExample()
+        {
+            Resolver.Use<IPublisher, Publisher>(() => new Publisher(App.Resolve<IManageSubscriptions>()));
+
+
+            var globalKey = "My Key";
+
+            // subscribe to updates when Age value changes
+            var subscription = Observe<StateClass>
+                                    .AfterChanged((observed) => observed.Age, (changed) =>
+                                    {
+                                        if (changed.BaseValue == 0)
+                                        {
+                                            Debug.WriteLine("Assigned value from zero");
+                                        }
+                                        else
+                                        {
+                                            Debug.WriteLine("Updated value to " + changed.NewValue.ToString());
+                                        }
+                                    }, globalKey
+                                    )
+                                    .Subscribe();
+
+            // get instance to update
+            var watched = Observe.Get<StateClass>(globalKey);
+            var notWatched = Observe.Get<StateClass>("Another Key");
+
+            watched.Age = 5;
+            notWatched.Age = 6;
+            watched.Age = 10;
+            watched.Name = "Foo";
         }
 
         [TestMethod]

@@ -173,7 +173,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> BeforeDisposed<T>(Expression<Action<Disposed<T>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> BeforeDisposed<T>(Action<Disposed<T>> subscriber, T instance) where T : class, new()
         {
             return Observe<T>.BeforeDisposed(subscriber, instance).Subscribe();
         }
@@ -184,7 +184,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> AfterDisposed<T>(Expression<Action<Disposed<T>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> AfterDisposed<T>(Action<Disposed<T>> subscriber, T instance) where T : class, new()
         {
             return Observe<T>.AfterDisposed(subscriber, instance).Subscribe();
         }
@@ -195,7 +195,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> BeforeAny<T>(Expression<Action<AnyOperation<T>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> BeforeAny<T>(Action<AnyOperation<T>> subscriber, T instance) where T : class, new()
         {
             return Observe<T>.BeforeAny(subscriber, instance).Subscribe();
         }
@@ -206,7 +206,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> AfterAny<T>(Expression<Action<AnyOperation<T>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> AfterAny<T>(Action<AnyOperation<T>> subscriber, T instance) where T : class, new()
         {
             return Observe<T>.AfterAny(subscriber, instance).Subscribe();
         }
@@ -275,7 +275,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> BeforeCalled<T, U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> BeforeCalled<T, U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber, T instance) where T : class, new()
         {
             return Observe<T>.BeforeCalled(methodCalled, subscriber, instance).Subscribe();
         }
@@ -287,7 +287,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> AfterCalled<T, U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> AfterCalled<T, U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber, T instance) where T : class, new()
         {
             return Observe<T>.AfterCalled(methodCalled, subscriber, instance).Subscribe();
         }
@@ -300,7 +300,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> BeforeChanged<T, U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> BeforeChanged<T, U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber, T instance) where T : class, new()
         {
             return Observe<T>.BeforeChanged<T, U>(propertyChanged, subscriber, instance);
         }
@@ -313,7 +313,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static Subscription<T> AfterChanged<T, U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, T instance) where T : class, new()
+        public static Subscription<T> AfterChanged<T, U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber, T instance) where T : class, new()
         {
             return Observe<T>.AfterChanged<T, U>(propertyChanged, subscriber, instance);
         }
@@ -375,7 +375,7 @@ namespace Altus.Suffūz.Observables
         /// </summary>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCreated(Expression<Action<Created<T>>> subscriber)
+        public static SubscriptionConfig<T> BeforeCreated(Action<Created<T>> subscriber)
         {
             return new SubscriptionConfig<T>().BeforeCreated(subscriber);
         }
@@ -387,7 +387,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber">the handler to call</param>
         /// <param name="key">the key of the instance to subscribe to</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCreated(Expression<Action<Created<T>>> subscriber, string key)
+        public static SubscriptionConfig<T> BeforeCreated(Action<Created<T>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().BeforeCreated(subscriber, key);
         }
@@ -399,7 +399,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber">the handler to call</param>
         /// <param name="instanceSelector">a predicate to evaluate to determine which events the subscriber should handle</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCreated(Expression<Action<Created<T>>> subscriber, Func<Created<T>, bool> instanceSelector)
+        public static SubscriptionConfig<T> BeforeCreated(Action<Created<T>> subscriber, Func<Created<T>, bool> instanceSelector)
         {
             return new SubscriptionConfig<T>().BeforeCreated(subscriber, instanceSelector);
         }
@@ -409,7 +409,7 @@ namespace Altus.Suffūz.Observables
         /// </summary>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCreated(Expression<Action<Created<T>>> subscriber)
+        public static SubscriptionConfig<T> AfterCreated(Action<Created<T>> subscriber)
         {
             return new SubscriptionConfig<T>().AfterCreated(subscriber);
         }
@@ -421,7 +421,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber">the handler to call</param>
         /// <param name="key">the key of the instance to subscribe to</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCreated(Expression<Action<Created<T>>> subscriber, string key)
+        public static SubscriptionConfig<T> AfterCreated(Action<Created<T>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().AfterCreated(subscriber, key);
         }
@@ -433,7 +433,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber">the handler to call</param>
         /// <param name="instanceSelector">a predicate to evaluate to determine which events the subscriber should handle</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCreated(Expression<Action<Created<T>>> subscriber, Func<Created<T>, bool> instanceSelector)
+        public static SubscriptionConfig<T> AfterCreated(Action<Created<T>> subscriber, Func<Created<T>, bool> instanceSelector)
         {
             return new SubscriptionConfig<T>().AfterCreated(subscriber, instanceSelector);
         }
@@ -443,7 +443,7 @@ namespace Altus.Suffūz.Observables
         /// </summary>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeDisposed(Expression<Action<Disposed<T>>> subscriber)
+        public static SubscriptionConfig<T> BeforeDisposed(Action<Disposed<T>> subscriber)
         {
             return new SubscriptionConfig<T>().BeforeDisposed(subscriber);
         }
@@ -454,7 +454,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeDisposed(Expression<Action<Disposed<T>>> subscriber, string key)
+        public static SubscriptionConfig<T> BeforeDisposed(Action<Disposed<T>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().BeforeDisposed(subscriber, key);
         }
@@ -465,7 +465,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instanceSelector"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeDisposed(Expression<Action<Disposed<T>>> subscriber, Func<Disposed<T>, bool> instanceSelector)
+        public static SubscriptionConfig<T> BeforeDisposed(Action<Disposed<T>> subscriber, Func<Disposed<T>, bool> instanceSelector)
         {
             return new SubscriptionConfig<T>().BeforeDisposed(subscriber, instanceSelector);
         }
@@ -476,7 +476,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeDisposed(Expression<Action<Disposed<T>>> subscriber, T instance)
+        public static SubscriptionConfig<T> BeforeDisposed(Action<Disposed<T>> subscriber, T instance)
         {
             return new SubscriptionConfig<T>().BeforeDisposed(subscriber, instance);
         }
@@ -486,7 +486,7 @@ namespace Altus.Suffūz.Observables
         /// </summary>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterDisposed(Expression<Action<Disposed<T>>> subscriber)
+        public static SubscriptionConfig<T> AfterDisposed(Action<Disposed<T>> subscriber)
         {
             return new SubscriptionConfig<T>().AfterDisposed(subscriber);
         }
@@ -497,7 +497,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterDisposed(Expression<Action<Disposed<T>>> subscriber, string key)
+        public static SubscriptionConfig<T> AfterDisposed(Action<Disposed<T>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().AfterDisposed(subscriber, key);
         }
@@ -508,7 +508,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instanceSelector"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterDisposed(Expression<Action<Disposed<T>>> subscriber, Func<Disposed<T>, bool> instanceSelector)
+        public static SubscriptionConfig<T> AfterDisposed(Action<Disposed<T>> subscriber, Func<Disposed<T>, bool> instanceSelector)
         {
             return new SubscriptionConfig<T>().AfterDisposed(subscriber, instanceSelector);
         }
@@ -519,7 +519,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterDisposed(Expression<Action<Disposed<T>>> subscriber, T instance)
+        public static SubscriptionConfig<T> AfterDisposed(Action<Disposed<T>> subscriber, T instance)
         {
             return new SubscriptionConfig<T>().AfterDisposed(subscriber, instance);
         }
@@ -529,7 +529,7 @@ namespace Altus.Suffūz.Observables
         /// </summary>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeAny(Expression<Action<AnyOperation<T>>> subscriber)
+        public static SubscriptionConfig<T> BeforeAny(Action<AnyOperation<T>> subscriber)
         {
             return new SubscriptionConfig<T>().BeforeAny(subscriber);
         }
@@ -540,7 +540,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeAny(Expression<Action<AnyOperation<T>>> subscriber, string key)
+        public static SubscriptionConfig<T> BeforeAny(Action<AnyOperation<T>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().BeforeAny(subscriber, key);
         }
@@ -551,7 +551,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instanceSelector"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeAny(Expression<Action<AnyOperation<T>>> subscriber, Func<AnyOperation<T>, bool> instanceSelector)
+        public static SubscriptionConfig<T> BeforeAny(Action<AnyOperation<T>> subscriber, Func<AnyOperation<T>, bool> instanceSelector)
         {
             return new SubscriptionConfig<T>().BeforeAny(subscriber, instanceSelector);
         }
@@ -562,7 +562,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeAny(Expression<Action<AnyOperation<T>>> subscriber, T instance)
+        public static SubscriptionConfig<T> BeforeAny(Action<AnyOperation<T>> subscriber, T instance)
         {
             return new SubscriptionConfig<T>().BeforeAny(subscriber, instance);
         }
@@ -572,7 +572,7 @@ namespace Altus.Suffūz.Observables
         /// </summary>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterAny(Expression<Action<AnyOperation<T>>> subscriber)
+        public static SubscriptionConfig<T> AfterAny(Action<AnyOperation<T>> subscriber)
         {
             return new SubscriptionConfig<T>().AfterAny(subscriber);
         }
@@ -583,7 +583,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterAny(Expression<Action<AnyOperation<T>>> subscriber, string key)
+        public static SubscriptionConfig<T> AfterAny(Action<AnyOperation<T>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().AfterAny(subscriber, key);
         }
@@ -594,7 +594,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instanceSelector"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterAny(Expression<Action<AnyOperation<T>>> subscriber, Func<AnyOperation<T>, bool> instanceSelector)
+        public static SubscriptionConfig<T> AfterAny(Action<AnyOperation<T>> subscriber, Func<AnyOperation<T>, bool> instanceSelector)
         {
             return new SubscriptionConfig<T>().AfterAny(subscriber, instanceSelector);
         }
@@ -605,7 +605,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterAny(Expression<Action<AnyOperation<T>>> subscriber, T instance)
+        public static SubscriptionConfig<T> AfterAny(Action<AnyOperation<T>> subscriber, T instance)
         {
             return new SubscriptionConfig<T>().AfterAny(subscriber, instance);
         }
@@ -616,7 +616,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="methodCalled">the method to subscribe to</param>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber)
+        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber)
         {
             return new SubscriptionConfig<T>().BeforeCalled(methodCalled, subscriber);
         }
@@ -628,7 +628,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, string key)
+        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().BeforeCalled(methodCalled, subscriber, key);
         }
@@ -640,7 +640,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instancePredicate"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
+        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
         {
             return new SubscriptionConfig<T>().BeforeCalled(methodCalled, subscriber, instancePredicate);
         }
@@ -652,7 +652,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance)
+        public static SubscriptionConfig<T> BeforeCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber, T instance)
         {
             return new SubscriptionConfig<T>().BeforeCalled(methodCalled, subscriber, instance);
         }
@@ -663,7 +663,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="method">the method to subscribe to</param>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber)
+        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber)
         {
             return new SubscriptionConfig<T>().AfterCalled(methodCalled, subscriber);
         }
@@ -674,7 +674,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, string key)
+        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().AfterCalled(methodCalled, subscriber, key);
         }
@@ -686,7 +686,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instancePredicate"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
+        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber, Func<MethodCall<T, U>, bool> instancePredicate)
         {
             return new SubscriptionConfig<T>().AfterCalled(methodCalled, subscriber, instancePredicate);
         }
@@ -698,7 +698,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Expression<Action<MethodCall<T, U>>> subscriber, T instance)
+        public static SubscriptionConfig<T> AfterCalled<U, A>(Expression<Func<T, Func<A, U>>> methodCalled, Action<MethodCall<T, U>> subscriber, T instance)
         {
             return new SubscriptionConfig<T>().AfterCalled(methodCalled, subscriber, instance);
         }
@@ -710,7 +710,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="propertyChanged">the property to subscribe to</param>
         /// <param name="subscriber">the handler to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber)
+        public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber)
         {
             return new SubscriptionConfig<T>().BeforeChanged(propertyChanged, subscriber);
         }
@@ -723,7 +723,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, string key)
+        public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().BeforeChanged(propertyChanged, subscriber, key);
         }
@@ -736,7 +736,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instancePredicate"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, Func<PropertyUpdate<T, U>, bool> instancePredicate)
+        public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber, Func<PropertyUpdate<T, U>, bool> instancePredicate)
         {
             return new SubscriptionConfig<T>().BeforeChanged(propertyChanged, subscriber, instancePredicate);
         }
@@ -749,7 +749,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, T instance)
+        public static SubscriptionConfig<T> BeforeChanged<U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber, T instance)
         {
             return new SubscriptionConfig<T>().BeforeChanged(propertyChanged, subscriber, instance);
         }
@@ -761,7 +761,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="method">the property to subscribe to</param>
         /// <param name="subscriber">the handle to call</param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber)
+        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber)
         {
             return new SubscriptionConfig<T>().AfterChanged(propertyChanged, subscriber);
         }
@@ -774,7 +774,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="key"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, string key)
+        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber, string key)
         {
             return new SubscriptionConfig<T>().AfterChanged(propertyChanged, subscriber, key);
         }
@@ -787,7 +787,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instancePredicate"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, Func<PropertyUpdate<T, U>, bool> instancePredicate)
+        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber, Func<PropertyUpdate<T, U>, bool> instancePredicate)
         {
             return new SubscriptionConfig<T>().AfterChanged(propertyChanged, subscriber, instancePredicate);
         }
@@ -800,7 +800,7 @@ namespace Altus.Suffūz.Observables
         /// <param name="subscriber"></param>
         /// <param name="instance"></param>
         /// <returns></returns>
-        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Expression<Action<PropertyUpdate<T, U>>> subscriber, T instance)
+        public static SubscriptionConfig<T> AfterChanged<U>(Expression<Func<T, U>> propertyChanged, Action<PropertyUpdate<T, U>> subscriber, T instance)
         {
             return new SubscriptionConfig<T>().AfterChanged(propertyChanged, subscriber, instance);
         }
