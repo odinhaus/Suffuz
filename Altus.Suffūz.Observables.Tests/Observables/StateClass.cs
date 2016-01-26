@@ -9,15 +9,19 @@ namespace Altus.Suffūz.Observables.Tests.Observables
 {
     public class StateClass : BaseState
     {
+        [BinarySerializable(1)]
         [CommutativeEvent(CommutativeEventType.Additive)]
         public virtual int Size { get; set; }
 
+        [BinarySerializable(2)]
         [CommutativeEvent(CommutativeEventType.Multiplicative)]
         public virtual double Score { get; set; }
 
+        [BinarySerializable(3)]
         [ExplicitEvent(OrderedEventType.Logical)]
         public virtual string Name { get; set; }
 
+        [BinarySerializable(4)]
         [ExplicitEvent(OrderedEventType.Temporal)]
         public virtual DateTime LastUpdated { get; set; }
 
