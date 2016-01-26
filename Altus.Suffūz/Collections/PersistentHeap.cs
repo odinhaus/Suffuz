@@ -801,7 +801,8 @@ namespace Altus.Suffūz.Collections
                     int index = 1;
                     while (!sr.EndOfStream)
                     {
-                        var type = TypeHelper.GetType(sr.ReadLine());
+                        var typeName = sr.ReadLine();
+                        var type = TypeHelper.GetType(typeName);
                         _typesByCode.Add(index, type);
                         _codesByType.Add(type, index);
                         index++;

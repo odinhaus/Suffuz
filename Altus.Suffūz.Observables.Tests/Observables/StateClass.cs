@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Altus.Suffūz.Serialization.Binary;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -35,6 +36,7 @@ namespace Altus.Suffūz.Observables.Tests.Observables
 
     public abstract class BaseState
     {
+        [BinarySerializable(0)]
         [CommutativeEvent(CommutativeEventType.Additive)]
         public virtual int Age { get; set; }
     }

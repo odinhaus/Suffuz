@@ -8,6 +8,7 @@ namespace Altus.Suffūz.Observables
 {
     public interface IObservableBuilder
     {
+        object Create(object instance, string globalKey, IPublisher publisher);
         T Create<T>(T instance, string globalKey, IPublisher publisher) where T : class, new();
     }
 }

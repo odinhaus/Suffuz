@@ -376,17 +376,26 @@ namespace Altus.Suffūz.Objects.Tests
 
             // subscribe to updates when Age value changes
             var subscription = Observe<StateClass>
-                                    .AfterChanged((observed) => observed.Age, (changed) =>
-                                    {
-                                        if (changed.BaseValue == 0)
+                                    .AfterChanged(
+                                        (observed) => observed.Age, 
+                                        (changed) =>
                                         {
-                                            Debug.WriteLine("Assigned value from zero");
-                                        }
-                                        else
+                                            if (changed.BaseValue == 0)
+                                            {
+                                                Debug.WriteLine("Assigned value from zero");
+                                            }
+                                            else
+                                            {
+                                                Debug.WriteLine("Updated value to " + changed.NewValue.ToString());
+                                            }
+                                        }, globalKey
+                                    )
+                                    .AfterCalled<int, string>(
+                                        (observed) => observed.Hello,
+                                        (called) =>
                                         {
-                                            Debug.WriteLine("Updated value to " + changed.NewValue.ToString());
-                                        }
-                                    }, globalKey
+                                            
+                                        }, globalKey
                                     )
                                     .Subscribe();
 

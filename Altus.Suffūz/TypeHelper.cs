@@ -9,10 +9,30 @@ using System.Threading.Tasks;
 
 namespace Altus.Suffūz
 {
+    public class ResolveTypeEventArgs
+    {
+        public ResolveTypeEventArgs(string typeName)
+        {
+            TypeName = typeName;
+        }
+
+        public string TypeName { get; private set; }
+        public Type ResolvedType { get; set; }
+        public bool IsResolved
+        {
+            get
+            {
+                return ResolvedType != null;
+            }
+        }
+    }
+
     public static class TypeHelper
     {
+
         #region Fields
         #region Static Fields
+        static List<Action<ResolveTypeEventArgs>> _resolve = new List<Action<ResolveTypeEventArgs>>();
         static Dictionary<string, Type> _resolvedTypes = new Dictionary<string, Type>();
         #endregion Static Fields
 
@@ -47,6 +67,16 @@ namespace Altus.Suffūz
 
         #region Methods
         #region Public
+        public static void RegisterResolver(Action<ResolveTypeEventArgs> resolver)
+        {
+            _resolve.Add(resolver);
+        }
+
+        public static void UnregisterResolver(Action<ResolveTypeEventArgs> resolver)
+        {
+            _resolve.Remove(resolver);
+        }
+
         public static Type GetType(string typeName, bool bThrowIfNotFound)
         {
             Type t = GetType(typeName);
@@ -78,30 +108,30 @@ namespace Altus.Suffūz
                         case 5:
                             {
                                 Assembly assem = Assembly.Load(string.Format("{0}, {1}, {2}, {3}", parts[1].Trim(), parts[2].Trim(), parts[3].Trim(), parts[4].Trim()));
-                                retType = assem.GetType(parts[0].Trim(), false, true);
+                                retType = assem.GetType(parts[0].Trim(), true, true);
                                 break;
                             }
                         case 4:
                             {
                                 Assembly assem = Assembly.Load(string.Format("{0}, {1}, {2}", parts[1].Trim(), parts[2].Trim(), parts[3].Trim()));
-                                retType = assem.GetType(parts[0].Trim(), false, true);
+                                retType = assem.GetType(parts[0].Trim(), true, true);
                                 break;
                             }
                         case 3:
                             {
                                 Assembly assem = Assembly.Load(string.Format("{0}, {1}", parts[1].Trim(), parts[2].Trim()));
-                                retType = assem.GetType(parts[0].Trim(), false, true);
+                                retType = assem.GetType(parts[0].Trim(), true, true);
                                 break;
                             }
                         case 2: // the assemblyname, typename was supplied
                             {
                                 Assembly assem = Assembly.Load(parts[1].Trim());
-                                retType = assem.GetType(parts[0].Trim(), false, true);
+                                retType = assem.GetType(parts[0].Trim(), true, true);
                                 break;
                             }
                         default:
                             {
-                                retType = Type.GetType(typeName, false, true);
+                                retType = Type.GetType(typeName, true, true);
                                 break;
                             }
                     }
@@ -112,16 +142,34 @@ namespace Altus.Suffūz
             }
             catch
             {
-                if (parts.Length >= 2)
+                if (parts.Length >= 1)
                 {
-                    var asm = AppDomain.CurrentDomain.GetAssemblies().SingleOrDefault(a => a.GetName().Name.Equals(parts[1].Trim(), StringComparison.CurrentCultureIgnoreCase));
-                    if (asm != null)
+                    foreach (var asm in AppDomain.CurrentDomain.GetAssemblies()
+                        .Where(a => parts.Length == 1 || a.GetName().Name.Equals(parts[1].Trim(), StringComparison.CurrentCultureIgnoreCase)))
                     {
-                        retType = asm.GetTypes().SingleOrDefault(t => t.FullName.Equals(parts[0].Trim()));
-                        _resolvedTypes.Add(typeName, retType);
-                        return retType;
+                        if (asm != null)
+                        {
+                            retType = asm.GetTypes().SingleOrDefault(t => t.FullName.Equals(parts[0].Trim()));
+                            if (retType != null)
+                            {
+                                _resolvedTypes.Add(typeName, retType);
+                                return retType;
+                            }
+                        }
                     }
                 }
+
+                var resolve = new ResolveTypeEventArgs(typeName);
+                foreach(var mc in _resolve)
+                {
+                    mc(resolve);
+                    if (resolve.IsResolved)
+                    {
+                        _resolvedTypes.Add(typeName, resolve.ResolvedType);
+                        return resolve.ResolvedType;
+                    }
+                }
+
                 return null;
             }
         }

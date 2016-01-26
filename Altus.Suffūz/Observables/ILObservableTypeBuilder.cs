@@ -12,6 +12,7 @@ namespace Altus.Suffūz.Observables
 {
     public class ILObservableTypeBuilder
     {
+        private const string _prefix = "suff__observable__";
         private static AssemblyName _asmName = new AssemblyName() { Name = "Altus.Suffūz.Observables" };
         private static ModuleBuilder _modBuilder;
         private static AssemblyBuilder _asmBuilder;
@@ -21,6 +22,18 @@ namespace Altus.Suffūz.Observables
         {
             _asmBuilder = Thread.GetDomain().DefineDynamicAssembly(_asmName, AssemblyBuilderAccess.RunAndSave);
             _modBuilder = _asmBuilder.DefineDynamicModule(_asmName.Name + ".dll", true);
+        }
+
+        public static void Resolve(ResolveTypeEventArgs e)
+        {
+            var parts = e.TypeName.Split(',');
+            if (parts.Length > 1
+                && parts[1].Contains(_asmName.Name))
+            {
+                // it's an observable, but it hasn't been built yet, so build it
+                var baseType = TypeHelper.GetType(parts[0].Replace(_prefix, "").Trim());
+                e.ResolvedType = new ILObservableTypeBuilder().Build(baseType);
+            }
         }
 
         public Type Build(Type type)
@@ -74,7 +87,7 @@ namespace Altus.Suffūz.Observables
                 globalKeyProp,
                 publisherProp);
 
-            ImplementPropertyProxies(typeBuilder, syncLockProp, globalKeyProp, publisherProp);
+            ImplementPropertyProxies(typeBuilder, syncLockProp, globalKeyProp, publisherProp, instanceProp);
             ImplementMethodProxies(typeBuilder, syncLockProp, globalKeyProp, publisherProp);
 
             return typeBuilder.CreateType();
@@ -295,18 +308,18 @@ namespace Altus.Suffūz.Observables
             return methodBuilder;
         }
 
-        private void ImplementPropertyProxies(TypeBuilder typeBuilder, PropertyInfo syncLock, PropertyInfo globalKey, PropertyInfo publisher)
+        private void ImplementPropertyProxies(TypeBuilder typeBuilder, PropertyInfo syncLock, PropertyInfo globalKey, PropertyInfo publisher, PropertyInfo instance)
         {
             var commutativeProperties = GetVirtualProperties<CommutativeEventAttribute>(typeBuilder.BaseType);
             foreach(var property in commutativeProperties)
             {
-                ImplementCommutativeProperty(typeBuilder, property, syncLock, globalKey, publisher);
+                ImplementCommutativeProperty(typeBuilder, property, syncLock, globalKey, publisher, instance);
             }
 
             var explicitProperties = GetVirtualProperties<ExplicitEventAttribute>(typeBuilder.BaseType);
             foreach (var property in explicitProperties)
             {
-                ImplementExplicitProperty(typeBuilder, property, syncLock, globalKey, publisher);
+                ImplementExplicitProperty(typeBuilder, property, syncLock, globalKey, publisher, instance);
             }
 
             var sequentialProperties = GetVirtualProperties<SequentialEventAttribute>(typeBuilder.BaseType);
@@ -319,7 +332,8 @@ namespace Altus.Suffūz.Observables
         private void ImplementCommutativeProperty(TypeBuilder typeBuilder, PropertyInfo property, 
             PropertyInfo syncLock,
             PropertyInfo globalKey, 
-            PropertyInfo publisher)
+            PropertyInfo publisher, 
+            PropertyInfo instance)
         {
             #region Getter Sample 
             /*
@@ -491,7 +505,8 @@ namespace Altus.Suffūz.Observables
 
             var getterCode = getter.GetILGenerator();
             getterCode.Emit(OpCodes.Ldarg_0);
-            getterCode.Emit(OpCodes.Call, property.GetMethod);
+            getterCode.Emit(OpCodes.Callvirt, instance.GetMethod); // get instance
+            getterCode.Emit(OpCodes.Callvirt, property.GetMethod); // get value from instance
             getterCode.Emit(OpCodes.Ret);
             typeBuilder.DefineMethodOverride(getter, property.GetMethod);
             #endregion
@@ -561,6 +576,13 @@ namespace Altus.Suffūz.Observables
             setterCode.Emit(OpCodes.Call, property.SetMethod);
             // pass thru complete
 
+            // set value on Instance property
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Callvirt, instance.GetMethod);
+            setterCode.Emit(OpCodes.Ldarg_1);
+            setterCode.Emit(OpCodes.Callvirt, property.SetMethod);
+            // set complete
+
 
             // publish After Changed
             setterCode.Emit(OpCodes.Ldarg_0);
@@ -599,7 +621,8 @@ namespace Altus.Suffūz.Observables
         private void ImplementExplicitProperty(TypeBuilder typeBuilder, PropertyInfo property,
            PropertyInfo syncLock,
            PropertyInfo globalKey,
-           PropertyInfo publisher)
+           PropertyInfo publisher, 
+           PropertyInfo instance)
         {
             #region Getter Sample 
             /*
@@ -626,7 +649,7 @@ namespace Altus.Suffūz.Observables
             } // end of method Observable_StateClass::get_Size
 
             C#
-            return base.Score;
+            return Instance.Score;
             */
             #endregion
 
@@ -781,7 +804,8 @@ namespace Altus.Suffūz.Observables
 
             var getterCode = getter.GetILGenerator();
             getterCode.Emit(OpCodes.Ldarg_0);
-            getterCode.Emit(OpCodes.Call, property.GetMethod);
+            getterCode.Emit(OpCodes.Callvirt, instance.GetMethod); // get instance
+            getterCode.Emit(OpCodes.Callvirt, property.GetMethod); // get value from instance
             getterCode.Emit(OpCodes.Ret);
             typeBuilder.DefineMethodOverride(getter, property.GetMethod);
             #endregion
@@ -847,8 +871,14 @@ namespace Altus.Suffūz.Observables
             setterCode.Emit(OpCodes.Ldarg_0);
             setterCode.Emit(OpCodes.Ldarg_1);
             setterCode.Emit(OpCodes.Call, property.SetMethod);
-
             // pass thru complete
+
+            // set value on Instance property
+            setterCode.Emit(OpCodes.Ldarg_0);
+            setterCode.Emit(OpCodes.Callvirt, instance.GetMethod);
+            setterCode.Emit(OpCodes.Ldarg_1);
+            setterCode.Emit(OpCodes.Callvirt, property.SetMethod);
+            // set complete
 
 
             // publish After Changed
@@ -1059,7 +1089,7 @@ namespace Altus.Suffūz.Observables
 
         private string GetTypeName(Type type)
         {
-            string name = type.Namespace + ".suff_";
+            string name = type.Namespace + "." + _prefix;
             GetTypeName(ref name, type);
             return name;
         }
@@ -1069,7 +1099,7 @@ namespace Altus.Suffūz.Observables
             if (type.IsGenericType)
             {
                 var genType = type.GetGenericTypeDefinition().Name.Replace("<", "").Replace(">", "").Replace(",", "").Replace("`", "");
-                name += "_" + genType;
+                name += genType;
 
                 foreach (var t in type.GetGenericArguments())
                 {
@@ -1078,7 +1108,7 @@ namespace Altus.Suffūz.Observables
             }
             else
             {
-                name += "_" + type.Name;
+                name += type.Name;
             }
         }
     }

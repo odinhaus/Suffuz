@@ -1,4 +1,5 @@
 ﻿using Altus.Suffūz.IO;
+using Altus.Suffūz.Observables.Serialization.Binary;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -16,6 +17,7 @@ namespace Altus.Suffūz.Serialization.Binary
 {
     public class ILSerializerBuilder : IBinarySerializerBuilder, IComparer<MemberInfo>
     {
+        private const string _prefix = "suff__serializer__";
         private static AssemblyName _asmName = new AssemblyName() { Name = "Altus.Suffūz.Serializers" };
         private static ModuleBuilder _modBuilder;
         private static AssemblyBuilder _asmBuilder;
@@ -56,6 +58,10 @@ namespace Altus.Suffūz.Serialization.Binary
             else if (type == typeof(object))
             {
                 return new ObjectSerializer();
+            }
+            else if (ObservableSerializer.IsObservable(type))
+            {
+                return new ObservableSerializer(this);
             }
 
             lock (_typeCache)
@@ -113,8 +119,6 @@ namespace Altus.Suffūz.Serialization.Binary
 
             */
 
-            
-
             ImplementIsScalar(typeBuilder, interfaceType);
             ImplementPriority(typeBuilder, interfaceType);
             ImplementSupportsFormat(typeBuilder, interfaceType);
@@ -129,14 +133,12 @@ namespace Altus.Suffūz.Serialization.Binary
             var onSerialize = ImplementOnSerialize(typeBuilder, interfaceType, protoBuff);
             var onDeserialize = ImplementOnDeserialize(typeBuilder, interfaceType, ctor, protoBuff);
 
-            
             ImplementSerialize(typeBuilder, interfaceType, onSerialize);
             ImplementDeserialize(typeBuilder, interfaceType, onDeserialize);
             var serializeGeneric = ImplementSerializeGeneric(typeBuilder, interfaceType, onSerialize);
             var deserializeGeneric = ImplementDeserializeGeneric(typeBuilder, interfaceType, onDeserialize);
             ImplementSerializeGenericStream(typeBuilder, interfaceType, serializeGeneric);
             ImplementDeserializeGenericStream(typeBuilder, interfaceType, deserializeGeneric);
-            
 
             return typeBuilder.CreateType();
         }
@@ -190,7 +192,7 @@ namespace Altus.Suffūz.Serialization.Binary
 
         private string GetTypeName(Type type)
         {
-            string name = type.Namespace + ".suff_";
+            string name = type.Namespace + "." + _prefix;
             GetTypeName(ref name, type);
             return name;
         }
@@ -200,7 +202,7 @@ namespace Altus.Suffūz.Serialization.Binary
             if (type.IsGenericType)
             {
                 var genType = type.GetGenericTypeDefinition().Name.Replace("<", "").Replace(">", "").Replace(",", "").Replace("`","");
-                name += "_" + genType;
+                name += genType;
             
                 foreach (var t in type.GetGenericArguments())
                 {
@@ -209,7 +211,7 @@ namespace Altus.Suffūz.Serialization.Binary
             }
             else
             {
-                name += "_" + type.Name;
+                name += type.Name;
             }
         }
 
@@ -1935,18 +1937,31 @@ namespace Altus.Suffūz.Serialization.Binary
 
             */
 
+            var baseType = interfaceType.GetGenericArguments()[0];
+            var ctor = baseType.GetConstructors().FirstOrDefault(c => c.GetCustomAttribute<CustomConstructorAttribute>() != null);
+            if (ctor == null)
+            {
+                ctor = baseType.GetConstructor(new Type[0]);
+            }
+            var ctorParams = ctor.GetParameters().Select(pi => pi.ParameterType).ToArray();
+
             var ctorBuilder = typeBuilder.DefineConstructor(
                 MethodAttributes.Public | MethodAttributes.HideBySig | MethodAttributes.SpecialName | MethodAttributes.RTSpecialName,
                 CallingConventions.Standard,
-                new Type[0]);
-            var baseType = interfaceType.GetGenericArguments()[0];
+                ctorParams);
+            
             var ctorCode = ctorBuilder.GetILGenerator();
+
             ctorCode.Emit(OpCodes.Ldarg_0);
             ctorCode.Emit(OpCodes.Ldc_I4_0);
             ctorCode.Emit(OpCodes.Newarr, typeof(byte[]));
             ctorCode.Emit(OpCodes.Stfld, protoBuffField);
             ctorCode.Emit(OpCodes.Ldarg_0);
-            ctorCode.Emit(OpCodes.Call, baseType.GetConstructor(new Type[0]));
+            for(int p = 0; p < ctorParams.Length; p++)
+            {
+                ctorCode.Emit(OpCodes.Ldarg, p + 1);
+            }
+            ctorCode.Emit(OpCodes.Call, ctor);
             ctorCode.Emit(OpCodes.Ret);
 
             return ctorBuilder;
@@ -2155,9 +2170,10 @@ namespace Altus.Suffūz.Serialization.Binary
 
 
             */
+            var baseType = interfaceType.GetGenericArguments()[0];
+            var customCtor = baseType.GetConstructors().FirstOrDefault(c => c.GetCustomAttribute<CustomConstructorAttribute>() != null);
 
             var name = "OnDeserialize";
-            var baseType = interfaceType.GetGenericArguments()[0];
             var methodBuilder = typeBuilder.DefineMethod(name,
                 MethodAttributes.Family | MethodAttributes.Virtual | MethodAttributes.NewSlot | MethodAttributes.HideBySig | MethodAttributes.Final,
                 typeof(object),
@@ -2181,6 +2197,28 @@ namespace Altus.Suffūz.Serialization.Binary
             methodCode.Emit(OpCodes.Newobj, typeof(BinaryReader).GetConstructor(new Type[] { typeof(Stream) }));
             methodCode.Emit(OpCodes.Stloc_1);
 
+            if (customCtor != null)
+            {
+                // create using custom ctor
+                var customAttrib = customCtor.GetCustomAttribute<CustomConstructorAttribute>();
+                var customCtorParams = customCtor.GetParameters().Select(pi => pi.ParameterType).ToArray();
+                var customCtorCtor = customAttrib.CustomConstructor.GetConstructor(new Type[0]);
+                var customCtorCreate = customAttrib.CustomConstructor.GetMethod("GetCtorArgs");
+                var customParams = methodCode.DeclareLocal(typeof(object[]));
+                methodCode.Emit(OpCodes.Newobj, customCtorCtor);
+                methodCode.Emit(OpCodes.Callvirt, customCtorCreate); // gets the ctor args in an object[]
+                methodCode.Emit(OpCodes.Stloc, 4);
+                // load each arg as a cast input parameter
+                for(int p = 0; p < customCtorParams.Length; p++)
+                {
+                    methodCode.Emit(OpCodes.Ldloc, 4); // load array
+                    methodCode.Emit(OpCodes.Ldc_I4, p); // load array index
+                    methodCode.Emit(OpCodes.Ldelem); // read array
+                    methodCode.Emit(OpCodes.Castclass, customCtorParams[p]);  // push the cast array type on the stack
+                }
+            }
+
+            // create using the ctor with optional parameters
             methodCode.Emit(OpCodes.Newobj, ctor);
             methodCode.Emit(OpCodes.Stloc_2);
 

@@ -101,6 +101,7 @@
     <Compile Include="Observables\RuntimeArgument.cs" />
     <Compile Include="Observables\SequentialEventAttribute.cs" />
     <Compile Include="Observables\Serialization\Binary\ChangeStateSerializer.cs" />
+    <Compile Include="Observables\Serialization\Binary\ObservableSerializer.cs" />
     <Compile Include="Observables\Subscription.cs" />
     <Compile Include="Observables\SubscriptionConfig.cs" />
     <Compile Include="Observables\SubscriptionManager.cs" />
@@ -183,6 +184,7 @@
     <Compile Include="Serialization\BinarySerializableAttribute.cs" />
     <Compile Include="Serialization\Binary\BinarySerializerBuilder.cs" />
     <Compile Include="Serialization\Binary\ComplexSerializer.cs" />
+    <Compile Include="Serialization\CustomConstructorAttribute.cs" />
     <Compile Include="Serialization\Binary\GeneratedSerializerAttribute.cs" />
     <Compile Include="Serialization\Binary\IBinarySerializerBuilder.cs" />
     <Compile Include="Serialization\Binary\IEnumerableSerializer.cs" />
@@ -199,6 +201,7 @@
     <Compile Include="Serialization\Expressions\ExpressionSerializer_Xml.cs" />
     <Compile Include="Serialization\Expressions\TypeResolver.cs" />
     <Compile Include="Serialization\Expressions\XmlExpressionConverter.cs" />
+    <Compile Include="Serialization\ICustomConstructor.cs" />
     <Compile Include="Serialization\ISerializationContext.cs" />
     <Compile Include="Serialization\ISerializer.cs" />
     <Compile Include="Serialization\SerializationContext.cs" />

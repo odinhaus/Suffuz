@@ -38,6 +38,22 @@ namespace Altus.Suffūz.Observables
             return (T)ilTypeBuilder(instance, globalKey, publisher);
         }
 
+        public object Create(object instance, string globalKey, IPublisher publisher)
+        {
+            Func<object, string, IPublisher, object> ilTypeBuilder;
+            var type = instance.GetType();
+            lock (_ilTypeBuilders)
+            {
+                if (!_ilTypeBuilders.TryGetValue(type, out ilTypeBuilder))
+                {
+                    var ilType = BuildType(type);
+                    ilTypeBuilder = BuildCreator(ilType);
+                    _ilTypeBuilders.Add(type, ilTypeBuilder);
+                }
+            }
+            return ilTypeBuilder(instance, globalKey, publisher);
+        }
+
         /// <summary>
         /// Creates a new type that wraps the base type, and provides hoooks into the eventing/synchronization framework when 
         /// properties are changed and methods are called.
@@ -46,8 +62,13 @@ namespace Altus.Suffūz.Observables
         /// <returns></returns>
         private Type BuildType<T>() where T : class, new()
         {
+            return BuildType(typeof(T));
+        }
+
+        private Type BuildType(Type type)
+        {
             var typeBuilder = new ILObservableTypeBuilder();
-            return typeBuilder.Build(typeof(T));
+            return typeBuilder.Build(type);
         }
 
         /// <summary>

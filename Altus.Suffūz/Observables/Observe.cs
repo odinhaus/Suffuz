@@ -18,11 +18,18 @@ namespace Altus.Suffūz.Observables
 
         static Observe()
         {
-            Observables = new Dictionary<string, object>();
+            if (App.Resolve<IObservableBuilder>() is ILObservableBuilder)
+            {
+                // allows us to create serialized types prior to deserialization
+                TypeHelper.RegisterResolver(ILObservableTypeBuilder.Resolve);
+            }
+
+            Observables = CreateObservablesDictionary();
             Providers = new List<ChannelProviderRegistration>();
             Vectors = new Dictionary<string, IDictionary<ushort, VersionVectorInstance>>();
             SubscriptionManager = App.Resolve<IManageSubscriptions>();
             Hasher = MD5.Create();
+            
         }
 
         protected static IDictionary<string, IDictionary<ushort, VersionVectorInstance>> Vectors { get; private set; }
@@ -43,13 +50,9 @@ namespace Altus.Suffūz.Observables
             var publisher = App.Resolve<IPublisher>();
             // notify listeners
             publisher.Publish<T>(new Created<T>(globalKey, OperationState.Before, null));
+
             var wrappedInstance = builder.Create<T>(instance, globalKey, publisher);
 
-            // subscribe to changes, so we can increment our local version numbers
-            SubscriptionManager.Add(AfterAny((e) => AfterAny(e), wrappedInstance));
-
-            // notify listeners
-            publisher.Publish<T>(new Created<T>(globalKey, OperationState.After, wrappedInstance));
             return wrappedInstance;
         }
 
@@ -136,22 +139,46 @@ namespace Altus.Suffūz.Observables
                         }
                     }
 
-                    
-                    IDictionary<ushort, VersionVectorInstance> vectors;
-                    if (!Vectors.TryGetValue(globalKey, out vectors))
-                    {
-                        vectors = CreateVectorDictionary();
-                        Vectors.Add(globalKey, vectors);
-                    }
+                    // TODO: implement version vector persistence
+                    //// I don't like the dictionary of dictionaries here...
+                    //IDictionary<ushort, VersionVectorInstance> vectors;
+                    //if (!Vectors.TryGetValue(globalKey, out vectors))
+                    //{
+                    //    vectors = CreateVectorDictionary();
+                    //    // capture my version vector for this key
+                    //    vectors[App.InstanceId] = defaultResponse.Vector;
+                    //    Vectors.Add(globalKey, vectors);
+                    //}
 
-
-                    // capture my version vector for this key
-                    vectors[App.InstanceId] = defaultResponse.Vector;
                     instance = CreateObservable<T>((T)defaultResponse.Vector.Value, globalKey); // wrap it in a local observable
                     Observables.Add(globalKey, instance);
                 }
+
+                Subscribe(globalKey, (T)instance);
             
                 return (T)instance;
+            }
+            finally
+            {
+                _syncRoot.Exit();
+            }
+        }
+
+        static HashSet<string> _subscribed = new HashSet<string>();
+        private static void Subscribe<T>(string globalKey, T instance) where T : class, new()
+        {
+            _syncRoot.Enter();
+            try {
+                if (!_subscribed.Contains(globalKey))
+                {
+                    // subscribe to changes, so we can increment our local version numbers
+                    SubscriptionManager.Add(AfterAny((e) => AfterAny(e), instance));
+                    _subscribed.Add(globalKey);
+                }
+
+                var publisher = App.Resolve<IPublisher>();
+                // notify listeners
+                publisher.Publish<T>(new Created<T>(globalKey, OperationState.After, instance));
             }
             finally
             {
@@ -165,6 +192,14 @@ namespace Altus.Suffūz.Observables
             return manager.GetOrCreate<IPersistentDictionary<ushort, VersionVectorInstance>>(
                 "observable_vectors.bin", 
                 (file) => new PersistentDictionary<ushort, VersionVectorInstance>(file, manager.GlobalHeap, false));
+        }
+
+        private static IDictionary<string, object> CreateObservablesDictionary()
+        {
+            var manager = App.Resolve<IManagePersistentCollections>();
+            return manager.GetOrCreate<IPersistentDictionary<string, object>>(
+                "observables.bin",
+                (file) => new PersistentDictionary<string, object>(file, manager.GlobalHeap, false));
         }
 
         /// <summary>
@@ -220,7 +255,8 @@ namespace Altus.Suffūz.Observables
         {
             _syncRoot.Lock(() =>
             {
-                var vector = Vectors[e.GlobalKey][App.InstanceId];
+                // TODO: update persisted version vector
+                //var vector = Vectors[e.GlobalKey][App.InstanceId];
                 switch (e.OperationMode)
                 {
                     case OperationMode.Created:
@@ -236,27 +272,28 @@ namespace Altus.Suffūz.Observables
                     case OperationMode.PropertyChanged:
                         {
                             // update property vector and instance vector
-                            vector.Version++;
-                            var memberVector = vector.MemberVectors.SingleOrDefault(vve => vve.Key == e.MemberName);
-                            if (memberVector == null)
-                            {
-                                memberVector = new VersionVectorEntry<object>()
-                                {
-                                    IdentityId = App.InstanceId,
-                                    Key = e.MemberName,
-                                    Value = e.Value,
-                                    Version = 1
-                                };
-                                vector.MemberVectors.Add(memberVector);
-                            }
-                            else
-                            {
-                                memberVector.Value = e.Value;
-                                memberVector.Version++;
-                            }
+                            //vector.Version++;
+                            //var memberVector = vector.MemberVectors.SingleOrDefault(vve => vve.Key == e.MemberName);
+                            //if (memberVector == null)
+                            //{
+                            //    memberVector = new VersionVectorEntry<object>()
+                            //    {
+                            //        IdentityId = App.InstanceId,
+                            //        Key = e.MemberName,
+                            //        Value = e.Value,
+                            //        Version = 1
+                            //    };
+                            //    vector.MemberVectors.Add(memberVector);
+                            //}
+                            //else
+                            //{
+                            //    memberVector.Value = e.Value;
+                            //    memberVector.Version++;
+                            //}
 
-                            // save it
-                            Vectors[e.GlobalKey][App.InstanceId] = vector;
+                            //// save it
+                            //Vectors[e.GlobalKey][App.InstanceId] = vector;
+                            Observables[e.GlobalKey] = e.Instance;
                             break;
                         }
                     case OperationMode.MethodCall:
