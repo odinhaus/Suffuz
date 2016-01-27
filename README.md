@@ -180,6 +180,20 @@ public abstract class BaseState
 
 
 #Remote Execution
+In many cases, you may have a group of processes (which may also be distrubuted across multiple hosts) participating in a system.  In this case, you need to be able to request services from, and delegate work across the peer network.
+
+Suffūz's remote execution framework allows you to do just that.
+
+There are two types of remote execution calls - those that return a response, and those that do not.  The latter are referred to as Put calls, and the former as Post calls by the Suffūz framework.
+
+In either case, the calling patterns are very similar, wherein you execute a request on a selected channel, optionally providing an input argument in the form of a custom POCO/DTO, and exectue the request.
+
+Because the system is distributed, and the message will generally by multicast to all peers, there are also means by which you can nomiate which peer should participate in the execution of the request.  The simplest means is by providing one or more instance names as the intended recipient(s) of the request.  
+
+Another option is to specify what is termed a Nomination predicate which will be used to filter respondants that do not pass the nomination check.  Typically, the nomination predicate will compare a capacity value provided by the nominee (the determination of which is configured in the nomiee's routing defintion) to a threshold.  Those nominees passing the test, are then elected to process the request.  This situation is most useful when you're looking to load-balance requests across a pool of workers, and you want the most available worker to handle the request.
+
+Each of these situations is illustrated by the sample code shown below.
+
 ###Sample Code
 ```C#
 var testRequest = new TestRequest();
