@@ -63,7 +63,7 @@ In the latter case, where the same work request is distributed across N concurre
 ###Whatever Else You Can Dream Up....
 Any other simple distributed computing scenarios you might imagine, Suffūz can probably give you a good place to start.
 
-#Synchronized Observable State Instances
+#Synchronized Observable State Instances ![alt tag](https://cdn4.iconfinder.com/data/icons/under-construction/512/settings_pencil-48.png)
 The main idea here is to be able to create globally identified instances of simple types that define properties and methods that describe some sharable state of a system.  Examples might include an Inbox state, pinned to a specific user of group of users, having a MessageCount property, and MessageArrived() and MessageRead() and MessageDeleted() methods.
 
 Participants would instantiate a local instance of the Inbox object, and potentially subscribe to changes to the MessageCount property, or subscribe to notifications when the various methods are called, such that it can take action to update a user interface, make a service call or update local database, etc.
