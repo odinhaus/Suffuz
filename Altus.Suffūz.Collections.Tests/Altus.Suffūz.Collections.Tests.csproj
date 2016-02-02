@@ -61,6 +61,7 @@
     <Compile Include="HeapTests.cs" />
     <Compile Include="SimplePOCO.cs" />
     <Compile Include="ProtocolCollectionsTests.cs" />
+    <Compile Include="AppDomainTests.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Altus.Suffūz\Altus.Suffūz.csproj">

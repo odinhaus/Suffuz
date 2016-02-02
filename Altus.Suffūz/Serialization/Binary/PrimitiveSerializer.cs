@@ -27,6 +27,7 @@ namespace Altus.Suffūz.Serialization.Binary
                 || t == typeof(double)
                 || t == typeof(DateTime)
                 || t == typeof(byte[])
+                || t == typeof(string)
                 || t == typeof(Decimal);
         }
 
@@ -61,6 +62,8 @@ namespace Altus.Suffūz.Serialization.Binary
                 return BitConverter.GetBytes(((DateTime)(object)source).ToBinary());
             if (t == typeof(byte[]))
                 return (byte[])source;
+            if (t == typeof(string))
+                return BitConverter.GetBytes(((string)source).Length).Union( UTF8Encoding.UTF8.GetBytes((string)source)).ToArray();
 
 
             throw (new InvalidCastException("The provided type is not a supported primitive type."));
@@ -105,7 +108,7 @@ namespace Altus.Suffūz.Serialization.Binary
             if (targetType == typeof(DateTime))
                 return DateTime.FromBinary(BitConverter.ToInt64(source, 0));
             if (targetType == typeof(string))
-                return SerializationContext.Instance.TextEncoding.GetString(source);
+                return UTF8Encoding.UTF8.GetString(source.Skip(4).Take(BitConverter.ToInt32(source, 0)).ToArray());
             if (targetType == typeof(byte[]))
                 return source;
 
@@ -179,7 +182,8 @@ namespace Altus.Suffūz.Serialization.Binary
                 || typeof(T) == typeof(double)
                 || typeof(T) == typeof(DateTime)
                 || typeof(T) == typeof(byte[])
-                || typeof(T) == typeof(decimal[]);
+                || typeof(T) == typeof(decimal[])
+                || typeof(T) == typeof(string);
         }
 
         public byte[] Serialize(T source)
