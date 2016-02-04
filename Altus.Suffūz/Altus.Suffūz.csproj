@@ -47,6 +47,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="App.cs" />
+    <Compile Include="AppDomainAwareDisposableManager.cs" />
     <Compile Include="Collections\CollectionsEx.cs" />
     <Compile Include="Collections\FlushScope.cs" />
     <Compile Include="Collections\IFlush.cs" />
@@ -70,6 +71,7 @@
     <Compile Include="Collections\PersistentStack.cs" />
     <Compile Include="Collections\TransactedPointerAdapter.cs" />
     <Compile Include="CostFunctions.cs" />
+    <Compile Include="IManageDisposables.cs" />
     <Compile Include="Observables\AdditiveConflictResolver.cs" />
     <Compile Include="Observables\AnyOperation.cs" />
     <Compile Include="Observables\BestEffortObservableChannelProvider.cs" />

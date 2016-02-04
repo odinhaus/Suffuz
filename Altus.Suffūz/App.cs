@@ -174,6 +174,10 @@ namespace Altus.Suffūz
             {
                 resolvers = new List<Delegate> { new Func<IObservableBuilder>(() => new ILObservableBuilder()) };
             }
+            else if (type == typeof(IManageDisposables))
+            {
+                resolvers = new List<Delegate> { new Func<IManageDisposables>(() => new AppDomainAwareDisposableManager()) };
+            }
             else
             {
                 var ctor = typeof(X).GetConstructor(new Type[0]);

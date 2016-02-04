@@ -63,12 +63,15 @@ namespace Altus.Suffūz.Collections
             IsTransactional = isTransactional;
             First = Next = Last = 0;
             Initialize(filePath, maxSize);
+
+            App.Resolve<IManageDisposables>().Add(this);
         }
 
         protected PersistentCollection(PersistentCollection collection)
         {
             SyncLock = collection.SyncLock;
             Initialize(collection);
+            App.Resolve<IManageDisposables>().Add(this);
         }
 
         protected void Initialize(PersistentCollection collection)

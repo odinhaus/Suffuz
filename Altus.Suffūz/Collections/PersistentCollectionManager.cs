@@ -14,16 +14,6 @@ namespace Altus.Suffūz.Collections
 
         static Dictionary<string, IPersistentCollection> _collections = new Dictionary<string, IPersistentCollection>();
 
-        static PersistentCollectionManager()
-        {
-            AppDomain.CurrentDomain.DomainUnload += CurrentDomain_DomainUnload;
-        }
-
-        private static void CurrentDomain_DomainUnload(object sender, EventArgs e)
-        {
-            DisposeAll();
-        }
-
         public IPersistentHeap GlobalHeap
         {
             get
@@ -84,22 +74,6 @@ namespace Altus.Suffūz.Collections
                 }
 
                 _collections[fileName] = collection;
-            }
-        }
-
-        /// <summary>
-        /// Calls dispose on each managed collection, and clears the collection cache.  This method is automatically invoked 
-        /// when the current AppDomain is unloaded, to prevent leaked file handles.
-        /// </summary>
-        public static void DisposeAll()
-        {
-            lock(_collections)
-            {
-                foreach(var item in _collections.Values)
-                {
-                    item.Dispose();
-                }
-                _collections.Clear();
             }
         }
     }
