@@ -39,13 +39,16 @@ namespace Altus.Suffūz.Collections
                 DEFAULT_DATA_ROOT = "";
             }
 
+            if (!Path.IsPathRooted(DEFAULT_DATA_ROOT))
+            {
+                // supports virtual paths when run under IIS express, for example, which run in different directories than the codebase
+                DEFAULT_DATA_ROOT = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DEFAULT_DATA_ROOT);
+            }
+
             if (!string.IsNullOrEmpty(DEFAULT_DATA_ROOT))
             {
                 var di = Directory.CreateDirectory(DEFAULT_DATA_ROOT);
-                if (!Path.IsPathRooted(DEFAULT_DATA_ROOT))
-                {
-                    DEFAULT_DATA_ROOT = di.FullName;
-                }
+                DEFAULT_DATA_ROOT = di.FullName; // this should be the same as it already was
             }
         }
 

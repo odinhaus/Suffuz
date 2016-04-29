@@ -63,7 +63,13 @@ namespace Altus.Suffūz.Serialization.Binary
             if (t == typeof(byte[]))
                 return (byte[])source;
             if (t == typeof(string))
-                return BitConverter.GetBytes(((string)source).Length).Union( UTF8Encoding.UTF8.GetBytes((string)source)).ToArray();
+            {
+                var bytes = new List<byte>();
+                bytes.AddRange(BitConverter.GetBytes(((string)source).Length));
+                bytes.AddRange(UTF8Encoding.UTF8.GetBytes((string)source));
+                return bytes.ToArray();
+            }
+
 
 
             throw (new InvalidCastException("The provided type is not a supported primitive type."));
