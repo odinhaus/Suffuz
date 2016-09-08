@@ -58,6 +58,7 @@ namespace Altus.Suffūz.Serialization
                 else
                 {
                     ISerializer serializer = App.ResolveAll<ISerializer>()
+                        .Union(_serializers.Values)
                         .Where(s => s.SupportsFormat(format) && s.SupportsType(type))
                         .OrderBy(s => s.Priority)
                         .FirstOrDefault();
