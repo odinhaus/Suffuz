@@ -46,6 +46,21 @@ namespace Altus.Suffūz.Serialization
             return (ISerializer<T>)GetSerializer(typeof(T), format);
         }
 
+        public static void AddSerializer<T>(string format) where T : ISerializer, new()
+        {
+            Dictionary<string, ISerializer> dictionary = _serializers;
+            lock (dictionary)
+            {
+                string key = format + "::" + typeof(T).AssemblyQualifiedName;
+                if (_serializers.ContainsKey(key))
+                {
+                    throw new InvalidOperationException("Serializer already exists");
+                }
+                _serializers.Add(key, Activator.CreateInstance(typeof(T)) as ISerializer);
+            }
+        }
+
+
         public ISerializer GetSerializer(Type type, string format)
         {
             lock (_serializers)

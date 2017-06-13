@@ -65,8 +65,9 @@ namespace Altus.Suffūz.Serialization.Binary
             if (t == typeof(string))
             {
                 var bytes = new List<byte>();
-                bytes.AddRange(BitConverter.GetBytes(((string)source).Length));
-                bytes.AddRange(UTF8Encoding.UTF8.GetBytes((string)source));
+                var stringBytes = UTF8Encoding.UTF8.GetBytes((string)source);
+                bytes.AddRange(BitConverter.GetBytes(stringBytes.Length));
+                bytes.AddRange(stringBytes);
                 return bytes.ToArray();
             }
 
@@ -114,7 +115,10 @@ namespace Altus.Suffūz.Serialization.Binary
             if (targetType == typeof(DateTime))
                 return DateTime.FromBinary(BitConverter.ToInt64(source, 0));
             if (targetType == typeof(string))
-                return UTF8Encoding.UTF8.GetString(source.Skip(4).Take(BitConverter.ToInt32(source, 0)).ToArray());
+            {
+                var length = BitConverter.ToInt32(source, 0);
+                return UTF8Encoding.UTF8.GetString(source.Skip(4).Take(length).ToArray());
+            }
             if (targetType == typeof(byte[]))
                 return source;
 
