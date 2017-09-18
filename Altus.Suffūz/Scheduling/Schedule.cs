@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Altus.Suffūz.Serialization;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -64,7 +65,7 @@ namespace Altus.Suffūz.Scheduling
         }
 
         /// <summary>
-        /// Return the most granual schedule for the provided Time.ticks
+        /// Return the most granular schedule for the provided Time.ticks
         /// </summary>
         /// <param name="ticks"></param>
         /// <returns></returns>
@@ -154,6 +155,7 @@ namespace Altus.Suffūz.Scheduling
         MonthlyRecurring,
         YearlyRecurring
     }
+
     public class CalendricalSchedule : Schedule
     {
         public CalendricalSchedule(DateRange dateRange, CalendricalScheduleType type, int interval, TimeSpan eventDuration) 

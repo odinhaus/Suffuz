@@ -31,6 +31,12 @@
     <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <PropertyGroup>
+    <SignAssembly>true</SignAssembly>
+  </PropertyGroup>
+  <PropertyGroup>
+    <AssemblyOriginatorKeyFile>Altus.Suffuz.snk.pfx</AssemblyOriginatorKeyFile>
+  </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
     <Reference Include="System.configuration" />
@@ -204,6 +210,7 @@
     <Compile Include="Serialization\Expressions\TypeResolver.cs" />
     <Compile Include="Serialization\Expressions\XmlExpressionConverter.cs" />
     <Compile Include="Serialization\ICustomConstructor.cs" />
+    <Compile Include="Serialization\IDictionarySerializable.cs" />
     <Compile Include="Serialization\ISerializationContext.cs" />
     <Compile Include="Serialization\ISerializer.cs" />
     <Compile Include="Serialization\SerializationContext.cs" />
@@ -215,6 +222,9 @@
   </ItemGroup>
   <ItemGroup>
     <Folder Include="Protocols\Tcp\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Altus.Suffuz.snk.pfx" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
